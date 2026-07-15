@@ -5,7 +5,7 @@
 | Campo | Valor |
 | :--- | :--- |
 | Projeto | Sistema de Gestão de Milhas MRL Travel |
-| Versão | 0.1.2 |
+| Versão | 0.1.3 |
 | Data | 15/07/2026 |
 
 ## Verificações aprovadas
@@ -13,7 +13,7 @@
 | Verificação | Resultado |
 | :--- | :--- |
 | TypeScript | Aprovado |
-| Testes automatizados | 6 testes aprovados em 2 arquivos |
+| Testes automatizados | 8 testes aprovados em 3 arquivos |
 | Build de produção | Aprovado com Vite 8.1.4 |
 | Divisão de bundles | Aprovada |
 | Auditoria de dependências | 0 vulnerabilidades encontradas |
@@ -25,6 +25,8 @@
 | Endpoint remoto de Auth | HTTP 200 |
 | Login remoto por e-mail | Habilitado |
 | Cadastro público remoto | Habilitado, bloqueio necessário antes da produção |
+| Preflight da função administrativa | HTTP 204 no domínio oficial da Vercel |
+| Mensagens do cadastro de cliente | Respostas seguras do backend preservadas no frontend |
 | Rejeição de variáveis fictícias | 3 testes adicionados |
 
 ## Cobertura atual

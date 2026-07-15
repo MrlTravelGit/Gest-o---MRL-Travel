@@ -75,7 +75,7 @@ function CreateClientPanel() {
       <div className="section-heading"><div><h2>Novo cliente</h2><p>Cria cadastro, contrato, usuário e link exclusivo em uma operação controlada.</p></div></div>
       <form className="admin-form" onSubmit={submit}>
         <label>Nome completo<input value={form.fullName} onChange={(event) => setForm({ ...form, fullName: event.target.value })} required /></label>
-        <label>E-mail<input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} /></label>
+        <label>E-mail<input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} /><small>Use um e-mail que ainda não pertença a outro administrador ou cliente.</small></label>
         <label>Telefone internacional<input placeholder="+5537999999999" value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} /></label>
         <label>Canal do código<select value={form.accessChannel} onChange={(event) => setForm({ ...form, accessChannel: event.target.value as "email" | "phone" })}><option value="email">E-mail</option><option value="phone">SMS</option></select></label>
         <label>Início<input type="date" value={form.startsOn} onChange={(event) => setForm({ ...form, startsOn: event.target.value })} required /></label>

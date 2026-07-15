@@ -5,7 +5,7 @@
 | Campo | Definição |
 | :--- | :--- |
 | Documento | Fonte oficial da lógica do projeto |
-| Versão | 1.1.2 |
+| Versão | 1.1.3 |
 | Data inicial | 15 de julho de 2026 |
 | Responsável pelo negócio | MRL Travel |
 | Objetivo | Preservar a lógica funcional, técnica e de segurança durante todo o desenvolvimento |
@@ -101,6 +101,7 @@ Uma operação somente poderá continuar quando todas as condições forem verda
 10. O backend retorna apenas o conjunto de dados permitido para aquele cliente.
 11. O dashboard informa a data e a hora da última atualização.
 12. Tentativas inválidas são registradas e limitadas.
+13. Cada contato usado para autenticação deverá pertencer a um único usuário do Supabase Auth.
 
 O primeiro nome não será tratado como senha. A autenticação real será realizada pelo código temporário e pela sessão emitida após a confirmação do contato cadastrado.
 

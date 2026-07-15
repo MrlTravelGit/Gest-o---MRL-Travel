@@ -1,5 +1,24 @@
 # Histórico de versões
 
+## 0.1.3, 15/07/2026
+
+### Corrigido
+
+1. O frontend deixou de substituir toda falha de cadastro por uma mensagem genérica.
+2. Respostas seguras da Edge Function agora são apresentadas ao administrador.
+3. Falhas de rede ou CORS orientam o uso do endereço oficial da Vercel.
+4. E-mail ou telefone já associado a outro usuário recebe explicação específica.
+
+### Segurança
+
+1. Detalhes internos e dados sensíveis do Supabase continuam fora das mensagens.
+2. O backend registra somente o código técnico do erro de Auth, sem registrar o contato do cliente.
+3. Nenhuma política RLS ou permissão foi ampliada.
+
+### Banco de dados
+
+Nenhuma migração foi criada ou alterada neste patch.
+
 ## 0.1.2, 15/07/2026
 
 ### Configurado

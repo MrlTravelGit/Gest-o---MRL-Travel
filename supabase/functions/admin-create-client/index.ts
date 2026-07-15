@@ -77,7 +77,32 @@ Deno.serve(async (request) => {
     });
 
     if (createUserError || !createdUser.user) {
-      return jsonResponse(request, { error: "Não foi possível criar o acesso do cliente" }, 409);
+      const authError = `${createUserError?.code ?? ""} ${createUserError?.message ?? ""}`.toLowerCase();
+      if (authError.includes("email") && (
+        authError.includes("exist") ||
+        authError.includes("already") ||
+        authError.includes("registered")
+      )) {
+        return jsonResponse(request, {
+          code: "email_already_registered",
+          error: "Este e-mail já pertence a outro usuário. Use um e-mail exclusivo para o cliente.",
+        }, 409);
+      }
+      if (authError.includes("phone") && (
+        authError.includes("exist") ||
+        authError.includes("already") ||
+        authError.includes("registered")
+      )) {
+        return jsonResponse(request, {
+          code: "phone_already_registered",
+          error: "Este telefone já pertence a outro usuário. Use um telefone exclusivo para o cliente.",
+        }, 409);
+      }
+      console.error("admin-create-client auth user failed", createUserError?.code ?? "unknown");
+      return jsonResponse(request, {
+        code: "auth_user_creation_failed",
+        error: "Não foi possível criar o acesso. Confira e-mail, telefone e configurações do Auth.",
+      }, 409);
     }
 
     createdAuthUserId = createdUser.user.id;
