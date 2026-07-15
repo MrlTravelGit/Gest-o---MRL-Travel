@@ -61,10 +61,11 @@ No painel do Supabase:
 3. Habilite e-mail com código temporário.
 4. Configure SMTP próprio para produção.
 5. Caso utilize SMS, configure um provedor compatível.
-6. Configure a URL principal como `https://gestao.mrltravel.com`.
-7. Adicione URLs de redirecionamento somente dos ambientes oficiais.
-8. Revise a validade do código temporário.
-9. Configure limites de autenticação e proteção contra abuso.
+6. Configure a URL principal como `https://gestao-mrltravel.vercel.app`.
+7. Adicione `https://gestao-mrltravel.vercel.app/**` como Redirect URL de produção.
+8. Mantenha `http://localhost:5173/**` somente como Redirect URL de desenvolvimento.
+9. Revise a validade do código temporário.
+10. Configure limites de autenticação e proteção contra abuso.
 
 O MVP usa e-mail ou SMS. Um envio pelo WhatsApp poderá ser incorporado posteriormente por meio da API oficial, sem alterar o vínculo de usuário e as políticas RLS.
 
@@ -84,24 +85,28 @@ O trigger de autenticação cria o registro correspondente em `profiles`. No pri
 ## 6. Configurar segredos das funções
 
 ```bash
-npx supabase secrets set APP_URL=https://gestao.mrltravel.com
-npx supabase secrets set ALLOWED_ORIGINS=https://gestao.mrltravel.com
+npx supabase secrets set APP_URL=https://gestao-mrltravel.vercel.app
+npx supabase secrets set ALLOWED_ORIGINS=https://gestao-mrltravel.vercel.app
 npx supabase secrets set ACCESS_HASH_PEPPER=SEGREDO_LONGO_ALEATORIO
 ```
 
 Para desenvolvimento, copie `supabase/functions/.env.example` para um arquivo local ignorado pelo Git.
 
+`ALLOWED_ORIGINS` usa origens exatas separadas por vírgula. Não use `*`, padrões `*.vercel.app`, URLs com caminho ou aliases temporários de Preview. O ambiente remoto de produção não deve incluir `localhost`.
+
 ## 7. Publicar as funções
 
 ```bash
-npx supabase functions deploy request-client-access
-npx supabase functions deploy verify-client-access
-npx supabase functions deploy admin-create-client
+npx supabase functions deploy request-client-access --project-ref bdkazlhvnowjehdgxege
+npx supabase functions deploy verify-client-access --project-ref bdkazlhvnowjehdgxege
+npx supabase functions deploy admin-create-client --project-ref bdkazlhvnowjehdgxege
 ```
 
 As funções de solicitação e confirmação do código são públicas apenas porque o cliente ainda não possui sessão. Elas aplicam CORS restrito, resposta genérica, expiração e limite de tentativas.
 
 `admin-create-client` exige JWT válido e função administrativa no banco.
+
+O helper compartilhado responde preflight de origem permitida com HTTP 204 e ecoa exatamente essa origem. Origem negada recebe HTTP 403 sem `Access-Control-Allow-Origin`. Requisições sem `Origin` continuam disponíveis para integrações servidor a servidor, sujeitas à autenticação e autorização de cada função.
 
 ## 8. Gerar tipos após a publicação
 

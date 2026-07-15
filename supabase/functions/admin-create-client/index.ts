@@ -1,5 +1,5 @@
 import { z } from "npm:zod@3.25.76";
-import { corsHeaders, isAllowedOrigin, jsonResponse } from "../_shared/http.ts";
+import { isAllowedOrigin, jsonResponse, normalizeOrigin, preflightResponse } from "../_shared/http.ts";
 import { bearerToken } from "../_shared/security.ts";
 import { adminClient } from "../_shared/supabase.ts";
 
@@ -21,7 +21,7 @@ const createSchema = z.object({
 
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") {
-    return new Response(null, { status: 204, headers: corsHeaders(request) });
+    return preflightResponse(request);
   }
 
   if (request.method !== "POST") {
@@ -124,7 +124,7 @@ Deno.serve(async (request) => {
       throw bundleError ?? new Error("Falha ao criar cadastro do cliente");
     }
 
-    const appUrl = (Deno.env.get("APP_URL") ?? "http://localhost:5173").replace(/\/$/, "");
+    const appUrl = normalizeOrigin(Deno.env.get("APP_URL") ?? "http://localhost:5173");
     return jsonResponse(request, {
       clientId: bundle.clientId,
       publicId: bundle.publicId,

@@ -15,6 +15,9 @@ Esta versão contém:
 7. Storage privado para documentos.
 8. Frontend React preparado para Vercel.
 9. Testes das fórmulas centrais.
+10. Lista e detalhe administrativo de clientes em `/admin/clientes`.
+11. Lançamento transacional de pontos com VT/VM, custo médio e idempotência.
+12. Clube por programa, vencimentos manuais e histórico imutável.
 
 ## Projeto Supabase definido
 
@@ -65,8 +68,8 @@ npx supabase functions deploy admin-create-client
 Configure os segredos das Edge Functions:
 
 ```bash
-npx supabase secrets set APP_URL=https://gestao.mrltravel.com
-npx supabase secrets set ALLOWED_ORIGINS=https://gestao.mrltravel.com
+npx supabase secrets set APP_URL=https://gestao-mrltravel.vercel.app
+npx supabase secrets set ALLOWED_ORIGINS=https://gestao-mrltravel.vercel.app
 npx supabase secrets set ACCESS_HASH_PEPPER=SEGREDO_LONGO_ALEATORIO
 ```
 

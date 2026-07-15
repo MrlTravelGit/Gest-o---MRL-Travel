@@ -9,5 +9,9 @@ export const formatCurrency = (value: number) =>
 
 export const formatDate = (value?: string | null) => {
   if (!value) return "Sem atualização";
-  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short" }).format(new Date(value));
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  const date = dateOnly
+    ? new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]))
+    : new Date(value);
+  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short" }).format(date);
 };

@@ -1,5 +1,5 @@
 import { z } from "npm:zod@3.25.76";
-import { corsHeaders, isAllowedOrigin, jsonResponse } from "../_shared/http.ts";
+import { isAllowedOrigin, jsonResponse, preflightResponse } from "../_shared/http.ts";
 import { normalizeFirstName, requestHashes } from "../_shared/security.ts";
 import { adminClient, publicAuthClient } from "../_shared/supabase.ts";
 
@@ -16,7 +16,7 @@ const GENERIC_RESPONSE = {
 
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") {
-    return new Response(null, { status: 204, headers: corsHeaders(request) });
+    return preflightResponse(request);
   }
 
   if (request.method !== "POST") {

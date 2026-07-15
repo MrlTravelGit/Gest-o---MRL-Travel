@@ -1,9 +1,12 @@
 import { FormEvent, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { AlertTriangle, CalendarClock, Coins, ListTodo, PiggyBank, Users } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { createClient } from "@/services/admin";
 import { getAdminOverview } from "@/services/dashboard";
+import { getAppOriginStatus } from "@/lib/app-origin";
+import { env } from "@/lib/env";
 import { formatCurrency, formatPoints } from "@/lib/formatters";
 
 export function AdminDashboardPage() {
@@ -11,6 +14,7 @@ export function AdminDashboardPage() {
 
   return (
     <AppShell title="Gestão geral" subtitle="Clientes, saldos, vencimentos e pendências">
+      <div className="page-toolbar dashboard-toolbar"><Link className="secondary-button" to="/admin/clientes"><Users size={17} /> Gerenciar clientes</Link></div>
       {overview.data && (
         <section className="summary-grid admin-summary-grid">
           <AdminMetric icon={<Users />} label="Clientes ativos" value={formatPoints(overview.data.activeClients)} />
@@ -32,6 +36,10 @@ function AdminMetric({ icon, label, value }: { icon: React.ReactNode; label: str
 }
 
 function CreateClientPanel() {
+  const appOrigin = useMemo(
+    () => getAppOriginStatus(window.location.origin, env.VITE_APP_URL),
+    [],
+  );
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const oneYear = useMemo(() => {
     const date = new Date();
@@ -53,9 +61,17 @@ function CreateClientPanel() {
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    setBusy(true);
     setError("");
     setResult(null);
+
+    if (!appOrigin.isCanonical) {
+      setError(appOrigin.canonicalOrigin
+        ? "Este endereço é um Preview da Vercel. Abra o ambiente oficial para realizar operações administrativas."
+        : "A URL oficial não está configurada. Defina VITE_APP_URL antes de realizar operações administrativas.");
+      return;
+    }
+
+    setBusy(true);
     try {
       const created = await createClient({
         ...form,
@@ -74,6 +90,16 @@ function CreateClientPanel() {
     <section className="admin-panel">
       <div className="section-heading"><div><h2>Novo cliente</h2><p>Cria cadastro, contrato, usuário e link exclusivo em uma operação controlada.</p></div></div>
       <form className="admin-form" onSubmit={submit}>
+        {!appOrigin.isCanonical && (
+          <div className="origin-warning full-field" role="alert">
+            <span>{appOrigin.canonicalOrigin
+              ? "Este endereço é um Preview da Vercel. Abra o ambiente oficial para realizar operações administrativas."
+              : "A URL oficial não está configurada. Defina VITE_APP_URL antes de realizar operações administrativas."}</span>
+            {appOrigin.canonicalOrigin && (
+              <a href={appOrigin.canonicalOrigin}>Abrir o ambiente oficial</a>
+            )}
+          </div>
+        )}
         <label>Nome completo<input value={form.fullName} onChange={(event) => setForm({ ...form, fullName: event.target.value })} required /></label>
         <label>E-mail<input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} /><small>Use um e-mail que ainda não pertença a outro administrador ou cliente.</small></label>
         <label>Telefone internacional<input placeholder="+5537999999999" value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} /></label>
@@ -83,7 +109,7 @@ function CreateClientPanel() {
         <label className="full-field">Plano<input value={form.planName} onChange={(event) => setForm({ ...form, planName: event.target.value })} /></label>
         {error && <div className="form-error full-field" role="alert">{error}</div>}
         {result && <div className="created-link full-field"><span>Link exclusivo criado</span><code>{result}</code></div>}
-        <button className="primary-button full-field" disabled={busy}>{busy ? "Criando..." : "Criar cliente e acesso"}</button>
+        <button className="primary-button full-field" disabled={busy || !appOrigin.isCanonical}>{busy ? "Criando..." : "Criar cliente e acesso"}</button>
       </form>
     </section>
   );

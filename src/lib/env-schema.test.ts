@@ -5,7 +5,7 @@ const validEnvironment = {
   VITE_SUPABASE_URL: "https://bdkazlhvnowjehdgxege.supabase.co",
   VITE_SUPABASE_PUBLISHABLE_KEY:
     "sb_publishable_123456789012345678901234567890",
-  VITE_APP_URL: "https://gestao.mrltravel.com",
+  VITE_APP_URL: "https://gestao-mrltravel.vercel.app",
 };
 
 describe("publicEnvSchema", () => {

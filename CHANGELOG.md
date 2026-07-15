@@ -1,5 +1,56 @@
 # Histórico de versões
 
+## 0.2.0, 15/07/2026
+
+### Adicionado
+
+1. Rotas administrativas `/admin/clientes` e `/admin/clientes/:clientId`.
+2. Pesquisa e paginação de clientes com totais, clubes e vencimentos.
+3. Detalhe com cards de todos os programas ativos, saldo, custo médio e valor estimado.
+4. Lançamentos Saldo Inicial, Compra, Transferência, Cartão e Outros, com modos VT e VM.
+5. Clube ativo por conta de programa e cadastro manual de vencimentos.
+6. Histórico imutável de lançamentos e lotes ativos.
+7. Migração `202607150004_admin_points_management.sql` e testes pgTAP correspondentes.
+
+### Segurança e integridade
+
+1. RPCs transacionais recalculam valores com `numeric`, bloqueiam a conta e validam `auth.uid()` e perfil.
+2. Auditor permanece somente leitura; operador ativo pode lançar.
+3. Saldo inicial possui unicidade por conta e lançamentos possuem chave idempotente.
+4. Lote de validade vinculado, snapshot e transação são gravados atomicamente.
+5. Nenhuma RLS foi removida ou relaxada.
+
+### Interface
+
+1. Experiência responsiva em carvão e dourado, com estados de carregamento, erro, sucesso e somente leitura.
+2. Máscara BRL e cálculos instantâneos são apenas auxiliares; o PostgreSQL continua sendo a autoridade.
+
+## 0.1.4, 15/07/2026
+
+### Corrigido
+
+1. A origem canônica passou a ser `https://gestao-mrltravel.vercel.app`, confirmada como alias de Production com HTTP 200.
+2. Preflight permitido retorna HTTP 204 e ecoa somente a origem exata autorizada.
+3. Preflight negado retorna HTTP 403 sem substituir a origem por outro domínio configurado.
+4. O painel administrativo bloqueia cadastro em Preview e oferece link para o ambiente oficial.
+5. Links de clientes usam a origem canônica configurada em `APP_URL`.
+
+### Configurado
+
+1. `VITE_APP_URL` em Production e Preview aponta para a origem canônica.
+2. `APP_URL`, `ALLOWED_ORIGINS`, Site URL e Redirect URL de produção usam a mesma origem.
+3. `localhost` permanece apenas como Redirect URL e origem de desenvolvimento local.
+
+### Segurança
+
+1. Nenhum wildcard de CORS ou autorização genérica de subdomínios Vercel foi adicionado.
+2. MFA TOTP, autorização por `staff_members` e RLS permanecem ativos.
+3. Nenhuma chave secreta, token ou dado de cliente foi registrado no patch.
+
+### Banco de dados
+
+Nenhuma migração foi criada ou alterada neste patch.
+
 ## 0.1.3, 15/07/2026
 
 ### Corrigido

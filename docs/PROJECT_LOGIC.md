@@ -5,7 +5,7 @@
 | Campo | Definição |
 | :--- | :--- |
 | Documento | Fonte oficial da lógica do projeto |
-| Versão | 1.1.3 |
+| Versão | 1.2.0 |
 | Data inicial | 15 de julho de 2026 |
 | Responsável pelo negócio | MRL Travel |
 | Objetivo | Preservar a lógica funcional, técnica e de segurança durante todo o desenvolvimento |
@@ -34,7 +34,7 @@ O sistema também terá um painel administrativo para a equipe da MRL Travel cad
 
 | Camada | Tecnologia ou responsabilidade |
 | :--- | :--- |
-| Endereço principal | `gestao.mrltravel.com` |
+| Endereço principal | `https://gestao-mrltravel.vercel.app` |
 | Interface | React, Vite, TypeScript, Tailwind e shadcn/ui |
 | Gráficos | Recharts |
 | Autenticação | Supabase Auth |
@@ -93,7 +93,7 @@ Uma operação somente poderá continuar quando todas as condições forem verda
 2. O backend cria um `public_id` aleatório e não sequencial.
 3. O sistema cria o vínculo entre o cliente e o usuário autenticável.
 4. O cliente recebe um convite de acesso de uso único e com prazo de validade.
-5. O cliente acessa `gestao.mrltravel.com/c/{public_id}`.
+5. O cliente acessa `https://gestao-mrltravel.vercel.app/c/{public_id}`.
 6. O cliente digita o primeiro nome, utilizado apenas para localizar o usuário vinculado àquele link.
 7. O backend envia um código temporário ao contato previamente cadastrado.
 8. O cliente informa o código e o Supabase cria uma sessão autenticada.
@@ -127,6 +127,28 @@ O primeiro nome não será tratado como senha. A autenticação real será reali
 10. Um registro de auditoria é criado.
 11. Alertas relacionados são recalculados.
 12. O dashboard do cliente passa a exibir a nova informação.
+
+### 6.1 Regra de origem administrativa
+
+1. A origem canônica é `https://gestao-mrltravel.vercel.app`, sem barra final, caminho ou query string.
+2. O frontend compara `window.location.origin` com a origem de `VITE_APP_URL` antes de enviar operações administrativas.
+3. Em Preview, o formulário não envia a requisição, explica o motivo e oferece link para Production.
+4. Essa proteção melhora o diagnóstico, mas não substitui segurança no backend.
+5. As Edge Functions aceitam apenas origens exatas de `ALLOWED_ORIGINS`; nenhum wildcard de `vercel.app` é permitido.
+6. Preflight permitido retorna HTTP 204 com a origem recebida. Preflight negado retorna HTTP 403 sem `Access-Control-Allow-Origin`.
+7. `admin-create-client` continua validando sessão, função administrativa e vínculo ativo, independentemente da validação do frontend.
+8. Links de clientes são formados com a origem canônica de `APP_URL`.
+
+### 6.2 Gestão administrativa de pontos
+
+1. `/admin/clientes` lista clientes com pesquisa, totais, clubes e vencimentos.
+2. `/admin/clientes/{client_id}` mostra programas, saldo, custo médio, clube, lançamentos e lotes do cliente.
+3. `super_admin`, `manager` e `operator` ativos podem escrever; `auditor` possui somente leitura.
+4. Todos os programas ativos aparecem mesmo antes da criação de `program_accounts`.
+5. A primeira mutação autorizada cria a conta automaticamente, preservando `unique (client_id, program_id)`.
+6. Lançamentos e vencimentos são imutáveis neste patch; correções futuras usarão ajustes auditáveis.
+7. Mutações usam RPCs transacionais e nunca dependem de inserções coordenadas pelo frontend.
+8. Cada lançamento usa uma chave idempotente para impedir duplicação por reenvio.
 
 ## 7. Fluxo dos dados
 
@@ -292,6 +314,36 @@ Cada emissão deverá guardar a versão da fórmula, os valores utilizados e a e
 ```text
 Dias restantes = data final do contrato menos data atual
 ```
+
+### 11.8 Custo de entrada de pontos
+
+No modo VT, o administrador informa o valor total:
+
+```text
+valor do milheiro = valor total ÷ (pontos ÷ 1.000)
+```
+
+No modo VM, o administrador informa o valor do milheiro:
+
+```text
+valor total = (pontos ÷ 1.000) × valor do milheiro
+```
+
+O custo médio ponderado é calculado com `numeric` no PostgreSQL:
+
+```text
+novo custo médio = (((saldo atual ÷ 1.000) × custo médio atual) + valor total da entrada) ÷ (novo saldo ÷ 1.000)
+```
+
+Valor total usa duas casas decimais e custo por milheiro usa quatro. O frontend apenas antecipa a visualização; o RPC é a autoridade.
+
+### 11.9 Validade e clube
+
+1. `club_active` pertence à conta do programa, nunca ao cliente global.
+2. Validade informada no lançamento cria `expiration_lots` vinculado por `source_transaction_id`.
+3. Vencimento manual classifica saldo existente e não cria pontos.
+4. A soma dos lotes ativos não pode ultrapassar o saldo atual da conta.
+5. `entry_date` preserva a data civil escolhida e `created_at` preserva o momento real do lançamento.
 
 ## 12. Alertas obrigatórios
 
@@ -498,6 +550,8 @@ O documento e o sistema usarão versão semântica:
 | :--- | :--- | :--- |
 | 1.0.0 | 15/07/2026 | Criação do fluxo oficial, modelo lógico, regras de segurança e protocolo de patches |
 | 1.1.0 | 15/07/2026 | Definição do acesso por link, primeiro nome, código temporário, sessão segura e início da base Supabase e Vercel |
+| 1.1.4 | 15/07/2026 | Origem canônica de Production, CORS exato e bloqueio explícito de operações administrativas em Preview |
+| 1.2.0 | 15/07/2026 | Painel administrativo de pontos, clubes por programa, custo médio e vencimentos transacionais |
 
 ## 21. Decisões iniciais consolidadas
 

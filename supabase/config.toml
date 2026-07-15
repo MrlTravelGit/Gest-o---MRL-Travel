@@ -18,9 +18,21 @@ port = 54323
 
 [auth]
 enabled = true
-site_url = "http://localhost:5173"
-additional_redirect_urls = ["http://localhost:5173/**"]
+site_url = "https://gestao-mrltravel.vercel.app"
+additional_redirect_urls = ["https://gestao-mrltravel.vercel.app/**", "http://localhost:5173/**"]
 enable_signup = false
+
+[auth.email]
+enable_confirmations = true
+max_frequency = "1m"
+otp_length = 8
+
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
+
+[storage.vector]
+enabled = false
 
 [functions.request-client-access]
 verify_jwt = false

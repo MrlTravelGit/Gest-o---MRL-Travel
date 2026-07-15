@@ -17,12 +17,12 @@ O arquivo `vercel.json` já contém a reescrita necessária para rotas da SPA e 
 
 ## 2. Variáveis públicas
 
-Cadastre nos ambientes Production, Preview e Development conforme necessário:
+Cadastre as variáveis públicas. Em Production, `VITE_APP_URL` deve ser exatamente a origem canônica abaixo. Em Preview, mantenha o mesmo valor para que o painel identifique o Preview e ofereça o link correto para Production:
 
 ```text
 VITE_SUPABASE_URL=https://bdkazlhvnowjehdgxege.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_zdeyRn9uv4RdcaTKokRxcg_x8C0vi_N
-VITE_APP_URL=https://gestao.mrltravel.com
+VITE_APP_URL=https://gestao-mrltravel.vercel.app
 ```
 
 Nunca cadastre `SUPABASE_SERVICE_ROLE_KEY` com prefixo `VITE_`.
@@ -31,24 +31,24 @@ A Publishable Key pode ficar no frontend. Ela não substitui autenticação nem 
 
 ## 3. Domínio
 
-1. Adicione `gestao.mrltravel.com` ao projeto da Vercel.
-2. Configure o registro DNS indicado pela Vercel.
-3. Aguarde a emissão do certificado HTTPS.
-4. Atualize `APP_URL` e `ALLOWED_ORIGINS` nos segredos do Supabase.
-5. Atualize Site URL e Redirect URLs no Supabase Auth.
+O alias estável marcado como Production no projeto `gestao-mrl-travel` é `https://gestao-mrltravel.vercel.app`. Ele foi confirmado com HTTP 200 em 15/07/2026.
+
+1. Não use URLs de deployment com hash nem aliases `git-*` como URL canônica.
+2. Não autorize todos os subdomínios `vercel.app`.
+3. Se um domínio personalizado for adicionado no futuro, valide HTTP 200 antes de trocar a origem canônica em todos os serviços.
+4. Atualize `APP_URL` e `ALLOWED_ORIGINS` nos segredos do Supabase sempre que a origem canônica mudar.
+5. Atualize Site URL e Redirect URLs no Supabase Auth na mesma publicação.
 
 ## 4. Ordem da publicação
 
-1. Criar projeto Supabase.
-2. Aplicar migrações.
-3. Configurar Auth e SMTP ou SMS.
-4. Cadastrar primeiro administrador.
-5. Configurar segredos das Edge Functions.
-6. Publicar Edge Functions.
-7. Configurar variáveis da Vercel.
-8. Publicar frontend.
-9. Configurar domínio.
-10. Executar teste de isolamento com dois clientes.
+1. Confirmar que `https://gestao-mrltravel.vercel.app/` responde HTTP 200.
+2. Configurar `VITE_APP_URL` em Production e Preview.
+3. Configurar `APP_URL`, `ALLOWED_ORIGINS`, Site URL e Redirect URLs no Supabase.
+4. Publicar as três Edge Functions.
+5. Publicar o frontend em Production.
+6. Validar preflight permitido e negado.
+7. Entrar no domínio oficial com MFA e criar um cliente com contato exclusivo.
+8. Confirmar que o link gerado usa a origem canônica.
 
 ## 5. Ambientes
 
