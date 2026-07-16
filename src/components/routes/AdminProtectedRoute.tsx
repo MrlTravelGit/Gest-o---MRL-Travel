@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { LoadingScreen } from "@/components/routes/LoadingScreen";
 
-type AccessState = "loading" | "allowed" | "mfa" | "denied";
+type AccessState = "loading" | "allowed" | "denied";
 
 export function AdminProtectedRoute() {
   const { user, loading } = useAuth();
@@ -18,16 +18,12 @@ export function AdminProtectedRoute() {
 
     let active = true;
     void (async () => {
-      const [{ data: staff }, factors, assurance] = await Promise.all([
-        supabase
-          .from("staff_members")
-          .select("role, active")
-          .eq("user_id", user.id)
-          .eq("active", true)
-          .maybeSingle(),
-        supabase.auth.mfa.listFactors(),
-        supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
-      ]);
+      const { data: staff } = await supabase
+        .from("staff_members")
+        .select("role, active")
+        .eq("user_id", user.id)
+        .eq("active", true)
+        .maybeSingle();
 
       if (!active) return;
       if (!staff) {
@@ -35,9 +31,7 @@ export function AdminProtectedRoute() {
         return;
       }
 
-      const verifiedTotp = factors.data?.totp.some((factor) => factor.status === "verified");
-      const currentLevel = assurance.data?.currentLevel;
-      setAccess(verifiedTotp && currentLevel === "aal2" ? "allowed" : "mfa");
+      setAccess("allowed");
     })().catch(() => {
       if (active) setAccess("denied");
     });
@@ -49,6 +43,5 @@ export function AdminProtectedRoute() {
 
   if (loading || access === "loading") return <LoadingScreen />;
   if (!user || access === "denied") return <Navigate to="/admin/login" replace />;
-  if (access === "mfa") return <Navigate to="/admin/mfa" replace />;
   return <Outlet />;
 }

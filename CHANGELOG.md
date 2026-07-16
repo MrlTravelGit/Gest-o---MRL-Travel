@@ -1,5 +1,30 @@
 # Histórico de versões
 
+## 0.4.0, 16/07/2026
+
+### Adicionado
+
+1. Shell administrativo persistente com sidebar desktop, estado recolhido e drawer mobile, mantendo `/admin` como visão geral com o Hero atual.
+2. Módulo funcional de Clubes em `/admin/clubes`, com catálogo versionado, benefícios, assinaturas de clientes e confirmação idempotente de créditos previstos.
+3. Módulo funcional de Faturas em `/admin/faturas`, reutilizando `credit_cards`, `card_earning_rules` e `card_statements`, com cálculo oficial no backend e snapshot da regra/cotação.
+4. Histórico unificado em `/admin/movimentacoes`, baseado em `point_transactions`, com filtros, paginação e estorno auditável sem `DELETE` físico.
+5. Gestão de links diretos em `/admin/acessos` e `/admin/auditoria`, com token bearer de 256 bits, hash no banco, revogação, expiração, rate limit e eventos minimizados.
+6. Edge Function `exchange-client-link` para trocar link secreto por sessão Supabase e limpar a URL do cliente após a troca.
+
+### Alterado
+
+1. Login administrativo passa a exigir e-mail/senha individual e `staff_members` ativo, sem MFA obrigatório; MFA permanece disponível em `/admin/mfa`.
+2. `can_write_client_data()` e `can_manage_security()` deixam de exigir AAL2, preservando autorização por papel no backend.
+3. Dashboard do cliente aceita sessão autenticada limpa em `/c/dashboard`, além do fluxo legado por `public_id`.
+4. Versão do pacote atualizada de `0.3.2` para `0.4.0`.
+
+### Segurança e integridade
+
+1. Novas tabelas nascem com RLS forçada, grants mínimos e mutações por RPC `security definer` com `search_path` fixo.
+2. O catálogo inicial de clubes foi versionado como dado editável; informações ambíguas/promocionais são marcadas para revisão humana.
+3. Links diretos são tratados explicitamente como credenciais bearer: quem possui o link pode entrar até expirar/revogar.
+4. Nenhum número completo de cartão, CVV, senha bancária, token bruto ou segredo foi adicionado ao frontend.
+
 ## 0.3.2, 16/07/2026
 
 ### Corrigido

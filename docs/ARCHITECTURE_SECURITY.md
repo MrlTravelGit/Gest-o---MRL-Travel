@@ -1,5 +1,30 @@
 # Arquitetura e segurança
 
+## Atualização 0.4.0 — links diretos e login administrativo
+
+### Link direto do cliente
+
+O link direto novo é uma credencial bearer: quem possuir a URL com token válido poderá iniciar sessão do cliente vinculado. Esse risco é aceito funcionalmente para remover nome, senha e OTP do fluxo novo, e é mitigado por:
+
+1. token aleatório de 256 bits gerado no frontend com `crypto.getRandomValues`;
+2. armazenamento somente do SHA-256 do token em `client_direct_access_links`;
+3. expiração opcional, revogação imediata e rotação por novo link;
+4. troca do token exclusivamente via Edge Function `exchange-client-link`;
+5. validação de link ativo, cliente ativo, contrato vigente e vínculo `client_users`;
+6. rate limit por fingerprint minimizado em `client_direct_access_events`;
+7. eventos de sucesso/falha sem token bruto, e-mail ou dados financeiros;
+8. `Referrer-Policy: no-referrer`, limpeza da URL com navegação `replace` e sessão protegida por RLS.
+
+Links antigos por `public_id` continuam no período de transição, mas `public_id` não é convertido em segredo e não autoriza leitura por si só.
+
+### Login administrativo
+
+O painel administrativo usa e-mail e senha individuais via Supabase Auth. MFA TOTP permanece disponível em `/admin/mfa`, mas não bloqueia a entrada. A autorização efetiva continua no backend: `AdminProtectedRoute` faz triagem de UX, enquanto RPCs, Edge Functions e RLS validam `staff_members` ativo e papel autorizado antes de ler ou alterar dados.
+
+### Risco residual
+
+O principal risco residual é encaminhamento, captura por histórico do navegador ou exposição operacional do link bearer. A orientação operacional é gerar links somente após validar a Edge Function em produção, distribuir por canal controlado, revogar links antigos em caso de dúvida e preferir expiração em clientes sensíveis.
+
 ## Autoridade de cada camada
 
 | Camada | Responsabilidade |
@@ -31,8 +56,8 @@ O primeiro nome é um seletor e não uma senha.
 ```text
 E-mail e senha
 → Verificação de staff_members
-→ MFA TOTP
-→ Sessão com AAL2
+→ MFA TOTP opcional/recomendado
+→ Sessão Supabase autenticada
 → Operação validada novamente na Edge Function ou RLS
 ```
 
@@ -69,7 +94,7 @@ E-mail e senha
 
 | Ameaça | Mitigação |
 | :--- | :--- |
-| Link encaminhado | Código temporário e vínculo autenticado |
+| Link encaminhado | Revogação/rotação, expiração opcional e eventos de uso; no fluxo novo o link é credencial bearer |
 | Primeiro nome descoberto | Resposta genérica e OTP |
 | Tentativa automatizada | Limites e bloqueio |
 | Manipulação do frontend | RLS e validação no backend |

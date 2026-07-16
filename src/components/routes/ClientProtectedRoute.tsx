@@ -7,6 +7,6 @@ export function ClientProtectedRoute() {
   const { publicId } = useParams();
 
   if (loading) return <LoadingScreen />;
-  if (!user) return <Navigate to={`/c/${publicId ?? ""}`} replace />;
+  if (!user) return <Navigate to={publicId ? `/c/${publicId}` : "/"} replace />;
   return <Outlet />;
 }

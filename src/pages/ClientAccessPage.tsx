@@ -3,11 +3,13 @@ import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { KeyRound, LockKeyhole, Plane } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { requestClientAccess, verifyClientAccess } from "@/services/client-access";
+import { exchangeDirectAccessToken } from "@/services/direct-access";
 
 type Step = "name" | "code";
 
 export function ClientAccessPage() {
   const { publicId } = useParams();
+  const { token } = useParams();
   const navigate = useNavigate();
   const { user, loading } = useAuth();
   const [step, setStep] = useState<Step>("name");
@@ -22,6 +24,23 @@ export function ClientAccessPage() {
     setError("");
   }, [step]);
 
+  useEffect(() => {
+    if (!token) return;
+    const referrer = document.createElement("meta");
+    referrer.name = "referrer";
+    referrer.content = "no-referrer";
+    document.head.appendChild(referrer);
+    setSubmitting(true);
+    void exchangeDirectAccessToken(token)
+      .then(() => navigate("/c/dashboard", { replace: true }))
+      .catch((directError) => setError(directError instanceof Error ? directError.message : "Link inválido"))
+      .finally(() => setSubmitting(false));
+    return () => {
+      referrer.remove();
+    };
+  }, [navigate, token]);
+
+  if (token) return <div className="access-page"><section className="access-card"><div className="access-form"><div className="access-icon"><LockKeyhole /></div><h1>Validando link seguro</h1><p>Estamos trocando sua credencial temporária por uma sessão protegida.</p>{submitting && <div className="panel-state">Validando acesso...</div>}{error && <div className="form-error" role="alert">{error}</div>}</div></section></div>;
   if (!publicId) return <Navigate to="/" replace />;
   if (!loading && user) return <Navigate to={`/c/${publicId}/dashboard`} replace />;
 

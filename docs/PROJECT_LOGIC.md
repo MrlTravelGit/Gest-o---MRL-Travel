@@ -30,6 +30,19 @@ O sistema também terá um painel administrativo para a equipe da MRL Travel cad
 9. Toda nova funcionalidade deverá preservar o que já está funcionando.
 10. Toda demanda deverá resultar em análise de impacto, patch controlado e validação.
 
+### 2.1 Atualização funcional 0.4.0 — PATCH MRL 20260716-004
+
+1. O painel administrativo mantém `/admin` como visão geral com Hero e indicadores, mas a navegação principal de módulos deixa de ser o Bento Grid e passa a ser uma sidebar persistente.
+2. A sidebar contém Visão geral, Clientes, Clubes, Faturas, Movimentações, Viagens e economia, Pontuações, Transferências, Saída manual, Interesses, Formulários, Cadastro e Acessos.
+3. Clubes são dados versionados no banco: programa, plano, benefícios, vigência, fonte oficial e data de verificação. O React apenas exibe e opera esses dados.
+4. Assinaturas de clube geram previsões em `scheduled_point_credits`; saldo real só muda quando a equipe confirma o crédito, criando movimento em `point_transactions`.
+5. Faturas reutilizam `credit_cards`, `card_earning_rules` e `card_statements`; o backend calcula pontos esperados com `numeric` e grava snapshot de regra, cotação e fórmula.
+6. O histórico administrativo em `/admin/movimentacoes` consulta o ledger canônico `point_transactions`; exclusão visual significa estorno/correção auditável, não remoção física.
+7. Links diretos novos usam token bearer separado do `public_id`; o banco armazena apenas hash e a Edge Function troca o segredo por sessão Supabase.
+8. Links antigos com `public_id` e fluxo nome/código continuam disponíveis em período de transição.
+9. O login administrativo visível passa a ser e-mail e senha individuais; MFA deixa de ser barreira obrigatória e permanece opcional em `/admin/mfa`.
+10. A autorização administrativa continua no backend por `staff_members`, papel ativo, RPCs, RLS e auditoria.
+
 ## 3. Arquitetura oficial
 
 | Camada | Tecnologia ou responsabilidade |
@@ -53,7 +66,7 @@ O sistema também terá um painel administrativo para a equipe da MRL Travel cad
 ```mermaid
 flowchart TD
     A[Cliente acessa link exclusivo] ==> B[Login seguro]
-    C[Equipe MRL acessa painel administrativo] ==> D[Login com MFA]
+    C[Equipe MRL acessa painel administrativo] ==> D[Login com e-mail e senha]
     B ==> E[Backend valida identidade e vínculo]
     D ==> F[Backend valida identidade e função]
     E ==> G[Banco com RLS]
@@ -116,7 +129,7 @@ O primeiro nome não será tratado como senha. A autenticação real será reali
 ## 6. Fluxo administrativo
 
 1. O profissional acessa o painel administrativo.
-2. O sistema exige autenticação e segundo fator.
+2. O sistema exige autenticação individual por e-mail e senha; MFA permanece opcional e recomendado.
 3. O backend carrega a função e as permissões do profissional.
 4. O painel apresenta indicadores conforme a permissão.
 5. O profissional seleciona ou cadastra um cliente.
@@ -150,14 +163,15 @@ O primeiro nome não será tratado como senha. A autenticação real será reali
 7. Mutações usam RPCs transacionais e nunca dependem de inserções coordenadas pelo frontend.
 8. Cada lançamento usa uma chave idempotente para impedir duplicação por reenvio.
 
-### 6.3 Centro administrativo Hero + Bento
+### 6.3 Centro administrativo Hero + Sidebar
 
-1. `/admin` apresenta indicadores reais e oito atalhos sem expor o e-mail completo do operador.
-2. As rotas administrativas são protegidas por sessão, staff ativo e AAL2 e carregadas sob demanda.
-3. Cadastro de Pessoa é o mesmo domínio de Cliente; não existe tabela paralela de pessoas.
-4. Nascimento pertence a `clients` e o endereço principal pertence a `client_addresses`, acessível apenas à equipe.
-5. Exclusão na interface significa arquivamento lógico: cliente `ended`, vínculos inativos e contrato encerrado, com histórico preservado.
-6. Formulários é somente uma prévia visual nesta versão e não possui tabela ou endpoint.
+1. `/admin` apresenta indicadores reais e mantém o Hero da visão geral sem expor o e-mail completo do operador.
+2. A navegação entre módulos administrativos ocorre pela sidebar persistente; o Bento Grid deixou de ser a navegação principal.
+3. As rotas administrativas são protegidas por sessão e staff ativo, com validação de papel repetida no backend.
+4. Cadastro de Pessoa é o mesmo domínio de Cliente; não existe tabela paralela de pessoas.
+5. Nascimento pertence a `clients` e o endereço principal pertence a `client_addresses`, acessível apenas à equipe.
+6. Exclusão na interface significa arquivamento lógico: cliente `ended`, vínculos inativos e contrato encerrado, com histórico preservado.
+7. Formulários é somente uma prévia visual nesta versão e não possui tabela ou endpoint.
 
 ### 6.4 Operações administrativas
 

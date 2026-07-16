@@ -12,7 +12,7 @@ export function AdminLoginPage() {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  if (!loading && user) return <Navigate to="/admin/mfa" replace />;
+  if (!loading && user) return <Navigate to="/admin" replace />;
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -24,7 +24,7 @@ export function AdminLoginPage() {
       setError("Credenciais inválidas");
       return;
     }
-    navigate("/admin/mfa", { replace: true });
+    navigate("/admin", { replace: true });
   }
 
   return (
@@ -37,7 +37,7 @@ export function AdminLoginPage() {
         <form onSubmit={submit} className="access-form">
           <div className="access-icon"><ShieldCheck /></div>
           <h1>Acesso da equipe</h1>
-          <p>Esta área exige credencial administrativa e autenticação em dois fatores.</p>
+          <p>Entre com e-mail e senha individuais. A autorização administrativa continua validada no backend.</p>
           <label htmlFor="adminEmail">E-mail</label>
           <input id="adminEmail" type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" required />
           <label htmlFor="adminPassword">Senha</label>

@@ -438,6 +438,123 @@ input[readonly] { color: #c8c1b7; background: rgba(255, 255, 255, 0.025); }
   .chart-container { height: 300px; }
 }
 
+/* PATCH 004 — sidebar administrativa e módulos operacionais */
+.app-shell {
+  --sidebar-width: 260px;
+  min-height: 100vh;
+  padding-left: var(--sidebar-width);
+}
+.app-shell.sidebar-collapsed { --sidebar-width: 82px; }
+.admin-sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 30;
+  width: var(--sidebar-width);
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid #2b2d32;
+  background: linear-gradient(180deg, rgba(13,15,18,.98), rgba(6,7,9,.99));
+  transition: width 180ms ease, transform 180ms ease;
+}
+.sidebar-top { min-height: 72px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 16px; border-bottom: 1px solid #262930; }
+.sidebar-nav { flex: 1; overflow-y: auto; padding: 12px 10px; }
+.sidebar-nav a {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 0 12px;
+  border-radius: 8px;
+  color: #d7d7d7;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 650;
+}
+.sidebar-nav a:hover { background: rgba(216,169,115,.08); color: var(--gold-strong); }
+.sidebar-nav a.active { color: #100d08; background: linear-gradient(120deg, var(--gold-dark), var(--gold-strong)); }
+.sidebar-nav svg { flex: 0 0 auto; }
+.sidebar-collapse { min-height: 42px; margin: 12px; border: 1px solid rgba(216,169,115,.28); border-radius: 8px; color: var(--gold); background: rgba(216,169,115,.05); }
+.sidebar-collapsed .brand-copy,
+.sidebar-collapsed .sidebar-nav span { display: none; }
+.sidebar-collapsed .brand-lockup,
+.sidebar-collapsed .sidebar-nav a { justify-content: center; }
+.sidebar-collapsed .sidebar-collapse { font-size: 0; }
+.sidebar-collapsed .sidebar-collapse::after { content: "»"; font-size: 18px; }
+.mobile-only,
+.mobile-menu-button { display: none; }
+.app-header { left: var(--sidebar-width); padding-left: 24px; padding-right: 28px; }
+.header-context { display: grid; gap: 2px; min-width: 0; }
+.header-context strong { color: var(--gold-strong); font-size: 14px; }
+.header-context span { color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.page-container { width: min(1320px, calc(100% - 44px)); }
+.module-grid { display: grid; gap: 18px; align-items: start; }
+.module-grid.two-columns { grid-template-columns: minmax(0, 1.1fr) minmax(320px, .9fr); }
+.form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.field-full { grid-column: 1 / -1; }
+.read-panel,
+.warning-panel { min-height: 100%; }
+.catalog-list { display: grid; gap: 10px; max-height: 620px; overflow: auto; }
+.catalog-list article { padding: 13px; border: 1px solid #303238; border-radius: 8px; background: rgba(255,255,255,.018); }
+.catalog-list strong,
+.catalog-list span,
+.catalog-list small { display: block; }
+.catalog-list span { margin-top: 4px; color: #ddd; font-size: 12px; }
+.catalog-list small { margin-top: 4px; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.data-section { margin-top: 30px; }
+.data-filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.data-filters > * { min-width: 190px; }
+.movement-filters > * { min-width: 160px; }
+.inline-action { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 0; }
+.inline-action span { color: var(--muted); font-size: 11px; }
+.value-positive { color: var(--success) !important; }
+.value-negative { color: var(--danger) !important; }
+.danger-button {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 15px;
+  border: 1px solid rgba(255,107,107,.38);
+  border-radius: 10px;
+  color: #ffd6d6;
+  background: rgba(255,107,107,.12);
+  font-weight: 750;
+}
+.danger-button:disabled { opacity: .45; cursor: not-allowed; }
+.modal-backdrop { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 20px; background: rgba(0,0,0,.62); }
+.confirm-modal { width: min(520px, 100%); padding: 24px; border: 1px solid rgba(216,169,115,.32); border-radius: 12px; background: #101113; box-shadow: 0 28px 80px rgba(0,0,0,.45); }
+.confirm-modal h2 { margin: 0 0 8px; color: var(--gold-strong); }
+.confirm-modal p { margin: 0 0 16px; color: var(--muted); line-height: 1.55; }
+.danger-summary { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; padding: 12px; border: 1px solid rgba(255,107,107,.22); border-radius: 8px; color: #ffe0e0; background: rgba(255,107,107,.08); }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px; }
+.copy-box { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 10px; margin: 12px 0; }
+.warning-panel ul { margin: 0; padding-left: 18px; color: var(--muted); line-height: 1.75; }
+.icon-danger { width: 36px; height: 36px; display: inline-grid; place-items: center; border: 1px solid rgba(255,107,107,.34); border-radius: 9px; color: var(--danger); background: rgba(255,107,107,.08); }
+
+@media (max-width: 1100px) {
+  .app-shell { padding-left: 0; }
+  .admin-sidebar { transform: translateX(-102%); width: min(86vw, 320px); }
+  .admin-sidebar.open { transform: translateX(0); }
+  .sidebar-collapsed .brand-copy,
+  .sidebar-collapsed .sidebar-nav span { display: block; }
+  .sidebar-collapsed .brand-lockup,
+  .sidebar-collapsed .sidebar-nav a { justify-content: flex-start; }
+  .sidebar-collapse { display: none; }
+  .mobile-only,
+  .mobile-menu-button { display: grid; }
+  .sidebar-scrim { position: fixed; inset: 0; z-index: 25; border: 0; background: rgba(0,0,0,.58); }
+  .app-header { left: 0; }
+  .module-grid.two-columns { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 720px) {
+  .form-grid { grid-template-columns: 1fr; }
+  .field-full { grid-column: auto; }
+  .copy-box { grid-template-columns: 1fr; }
+  .dialog-actions { flex-direction: column; }
+}
+
 /* PATCH 003 — centro administrativo Hero + Bento */
 :focus-visible { outline: 2px solid var(--gold-strong); outline-offset: 3px; }
 .brand-lockup { color: inherit; text-decoration: none; }

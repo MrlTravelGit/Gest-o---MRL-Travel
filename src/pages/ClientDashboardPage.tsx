@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Navigate, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { AlertTriangle, Coins, PiggyBank, PlaneTakeoff, WalletCards } from "lucide-react";
 import {
   CartesianGrid,
@@ -12,18 +12,15 @@ import {
 } from "recharts";
 import { AppShell } from "@/components/layout/AppShell";
 import { formatCurrency, formatDate, formatPoints } from "@/lib/formatters";
-import { getClientDashboard } from "@/services/dashboard";
+import { getClientDashboard, getMyClientDashboard } from "@/services/dashboard";
 
 export function ClientDashboardPage() {
   const { publicId } = useParams();
   const dashboard = useQuery({
-    queryKey: ["client-dashboard", publicId],
-    queryFn: () => getClientDashboard(publicId!),
-    enabled: Boolean(publicId),
+    queryKey: ["client-dashboard", publicId ?? "session"],
+    queryFn: () => publicId ? getClientDashboard(publicId) : getMyClientDashboard(),
     retry: 1,
   });
-
-  if (!publicId) return <Navigate to="/" replace />;
 
   return (
     <AppShell

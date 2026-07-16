@@ -14,6 +14,10 @@ const AdminFormsPage = lazy(() => import("@/pages/admin/AdminFormsPage").then((m
 const AdminInterestsPage = lazy(() => import("@/pages/admin/AdminInterestsPage").then((module) => ({ default: module.AdminInterestsPage })));
 const AdminTransfersPage = lazy(() => import("@/pages/admin/AdminTransfersPage").then((module) => ({ default: module.AdminTransfersPage })));
 const AdminManualExitsPage = lazy(() => import("@/pages/admin/AdminManualExitsPage").then((module) => ({ default: module.AdminManualExitsPage })));
+const AdminClubsPage = lazy(() => import("@/pages/admin/AdminClubsPage").then((module) => ({ default: module.AdminClubsPage })));
+const AdminInvoicesPage = lazy(() => import("@/pages/admin/AdminInvoicesPage").then((module) => ({ default: module.AdminInvoicesPage })));
+const AdminMovementsPage = lazy(() => import("@/pages/admin/AdminMovementsPage").then((module) => ({ default: module.AdminMovementsPage })));
+const AdminAccessLinksPage = lazy(() => import("@/pages/admin/AdminAccessLinksPage").then((module) => ({ default: module.AdminAccessLinksPage })));
 const AdminLoginPage = lazy(() => import("@/pages/AdminLoginPage").then((module) => ({ default: module.AdminLoginPage })));
 const AdminMfaPage = lazy(() => import("@/pages/AdminMfaPage").then((module) => ({ default: module.AdminMfaPage })));
 const ClientAccessPage = lazy(() => import("@/pages/ClientAccessPage").then((module) => ({ default: module.ClientAccessPage })));
@@ -25,8 +29,10 @@ export default function App() {
     <Suspense fallback={<LoadingScreen />}>
       <Routes>
         <Route path="/" element={<Navigate to="/admin/login" replace />} />
+        <Route path="/c/link/:token" element={<ClientAccessPage />} />
         <Route path="/c/:publicId" element={<ClientAccessPage />} />
         <Route element={<ClientProtectedRoute />}>
+          <Route path="/c/dashboard" element={<ClientDashboardPage />} />
           <Route path="/c/:publicId/dashboard" element={<ClientDashboardPage />} />
         </Route>
         <Route path="/admin/login" element={<AdminLoginPage />} />
@@ -35,7 +41,14 @@ export default function App() {
           <Route path="/admin" element={<AdminDashboardPage />} />
           <Route path="/admin/clientes" element={<AdminClientsPage />} />
           <Route path="/admin/clientes/novo" element={<AdminCreateClientPage />} />
+          <Route path="/admin/pessoas/novo" element={<AdminCreateClientPage />} />
           <Route path="/admin/clientes/:clientId" element={<AdminClientDetailPage />} />
+          <Route path="/admin/clubes" element={<AdminClubsPage />} />
+          <Route path="/admin/faturas" element={<AdminInvoicesPage />} />
+          <Route path="/admin/movimentacoes" element={<AdminMovementsPage />} />
+          <Route path="/admin/auditoria" element={<AdminAccessLinksPage />} />
+          <Route path="/admin/acessos" element={<AdminAccessLinksPage />} />
+          <Route path="/admin/viagens" element={<AdminTravelEconomyPage />} />
           <Route path="/admin/viagens-e-economia" element={<AdminTravelEconomyPage />} />
           <Route path="/admin/pontuacoes" element={<AdminPointsPage />} />
           <Route path="/admin/formularios" element={<AdminFormsPage />} />

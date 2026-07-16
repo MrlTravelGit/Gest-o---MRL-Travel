@@ -1,5 +1,40 @@
 # Dicionário do banco de dados
 
+## Estruturas adicionadas ou evoluídas na versão 0.4.0
+
+| Estrutura | Tipo | Uso |
+| :--- | :--- | :--- |
+| `loyalty_club_plans` | tabela | Catálogo versionado de planos de clube por programa, com pontos mensais, vigência, fonte oficial e status |
+| `loyalty_club_plan_benefits` | tabela | Benefícios descritivos e estruturados por plano, ordenáveis e versionáveis |
+| `loyalty_status_tiers` | tabela | Categorias/status por programa, separadas dos planos de clube |
+| `client_club_subscriptions` | tabela | Assinatura do cliente em um plano, vinculada à conta do programa do próprio cliente |
+| `scheduled_point_credits` | tabela | Previsões de crédito por competência; não alteram saldo até confirmação |
+| `client_direct_access_links` | tabela | Links diretos com hash do token, status, expiração, revogação e contador de uso |
+| `client_direct_access_events` | tabela | Eventos minimizados de troca de link, rate limit, falhas e sucesso |
+| `card_statements` | evolução | Fechamento/vencimento, moeda, snapshot da regra, cotação, fonte, cancelamento e idempotência |
+| `point_transactions` | evolução | Estado, estorno vinculado, motivo de correção e autor/data da correção |
+
+Todas as tabelas novas possuem RLS habilitado e forçado. Consultas de cliente dependem de `auth.uid()` resolvido por `client_users`; mutações administrativas passam por RPCs `security definer` com `search_path` fixo e checagem de `staff_members`.
+
+### RPCs da versão 0.4.0
+
+| Função | Responsabilidade |
+| :--- | :--- |
+| `get_club_catalog` | Lista planos, benefícios e categorias do catálogo versionado |
+| `upsert_client_club_subscription` | Cria/atualiza assinatura, valida pertencimento e gera previsão inicial |
+| `get_client_club_subscriptions` | Lista assinaturas e previsões de crédito com filtros |
+| `confirm_scheduled_point_credit` | Confirma crédito previsto e cria uma transação real idempotente |
+| `get_card_statement_options` | Retorna clientes, cartões, programas e regras para lançamento de faturas |
+| `upsert_credit_card` | Cria/atualiza cartão e regra vigente sem armazenar PAN/CVV |
+| `record_card_statement` | Grava fatura e cálculo oficial de pontos esperados com snapshot |
+| `get_card_statements` | Lista faturas por cliente, cartão, período e status |
+| `get_point_movements` | Consulta o histórico canônico baseado em `point_transactions` |
+| `void_point_transaction` | Estorna lançamento confirmado preservando o original |
+| `create_client_direct_access_link` | Gera registro do link direto armazenando apenas hash |
+| `revoke_client_direct_access_link` | Revoga link direto com motivo auditável |
+| `get_client_direct_access_links` | Lista links diretos administrativos sem token bruto |
+| `get_my_client_dashboard` | Retorna o dashboard do cliente autenticado sem depender de `public_id` na rota |
+
 ## Identidade e acesso
 
 | Tabela | Uso |
@@ -95,7 +130,7 @@ Na versão 0.3.0, o enum também contém `manual_exit`.
 | `confirm_transfer` | Transferência, três movimentos possíveis, snapshots e validade |
 | `record_manual_exit` | Baixa idempotente, snapshot e consumo FIFO de lotes classificados |
 
-Todas as mutações autenticadas exigem staff de escrita ativo e claim `aal2`. Auditor possui apenas consultas.
+Todas as mutações autenticadas exigem staff de escrita ativo. Até a versão 0.3.x também era exigido claim `aal2`; a partir da 0.4.0 o MFA deixa de ser obrigatório, mas a autorização por `staff_members` e papel continua no backend. Auditor possui apenas consultas.
 
 As mutações são `security definer`, fixam `search_path`, usam `auth.uid()` e permitem execução somente a `authenticated`; a autorização efetiva é refeita internamente por `can_write_client_data()`.
 
