@@ -18,10 +18,10 @@ const AdminClubsPage = lazy(() => import("@/pages/admin/AdminClubsPage").then((m
 const AdminInvoicesPage = lazy(() => import("@/pages/admin/AdminInvoicesPage").then((module) => ({ default: module.AdminInvoicesPage })));
 const AdminMovementsPage = lazy(() => import("@/pages/admin/AdminMovementsPage").then((module) => ({ default: module.AdminMovementsPage })));
 const AdminAccessLinksPage = lazy(() => import("@/pages/admin/AdminAccessLinksPage").then((module) => ({ default: module.AdminAccessLinksPage })));
+const AdminClientEconomyPreviewPage = lazy(() => import("@/pages/admin/AdminClientEconomyPreviewPage").then((module) => ({ default: module.AdminClientEconomyPreviewPage })));
 const AdminLoginPage = lazy(() => import("@/pages/AdminLoginPage").then((module) => ({ default: module.AdminLoginPage })));
-const AdminMfaPage = lazy(() => import("@/pages/AdminMfaPage").then((module) => ({ default: module.AdminMfaPage })));
 const ClientAccessPage = lazy(() => import("@/pages/ClientAccessPage").then((module) => ({ default: module.ClientAccessPage })));
-const ClientDashboardPage = lazy(() => import("@/pages/ClientDashboardPage").then((module) => ({ default: module.ClientDashboardPage })));
+const ClientEconomyPage = lazy(() => import("@/pages/ClientEconomyPage").then((module) => ({ default: module.ClientEconomyPage })));
 const NotFoundPage = lazy(() => import("@/pages/NotFoundPage").then((module) => ({ default: module.NotFoundPage })));
 
 export default function App() {
@@ -30,19 +30,19 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Navigate to="/admin/login" replace />} />
         <Route path="/c/link/:token" element={<ClientAccessPage />} />
-        <Route path="/c/:publicId" element={<ClientAccessPage />} />
+        <Route path="/c/acesso-expirado" element={<ClientAccessPage />} />
         <Route element={<ClientProtectedRoute />}>
-          <Route path="/c/dashboard" element={<ClientDashboardPage />} />
-          <Route path="/c/:publicId/dashboard" element={<ClientDashboardPage />} />
+          <Route path="/c/economia" element={<ClientEconomyPage />} />
         </Route>
         <Route path="/admin/login" element={<AdminLoginPage />} />
-        <Route path="/admin/mfa" element={<AdminMfaPage />} />
+        <Route path="/admin/mfa" element={<Navigate to="/admin" replace />} />
         <Route element={<AdminProtectedRoute />}>
           <Route path="/admin" element={<AdminDashboardPage />} />
           <Route path="/admin/clientes" element={<AdminClientsPage />} />
           <Route path="/admin/clientes/novo" element={<AdminCreateClientPage />} />
           <Route path="/admin/pessoas/novo" element={<AdminCreateClientPage />} />
           <Route path="/admin/clientes/:clientId" element={<AdminClientDetailPage />} />
+          <Route path="/admin/clientes/:clientId/economia" element={<AdminClientEconomyPreviewPage />} />
           <Route path="/admin/clubes" element={<AdminClubsPage />} />
           <Route path="/admin/faturas" element={<AdminInvoicesPage />} />
           <Route path="/admin/movimentacoes" element={<AdminMovementsPage />} />

@@ -1,53 +1,29 @@
-export interface DashboardProgram {
-  accountId: string;
-  slug: string;
-  name: string;
-  logoUrl: string | null;
-  balance: number;
-  averageCostPerThousand: number;
-  estimatedValue: number;
-  capturedAt: string | null;
-  expiringPoints: number;
+export interface ClientEconomyItem {
+  id: string;
+  issuedAt: string;
+  launchedOn: string | null;
+  travelType: string;
+  paymentMode: string | null;
+  details: string;
+  originalValue: number;
+  paidValue: number;
+  savingsAmount: number;
+  programName: string | null;
+  pointsUsed: number | null;
 }
 
-export interface BalanceHistoryPoint {
-  month: string;
-  balance: number;
-}
-
-export interface CardStatementPoint {
-  month: string;
-  totalSpend: number;
-  eligibleSpend: number;
-  expectedPoints: number;
-  receivedPoints: number;
-  divergence: number;
-}
-
-export interface ClientDashboard {
+export interface ClientEconomy {
   client: {
     id: string;
-    publicId: string;
     fullName: string;
     lastUpdatedAt: string | null;
   };
   summary: {
-    totalPoints: number;
-    estimatedPatrimony: number;
     generatedSavings: number;
     redemptionsCount: number;
-    expiringIn90Days: number;
+    positiveSavingsCount: number;
   };
-  programs: DashboardProgram[];
-  balanceHistory: BalanceHistoryPoint[];
-  cardStatements: CardStatementPoint[];
-  contract: null | {
-    startsOn: string;
-    endsOn: string;
-    status: string;
-    planName: string | null;
-    daysRemaining: number;
-  };
+  items: ClientEconomyItem[];
 }
 
 export interface AdminOverview {

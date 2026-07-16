@@ -10,12 +10,14 @@
 4. Histórico unificado em `/admin/movimentacoes`, baseado em `point_transactions`, com filtros, paginação e estorno auditável sem `DELETE` físico.
 5. Gestão de links diretos em `/admin/acessos` e `/admin/auditoria`, com token bearer de 256 bits, hash no banco, revogação, expiração, rate limit e eventos minimizados.
 6. Edge Function `exchange-client-link` para trocar link secreto por sessão Supabase e limpar a URL do cliente após a troca.
+7. Página pública `/c/economia`, dedicada exclusivamente à economia do cliente autenticado pelo link bearer.
+8. Prévia administrativa `/admin/clientes/:clientId/economia` e ações no detalhe do cliente para abrir, gerar/rotacionar e copiar o link recém-gerado.
 
 ### Alterado
 
-1. Login administrativo passa a exigir e-mail/senha individual e `staff_members` ativo, sem MFA obrigatório; MFA permanece disponível em `/admin/mfa`.
+1. Login administrativo passa a exigir e-mail/senha individual e `staff_members` ativo, sem página ou exigência de Authenticator/MFA no aplicativo.
 2. `can_write_client_data()` e `can_manage_security()` deixam de exigir AAL2, preservando autorização por papel no backend.
-3. Dashboard do cliente aceita sessão autenticada limpa em `/c/dashboard`, além do fluxo legado por `public_id`.
+3. O fluxo legado do cliente por `public_id`, primeiro nome e código temporário saiu das rotas ativas; links antigos não renderizam mais o formulário antigo.
 4. Versão do pacote atualizada de `0.3.2` para `0.4.0`.
 
 ### Segurança e integridade
@@ -24,6 +26,7 @@
 2. O catálogo inicial de clubes foi versionado como dado editável; informações ambíguas/promocionais são marcadas para revisão humana.
 3. Links diretos são tratados explicitamente como credenciais bearer: quem possui o link pode entrar até expirar/revogar.
 4. Nenhum número completo de cartão, CVV, senha bancária, token bruto ou segredo foi adicionado ao frontend.
+5. A migration `202607160010_client_economy_only_no_mfa.sql` cria RPCs estreitas para economia e revoga o contrato direto do dashboard antigo por `public_id`.
 
 ## 0.3.2, 16/07/2026
 

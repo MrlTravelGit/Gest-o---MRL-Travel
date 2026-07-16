@@ -1,28 +1,12 @@
-import { FormEvent, useEffect, useState } from "react";
-import { Navigate, useNavigate, useParams } from "react-router-dom";
-import { KeyRound, LockKeyhole, Plane } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
-import { requestClientAccess, verifyClientAccess } from "@/services/client-access";
+import { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { LockKeyhole, ShieldCheck } from "lucide-react";
 import { exchangeDirectAccessToken } from "@/services/direct-access";
 
-type Step = "name" | "code";
-
 export function ClientAccessPage() {
-  const { publicId } = useParams();
   const { token } = useParams();
   const navigate = useNavigate();
-  const { user, loading } = useAuth();
-  const [step, setStep] = useState<Step>("name");
-  const [firstName, setFirstName] = useState("");
-  const [code, setCode] = useState("");
-  const [challengeId, setChallengeId] = useState("");
-  const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-
-  useEffect(() => {
-    setError("");
-  }, [step]);
 
   useEffect(() => {
     if (!token) return;
@@ -30,113 +14,41 @@ export function ClientAccessPage() {
     referrer.name = "referrer";
     referrer.content = "no-referrer";
     document.head.appendChild(referrer);
-    setSubmitting(true);
+
+    const cacheControl = document.createElement("meta");
+    cacheControl.httpEquiv = "Cache-Control";
+    cacheControl.content = "no-store";
+    document.head.appendChild(cacheControl);
+
     void exchangeDirectAccessToken(token)
-      .then(() => navigate("/c/dashboard", { replace: true }))
-      .catch((directError) => setError(directError instanceof Error ? directError.message : "Link inválido"))
-      .finally(() => setSubmitting(false));
+      .then(() => navigate("/c/economia", { replace: true }))
+      .catch((directError) => setError(directError instanceof Error ? directError.message : "Link inválido, expirado ou revogado."));
+
     return () => {
       referrer.remove();
+      cacheControl.remove();
     };
   }, [navigate, token]);
 
-  if (token) return <div className="access-page"><section className="access-card"><div className="access-form"><div className="access-icon"><LockKeyhole /></div><h1>Validando link seguro</h1><p>Estamos trocando sua credencial temporária por uma sessão protegida.</p>{submitting && <div className="panel-state">Validando acesso...</div>}{error && <div className="form-error" role="alert">{error}</div>}</div></section></div>;
-  if (!publicId) return <Navigate to="/" replace />;
-  if (!loading && user) return <Navigate to={`/c/${publicId}/dashboard`} replace />;
-
-  async function submitName(event: FormEvent) {
-    event.preventDefault();
-    setSubmitting(true);
-    setError("");
-    try {
-      const result = await requestClientAccess({ publicId: publicId!, firstName });
-      setChallengeId(result.challengeId);
-      setMessage(result.message);
-      setStep("code");
-    } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Não foi possível continuar");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function submitCode(event: FormEvent) {
-    event.preventDefault();
-    setSubmitting(true);
-    setError("");
-    try {
-      await verifyClientAccess({
-        publicId: publicId!,
-        firstName,
-        challengeId,
-        code,
-      });
-      navigate(`/c/${publicId}/dashboard`, { replace: true });
-    } catch (verificationError) {
-      setError(verificationError instanceof Error ? verificationError.message : "Código inválido");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
   return (
-    <div className="access-page">
-      <div className="access-decoration"><Plane size={44} /></div>
+    <main className="access-page">
       <section className="access-card">
         <div className="brand-lockup access-brand">
           <div className="brand-mark">MRL</div>
-          <div><strong>MRL Travel</strong><span>Gestão exclusiva</span></div>
+          <div><strong>MRL Travel</strong><span>Economia protegida</span></div>
         </div>
-
-        {step === "name" ? (
-          <form onSubmit={submitName} className="access-form">
-            <div className="access-icon"><KeyRound /></div>
-            <h1>Acesse sua gestão</h1>
-            <p>Digite apenas o seu primeiro nome. A validação será concluída pelo contato cadastrado.</p>
-            <label htmlFor="firstName">Primeiro nome</label>
-            <input
-              id="firstName"
-              value={firstName}
-              onChange={(event) => setFirstName(event.target.value)}
-              autoComplete="given-name"
-              maxLength={60}
-              required
-            />
-            {error && <div className="form-error" role="alert">{error}</div>}
-            <button className="primary-button" disabled={submitting || firstName.trim().length < 1}>
-              {submitting ? "Validando..." : "Continuar"}
-            </button>
-          </form>
-        ) : (
-          <form onSubmit={submitCode} className="access-form">
-            <div className="access-icon"><LockKeyhole /></div>
-            <h1>Confirme o código</h1>
-            <p>{message}</p>
-            <label htmlFor="code">Código temporário</label>
-            <input
-              id="code"
-              className="code-input"
-              inputMode="numeric"
-              value={code}
-              onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 8))}
-              autoComplete="one-time-code"
-              required
-            />
-            {error && <div className="form-error" role="alert">{error}</div>}
-            <button className="primary-button" disabled={submitting || code.length < 6}>
-              {submitting ? "Confirmando..." : "Entrar no dashboard"}
-            </button>
-            <button type="button" className="text-button" onClick={() => setStep("name")}>
-              Solicitar outro código
-            </button>
-          </form>
-        )}
-
-        <div className="security-note">
-          <LockKeyhole size={16} />
-          <span>O link identifica sua página. O código temporário protege seus dados.</span>
+        <div className="access-form">
+          <div className="access-icon">{token ? <LockKeyhole /> : <ShieldCheck />}</div>
+          <h1>{token ? "Validando link seguro" : "Link exclusivo necessário"}</h1>
+          <p>
+            {token
+              ? "Estamos abrindo sua página exclusiva de economia. Nenhum código ou dado adicional é necessário."
+              : "Para acessar sua economia, use o link exclusivo enviado pela equipe MRL Travel."}
+          </p>
+          {token && !error && <div className="panel-state">Validando acesso...</div>}
+          {error && <div className="form-error" role="alert">{error}</div>}
         </div>
       </section>
-    </div>
+    </main>
   );
 }

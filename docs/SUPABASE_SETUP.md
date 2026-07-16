@@ -58,16 +58,16 @@ No painel do Supabase:
 
 1. Acesse Authentication.
 2. Desative cadastro público de usuários.
-3. Habilite e-mail com código temporário.
+3. Habilite login por e-mail e senha para administradores e usuários vinculados a clientes.
 4. Configure SMTP próprio para produção.
 5. Caso utilize SMS, configure um provedor compatível.
 6. Configure a URL principal como `https://gestao-mrltravel.vercel.app`.
 7. Adicione `https://gestao-mrltravel.vercel.app/**` como Redirect URL de produção.
 8. Mantenha `http://localhost:5173/**` somente como Redirect URL de desenvolvimento.
-9. Revise a validade do código temporário.
+9. Revise políticas de expiração de sessão e proteção contra abuso.
 10. Configure limites de autenticação e proteção contra abuso.
 
-O MVP usa e-mail ou SMS. Um envio pelo WhatsApp poderá ser incorporado posteriormente por meio da API oficial, sem alterar o vínculo de usuário e as políticas RLS.
+O acesso público do cliente não usa mais código temporário, SMS ou WhatsApp: o link direto bearer é trocado por sessão e abre somente `/c/economia`.
 
 ## 5. Criar o primeiro administrador
 
@@ -80,7 +80,7 @@ insert into public.staff_members (user_id, role, active)
 values ('UUID_DO_USUARIO', 'super_admin', true);
 ```
 
-O trigger de autenticação cria o registro correspondente em `profiles`. No primeiro login administrativo, o sistema exigirá o cadastro do autenticador TOTP.
+O trigger de autenticação cria o registro correspondente em `profiles`. O login administrativo usa e-mail/senha individual e a autorização efetiva depende de `staff_members` ativo.
 
 ## 6. Configurar segredos das funções
 
@@ -97,12 +97,11 @@ Para desenvolvimento, copie `supabase/functions/.env.example` para um arquivo lo
 ## 7. Publicar as funções
 
 ```bash
-npx supabase functions deploy request-client-access --project-ref bdkazlhvnowjehdgxege
-npx supabase functions deploy verify-client-access --project-ref bdkazlhvnowjehdgxege
 npx supabase functions deploy admin-create-client --project-ref bdkazlhvnowjehdgxege
+npx supabase functions deploy exchange-client-link --project-ref bdkazlhvnowjehdgxege
 ```
 
-As funções de solicitação e confirmação do código são públicas apenas porque o cliente ainda não possui sessão. Elas aplicam CORS restrito, resposta genérica, expiração e limite de tentativas.
+`exchange-client-link` é a função ativa do acesso do cliente: troca o token bearer do link direto por sessão Supabase e a interface navega para `/c/economia`. As funções antigas de solicitação/confirmação de código ficam obsoletas para o frontend novo e só devem permanecer publicadas durante janela controlada de desativação operacional.
 
 `admin-create-client` exige JWT válido e função administrativa no banco.
 

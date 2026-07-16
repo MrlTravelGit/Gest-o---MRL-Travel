@@ -12,19 +12,22 @@
 | Testes frontend/unitários | `npm test` aprovado: 13 arquivos, 37 testes |
 | Build de produção | `npm run build` aprovado com Vite 8.1.4 |
 | Supabase local | `npx supabase status` aprovado; serviços principais ativos |
-| Migração local real | `npx supabase migration up --local` bloqueado antes do patch 004 em `202607150003_storage_and_seed.sql`, no seed de `storage.buckets` do ambiente local |
+| Migração local real | `npx supabase migration up --local` bloqueado antes dos patches 004/010 em `202607150003_storage_and_seed.sql`, no seed de `storage.buckets` do ambiente local |
+| Ajuste definitivo de acesso | Aprovado em build: `/c/link/:token` navega para `/c/economia`, sem nome/código; `/admin/mfa` redireciona e não renderiza Authenticator |
+| Sintaxe SQL do ajuste definitivo | Aprovada com `pglast.parse_sql` para `202607160010_client_economy_only_no_mfa.sql` |
 
 ### Lacuna de banco
 
-Não foi executado `db reset` local nem qualquer comando destrutivo. Como o histórico local marca apenas 001 e 002 como aplicadas, `migration up --local` tentou aplicar 003 antes de 004 e falhou em estado prévio do storage local. Portanto, a versão 0.4.0 teve validação de sintaxe SQL e de contrato frontend/backend por build/testes, mas ainda precisa ser aplicada em homologação ou local limpo antes da produção.
+Não foi executado `db reset` local nem qualquer comando destrutivo. Como o histórico local marca apenas 001 e 002 como aplicadas, `migration up --local` tentou aplicar 003 antes de 004/010 e falhou em estado prévio do storage local. Portanto, a versão 0.4.0 teve validação de sintaxe SQL e de contrato frontend/backend por build/testes, mas ainda precisa ser aplicada em homologação ou local limpo antes da produção.
 
 ### Arquivos críticos validados
 
-1. Migration aditiva: `supabase/migrations/202607160009_sidebar_clubs_invoices_history_access.sql`.
+1. Migrations aditivas: `supabase/migrations/202607160009_sidebar_clubs_invoices_history_access.sql` e `supabase/migrations/202607160010_client_economy_only_no_mfa.sql`.
 2. Edge Function nova: `supabase/functions/exchange-client-link/index.ts`.
 3. Rotas administrativas: `/admin/clubes`, `/admin/faturas`, `/admin/movimentacoes`, `/admin/acessos` e `/admin/auditoria`.
-4. Fluxo do cliente: `/c/link/:token` troca o token e navega para `/c/dashboard`.
-5. Login admin: e-mail/senha com `staff_members` ativo, sem redirecionamento obrigatório para MFA.
+4. Fluxo do cliente: `/c/link/:token` troca o token e navega para `/c/economia`; `/c/:publicId` e `/c/:publicId/dashboard` saíram das rotas ativas.
+5. Login admin: e-mail/senha com `staff_members` ativo; a rota antiga `/admin/mfa` redireciona e não renderiza Authenticator.
+6. Validação pós-ajuste: `npm run typecheck`, `npm test`, `npm run build`, `git diff --check` e parse SQL das migrations 009/010 aprovados em 16/07/2026.
 
 ## Versão
 

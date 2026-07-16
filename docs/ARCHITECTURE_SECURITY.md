@@ -4,7 +4,7 @@
 
 ### Link direto do cliente
 
-O link direto novo é uma credencial bearer: quem possuir a URL com token válido poderá iniciar sessão do cliente vinculado. Esse risco é aceito funcionalmente para remover nome, senha e OTP do fluxo novo, e é mitigado por:
+O link direto novo é uma credencial bearer: quem possuir a URL com token válido poderá abrir a página de economia do cliente vinculado. Esse risco é aceito funcionalmente para remover nome, senha e OTP do fluxo novo, e é mitigado por:
 
 1. token aleatório de 256 bits gerado no frontend com `crypto.getRandomValues`;
 2. armazenamento somente do SHA-256 do token em `client_direct_access_links`;
@@ -13,13 +13,14 @@ O link direto novo é uma credencial bearer: quem possuir a URL com token válid
 5. validação de link ativo, cliente ativo, contrato vigente e vínculo `client_users`;
 6. rate limit por fingerprint minimizado em `client_direct_access_events`;
 7. eventos de sucesso/falha sem token bruto, e-mail ou dados financeiros;
-8. `Referrer-Policy: no-referrer`, limpeza da URL com navegação `replace` e sessão protegida por RLS.
+8. `Referrer-Policy: no-referrer`, limpeza da URL com navegação `replace` para `/c/economia` e sessão protegida por RLS;
+9. RPC estreita `get_my_client_economy`, que retorna apenas economia acumulada, contagem de emissões e histórico de economias.
 
-Links antigos por `public_id` continuam no período de transição, mas `public_id` não é convertido em segredo e não autoriza leitura por si só.
+Links antigos por `public_id` não são convertidos em segredo e não devem renderizar a tela antiga de primeiro nome/código.
 
 ### Login administrativo
 
-O painel administrativo usa e-mail e senha individuais via Supabase Auth. MFA TOTP permanece disponível em `/admin/mfa`, mas não bloqueia a entrada. A autorização efetiva continua no backend: `AdminProtectedRoute` faz triagem de UX, enquanto RPCs, Edge Functions e RLS validam `staff_members` ativo e papel autorizado antes de ler ou alterar dados.
+O painel administrativo usa somente e-mail e senha individuais via Supabase Auth. A página de Authenticator/MFA foi removida do aplicativo; a rota antiga redireciona sem renderizar a tela. A autorização efetiva continua no backend: `AdminProtectedRoute` faz triagem de UX, enquanto RPCs, Edge Functions e RLS validam `staff_members` ativo e papel autorizado antes de ler ou alterar dados.
 
 ### Risco residual
 
@@ -40,23 +41,20 @@ O principal risco residual é encaminhamento, captura por histórico do navegado
 
 ```text
 Link exclusivo
-→ Primeiro nome
-→ Backend localiza vínculo sem revelar o resultado
-→ Código temporário enviado ao contato cadastrado
-→ Código confirmado
+→ Edge Function troca token bearer por sessão
+→ Navegação limpa para /c/economia
 → Sessão Supabase criada
 → RLS valida auth.uid e client_id
-→ Dashboard retorna somente os registros permitidos
+→ RPC retorna somente economia do cliente
 ```
 
-O primeiro nome é um seletor e não uma senha.
+Não existe mais tela de primeiro nome, código temporário ou confirmação visual no fluxo do cliente.
 
 ## Acesso administrativo
 
 ```text
 E-mail e senha
 → Verificação de staff_members
-→ MFA TOTP opcional/recomendado
 → Sessão Supabase autenticada
 → Operação validada novamente na Edge Function ou RLS
 ```
@@ -68,9 +66,9 @@ E-mail e senha
 3. RLS em todas as tabelas expostas.
 4. Funções auxiliares com `search_path` fixo.
 5. Chave administrativa somente no backend.
-6. Respostas genéricas no pedido de código.
+6. Respostas genéricas para link inválido, expirado ou revogado.
 7. Limite por dispositivo e link.
-8. Código temporário e desafio com expiração.
+8. Token bearer com expiração opcional, rotação e revogação.
 9. Storage privado organizado pela pasta do `client_id`.
 10. Auditoria das alterações.
 
@@ -95,7 +93,7 @@ E-mail e senha
 | Ameaça | Mitigação |
 | :--- | :--- |
 | Link encaminhado | Revogação/rotação, expiração opcional e eventos de uso; no fluxo novo o link é credencial bearer |
-| Primeiro nome descoberto | Resposta genérica e OTP |
+| Link expirado ou aleatório | Resposta genérica, sem revelar existência de cliente |
 | Tentativa automatizada | Limites e bloqueio |
 | Manipulação do frontend | RLS e validação no backend |
 | Token administrativo exposto | Segredos fora do Vite |

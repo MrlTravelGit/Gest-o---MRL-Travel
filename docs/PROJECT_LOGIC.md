@@ -5,7 +5,7 @@
 | Campo | Definição |
 | :--- | :--- |
 | Documento | Fonte oficial da lógica do projeto |
-| Versão | 1.3.0 |
+| Versão | 1.4.0 |
 | Data inicial | 15 de julho de 2026 |
 | Responsável pelo negócio | MRL Travel |
 | Objetivo | Preservar a lógica funcional, técnica e de segurança durante todo o desenvolvimento |
@@ -13,7 +13,7 @@
 
 ## 1. Objetivo do sistema
 
-O Sistema de Gestão de Milhas MRL Travel deverá centralizar a gestão de pontos de cartões de crédito e programas de fidelidade dos clientes. Cada cliente terá acesso a um dashboard exclusivo para consultar saldos, patrimônio estimado, economia gerada, gastos mensais, pontos esperados, pontos recebidos, vencimentos e movimentações.
+O Sistema de Gestão de Milhas MRL Travel deverá centralizar a gestão de pontos de cartões de crédito e programas de fidelidade dos clientes. No acesso público atual, cada cliente terá uma página exclusiva de economia; demais saldos, faturas, clubes e movimentações permanecem no painel administrativo e nas consultas autorizadas pela equipe.
 
 O sistema também terá um painel administrativo para a equipe da MRL Travel cadastrar clientes, lançar informações, acompanhar contratos, identificar vencimentos, registrar emissões e controlar todo o histórico da gestão.
 
@@ -39,9 +39,10 @@ O sistema também terá um painel administrativo para a equipe da MRL Travel cad
 5. Faturas reutilizam `credit_cards`, `card_earning_rules` e `card_statements`; o backend calcula pontos esperados com `numeric` e grava snapshot de regra, cotação e fórmula.
 6. O histórico administrativo em `/admin/movimentacoes` consulta o ledger canônico `point_transactions`; exclusão visual significa estorno/correção auditável, não remoção física.
 7. Links diretos novos usam token bearer separado do `public_id`; o banco armazena apenas hash e a Edge Function troca o segredo por sessão Supabase.
-8. Links antigos com `public_id` e fluxo nome/código continuam disponíveis em período de transição.
-9. O login administrativo visível passa a ser e-mail e senha individuais; MFA deixa de ser barreira obrigatória e permanece opcional em `/admin/mfa`.
-10. A autorização administrativa continua no backend por `staff_members`, papel ativo, RPCs, RLS e auditoria.
+8. O fluxo antigo por `public_id`, primeiro nome e código temporário deixa de existir nas rotas ativas; links antigos não devem renderizar formulário.
+9. O cliente autenticado pelo link acessa somente `/c/economia`, página restrita a economia acumulada, emissões contabilizadas e histórico de economias.
+10. O login administrativo visível passa a ser e-mail e senha individuais; a página de Authenticator/MFA deixa de existir no aplicativo.
+11. A autorização administrativa continua no backend por `staff_members`, papel ativo, RPCs, RLS e auditoria.
 
 ## 3. Arquitetura oficial
 
@@ -102,29 +103,27 @@ Uma operação somente poderá continuar quando todas as condições forem verda
 
 ## 5. Fluxo de acesso do cliente
 
-1. O administrador cadastra o cliente.
-2. O backend cria um `public_id` aleatório e não sequencial.
-3. O sistema cria o vínculo entre o cliente e o usuário autenticável.
-4. O cliente recebe um convite de acesso de uso único e com prazo de validade.
-5. O cliente acessa `https://gestao-mrltravel.vercel.app/c/{public_id}`.
-6. O cliente digita o primeiro nome, utilizado apenas para localizar o usuário vinculado àquele link.
-7. O backend envia um código temporário ao contato previamente cadastrado.
-8. O cliente informa o código e o Supabase cria uma sessão autenticada.
-9. O backend valida sessão, usuário, vínculo e status do contrato.
-10. O backend retorna apenas o conjunto de dados permitido para aquele cliente.
-11. O dashboard informa a data e a hora da última atualização.
-12. Tentativas inválidas são registradas e limitadas.
-13. Cada contato usado para autenticação deverá pertencer a um único usuário do Supabase Auth.
+1. O administrador cadastra o cliente e mantém contrato vigente.
+2. O sistema cria o vínculo entre o cliente e o usuário autenticável.
+3. O administrador gera ou rotaciona um link direto de economia.
+4. O banco armazena somente o hash do token bearer.
+5. O cliente acessa `https://gestao-mrltravel.vercel.app/c/link/{token}`.
+6. O frontend envia o token à Edge Function `exchange-client-link` por HTTPS.
+7. A Edge Function valida hash, status, expiração, cliente ativo, contrato vigente e vínculo de usuário.
+8. O Supabase cria a sessão autenticada por mecanismo suportado.
+9. O navegador limpa a URL e navega por `replace` para `/c/economia`.
+10. A RPC `get_my_client_economy` retorna somente dados de economia do cliente autenticado.
+11. Tentativas inválidas são registradas de forma minimizada e limitadas.
 
-O primeiro nome não será tratado como senha. A autenticação real será realizada pelo código temporário e pela sessão emitida após a confirmação do contato cadastrado.
+Não existe mais tela de primeiro nome, confirmação por código ou dashboard completo do cliente no fluxo público. O link direto abre exclusivamente a página de economia.
 
 ### 5.1 Regras do link exclusivo
 
-1. O `public_id` deverá possuir entropia mínima equivalente a 128 bits.
-2. O identificador não poderá ser CPF, e-mail, código sequencial ou nome do cliente.
-3. O identificador poderá ser rotacionado pelo administrador.
-4. A URL identificará a página, mas não autorizará a leitura dos dados.
-5. Convites deverão ser revogáveis, temporários e de uso único.
+1. O token do link direto deverá possuir entropia mínima de 256 bits.
+2. O token bruto nunca será salvo no banco; somente o hash poderá persistir.
+3. O link poderá ser rotacionado pelo administrador; a rotação revoga o anterior.
+4. A URL é uma credencial bearer e deve ser tratada como segredo pelo cliente e pela equipe.
+5. Links deverão ser revogáveis, temporários quando necessário e auditáveis sem registrar token bruto.
 
 ## 6. Fluxo administrativo
 
@@ -604,6 +603,7 @@ O documento e o sistema usarão versão semântica:
 | 1.1.4 | 15/07/2026 | Origem canônica de Production, CORS exato e bloqueio explícito de operações administrativas em Preview |
 | 1.2.0 | 15/07/2026 | Painel administrativo de pontos, clubes por programa, custo médio e vencimentos transacionais |
 | 1.3.0 | 16/07/2026 | Hero + Bento e módulos de clientes, viagens/economia, ranking, interesses, transferências e saída manual |
+| 1.4.0 | 16/07/2026 | Sidebar administrativa, clubes, faturas, histórico, link direto para `/c/economia` e remoção visual de OTP/MFA |
 
 ## 21. Decisões iniciais consolidadas
 
@@ -611,10 +611,10 @@ O documento e o sistema usarão versão semântica:
 2. O projeto terá banco Supabase próprio.
 3. O código visual existente poderá ser reaproveitado seletivamente.
 4. O MVP começará com lançamentos manuais e importação padronizada.
-5. O cliente terá acesso de leitura aos próprios dados.
-6. O administrador terá autenticação em dois fatores.
-7. O link exclusivo não substituirá autenticação.
+5. O cliente terá acesso público somente à própria página de economia.
+6. O administrador entrará com e-mail e senha individual; Authenticator/MFA não é tela obrigatória do aplicativo.
+7. O link exclusivo bearer substitui o fluxo visual de nome/código e é trocado por sessão Supabase antes de consultar dados.
 8. Todos os cálculos oficiais serão executados no backend.
 9. Toda nova demanda produzirá análise, patch, testes e atualização da documentação quando necessário.
-10. O primeiro nome será um seletor de identidade e nunca substituirá o código temporário.
+10. Primeiro nome e código temporário não fazem mais parte das rotas ativas do cliente.
 11. A aplicação será publicada pela Vercel e utilizará um projeto Supabase PostgreSQL dedicado.

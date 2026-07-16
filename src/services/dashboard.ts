@@ -1,19 +1,16 @@
 import { supabase } from "@/lib/supabase";
-import type { AdminOverview, ClientDashboard } from "@/types/dashboard";
+import type { AdminOverview, ClientEconomy } from "@/types/dashboard";
 
-export async function getClientDashboard(publicId: string): Promise<ClientDashboard> {
-  const { data, error } = await supabase.rpc("get_client_dashboard", {
-    p_public_id: publicId,
-  });
-
-  if (error || !data) throw new Error("Dashboard indisponível ou acesso não autorizado");
-  return data as unknown as ClientDashboard;
+export async function getMyClientEconomy(): Promise<ClientEconomy> {
+  const { data, error } = await supabase.rpc("get_my_client_economy");
+  if (error || !data) throw new Error("Página de economia indisponível ou acesso não autorizado");
+  return data as unknown as ClientEconomy;
 }
 
-export async function getMyClientDashboard(): Promise<ClientDashboard> {
-  const { data, error } = await supabase.rpc("get_my_client_dashboard");
-  if (error || !data) throw new Error("Dashboard indisponível ou acesso não autorizado");
-  return data as unknown as ClientDashboard;
+export async function getAdminClientEconomyPreview(clientId: string): Promise<ClientEconomy> {
+  const { data, error } = await supabase.rpc("get_admin_client_economy_preview", { p_client_id: clientId });
+  if (error || !data) throw new Error("Prévia de economia indisponível ou acesso não autorizado");
+  return data as unknown as ClientEconomy;
 }
 
 export async function getAdminOverview(): Promise<AdminOverview> {

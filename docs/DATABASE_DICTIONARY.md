@@ -34,6 +34,11 @@ Todas as tabelas novas possuem RLS habilitado e forçado. Consultas de cliente d
 | `revoke_client_direct_access_link` | Revoga link direto com motivo auditável |
 | `get_client_direct_access_links` | Lista links diretos administrativos sem token bruto |
 | `get_my_client_dashboard` | Retorna o dashboard do cliente autenticado sem depender de `public_id` na rota |
+| `build_client_economy_payload` | Helper interno para montar somente dados de economia; execução revogada para papéis de aplicação |
+| `get_my_client_economy` | Retorna apenas economia do cliente autenticado pelo link direto |
+| `get_admin_client_economy_preview` | Prévia administrativa de economia por `client_id`, sem revelar token bearer |
+
+Na versão 0.4.0 definitiva, `get_client_dashboard(public_id)` deixa de ser contrato frontend ativo para clientes e tem execução revogada para `authenticated` pela migration `202607160010_client_economy_only_no_mfa.sql`.
 
 ## Identidade e acesso
 
