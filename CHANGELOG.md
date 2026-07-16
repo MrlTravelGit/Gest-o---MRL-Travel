@@ -1,5 +1,13 @@
 # Histórico de versões
 
+## 0.3.1, 16/07/2026
+
+### Corrigido
+
+1. Adicionada assinatura compativel de `get_admin_clients(p_limit, p_offset, p_search, p_status)` para resolver o erro `PGRST202` do painel administrativo em producao.
+2. O frontend passa a enviar os parametros no contrato observado pelo PostgREST e faz fallback seguro para a RPC antiga de 3 argumentos quando nao houver filtro de status.
+3. Testes cobrem o contrato frontend e a assinatura pgTAP com busca e status.
+
 ## 0.3.0, 16/07/2026
 
 ### Adicionado

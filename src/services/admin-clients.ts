@@ -32,11 +32,20 @@ function mutationError(error: unknown): Error {
 
 export async function getAdminClients(search = "", status = "", limit = 20, offset = 0): Promise<AdminClientsResult> {
   const { data, error } = await supabase.rpc("get_admin_clients", {
-    p_search: search || null,
-    p_status: status || null,
     p_limit: limit,
     p_offset: offset,
+    p_search: search || null,
+    p_status: status || null,
   });
+  if (!status && error?.code === "PGRST202") {
+    const fallback = await supabase.rpc("get_admin_clients", {
+      p_search: search || null,
+      p_limit: limit,
+      p_offset: offset,
+    });
+    if (fallback.error || !fallback.data) throw new Error("Não foi possível carregar os clientes.");
+    return fallback.data as unknown as AdminClientsResult;
+  }
   if (error || !data) throw new Error("Não foi possível carregar os clientes.");
   return data as unknown as AdminClientsResult;
 }
