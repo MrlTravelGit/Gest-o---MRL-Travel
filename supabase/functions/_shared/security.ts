@@ -58,3 +58,15 @@ export function bearerToken(request: Request): string | null {
   if (!header.toLowerCase().startsWith("bearer ")) return null;
   return header.slice(7).trim() || null;
 }
+
+export function jwtAssuranceLevel(token: string): string | null {
+  try {
+    const payload = token.split(".")[1];
+    if (!payload) return null;
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const decoded = JSON.parse(atob(normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "="))) as { aal?: unknown };
+    return typeof decoded.aal === "string" ? decoded.aal : null;
+  } catch {
+    return null;
+  }
+}

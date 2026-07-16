@@ -1,5 +1,7 @@
 # Sistema de Gestão de Milhas MRL Travel
 
+Versão atual: `0.3.0`.
+
 Base funcional do novo sistema de gestão de pontos, cartões, programas de fidelidade, emissões, economia e vencimentos da MRL Travel.
 
 ## Estado desta entrega

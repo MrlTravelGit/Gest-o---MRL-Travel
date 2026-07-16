@@ -5,7 +5,7 @@
 | Campo | Definição |
 | :--- | :--- |
 | Documento | Fonte oficial da lógica do projeto |
-| Versão | 1.2.0 |
+| Versão | 1.3.0 |
 | Data inicial | 15 de julho de 2026 |
 | Responsável pelo negócio | MRL Travel |
 | Objetivo | Preservar a lógica funcional, técnica e de segurança durante todo o desenvolvimento |
@@ -149,6 +149,25 @@ O primeiro nome não será tratado como senha. A autenticação real será reali
 6. Lançamentos e vencimentos são imutáveis neste patch; correções futuras usarão ajustes auditáveis.
 7. Mutações usam RPCs transacionais e nunca dependem de inserções coordenadas pelo frontend.
 8. Cada lançamento usa uma chave idempotente para impedir duplicação por reenvio.
+
+### 6.3 Centro administrativo Hero + Bento
+
+1. `/admin` apresenta indicadores reais e oito atalhos sem expor o e-mail completo do operador.
+2. As rotas administrativas são protegidas por sessão, staff ativo e AAL2 e carregadas sob demanda.
+3. Cadastro de Pessoa é o mesmo domínio de Cliente; não existe tabela paralela de pessoas.
+4. Nascimento pertence a `clients` e o endereço principal pertence a `client_addresses`, acessível apenas à equipe.
+5. Exclusão na interface significa arquivamento lógico: cliente `ended`, vínculos inativos e contrato encerrado, com histórico preservado.
+6. Formulários é somente uma prévia visual nesta versão e não possui tabela ou endpoint.
+
+### 6.4 Operações administrativas
+
+1. Viagens e economia reutilizam `redemptions`; `cash_reference_total` é a referência e `effective_cost` é o valor pago.
+2. Viagem em dinheiro não altera pontos. Viagem em milhas realiza uma baixa explícita e atômica, vinculada ao resgate.
+3. Interesses de viagem usam `travel_interests`, com estados `open`, `quoting`, `converted` e `cancelled`.
+4. Transferências evoluem `transfers` e criam `transfer_out`, `transfer_in` e `bonus` no ledger oficial.
+5. A tela registra transferências já concluídas; o crédito ocorre na confirmação e não existe agendador.
+6. Saída manual usa `point_transactions` com categoria `manual_exit`; lançamentos anteriores nunca são editados.
+7. Chaves de operação impedem duplicidade por retry e saldos são bloqueados durante mutações.
 
 ## 7. Fluxo dos dados
 
@@ -344,6 +363,24 @@ Valor total usa duas casas decimais e custo por milheiro usa quatro. O frontend 
 3. Vencimento manual classifica saldo existente e não cria pontos.
 4. A soma dos lotes ativos não pode ultrapassar o saldo atual da conta.
 5. `entry_date` preserva a data civil escolhida e `created_at` preserva o momento real do lançamento.
+
+### 11.10 Viagem e economia
+
+```text
+economia = valor_original - valor_pago
+```
+
+O PostgreSQL persiste a economia como coluna gerada de `redemptions`. Resultados negativos são preservados.
+
+### 11.11 Transferência
+
+```text
+destino_base = round(pontos_origem × paridade)
+bonus = round(destino_base × percentual_bonus ÷ 100)
+destino_total = destino_base + bonus
+```
+
+O custo médio da origem é preservado. No destino, o custo da base é carregado da origem e o bônus entra com custo zero na média ponderada.
 
 ## 12. Alertas obrigatórios
 
@@ -552,6 +589,7 @@ O documento e o sistema usarão versão semântica:
 | 1.1.0 | 15/07/2026 | Definição do acesso por link, primeiro nome, código temporário, sessão segura e início da base Supabase e Vercel |
 | 1.1.4 | 15/07/2026 | Origem canônica de Production, CORS exato e bloqueio explícito de operações administrativas em Preview |
 | 1.2.0 | 15/07/2026 | Painel administrativo de pontos, clubes por programa, custo médio e vencimentos transacionais |
+| 1.3.0 | 16/07/2026 | Hero + Bento e módulos de clientes, viagens/economia, ranking, interesses, transferências e saída manual |
 
 ## 21. Decisões iniciais consolidadas
 

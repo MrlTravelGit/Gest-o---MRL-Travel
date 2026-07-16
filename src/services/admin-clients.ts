@@ -30,14 +30,25 @@ function mutationError(error: unknown): Error {
   return new Error(safe ?? "O lançamento não foi concluído. Nenhum dado foi alterado.");
 }
 
-export async function getAdminClients(search = "", limit = 20, offset = 0): Promise<AdminClientsResult> {
+export async function getAdminClients(search = "", status = "", limit = 20, offset = 0): Promise<AdminClientsResult> {
   const { data, error } = await supabase.rpc("get_admin_clients", {
     p_search: search || null,
+    p_status: status || null,
     p_limit: limit,
     p_offset: offset,
   });
   if (error || !data) throw new Error("Não foi possível carregar os clientes.");
   return data as unknown as AdminClientsResult;
+}
+
+export async function archiveClient(clientId: string, confirmationName: string) {
+  const { data, error } = await supabase.rpc("archive_client", { p_client_id: clientId, p_confirmation_name: confirmationName });
+  if (error || !data) {
+    const raw = error?.message ?? "";
+    const safe = ["Somente gestores podem arquivar clientes.", "Digite o nome completo para confirmar.", "Cliente não encontrado."].find((message) => raw.includes(message));
+    throw new Error(safe ?? "O cliente não foi arquivado.");
+  }
+  return data;
 }
 
 export async function getAdminClientPointsDetail(clientId: string): Promise<AdminClientPointsDetail> {

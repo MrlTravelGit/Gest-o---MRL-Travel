@@ -1,5 +1,30 @@
 # Histórico de versões
 
+## 0.3.0, 16/07/2026
+
+### Adicionado
+
+1. Home administrativa premium com Hero, Aurora dourada, quatro indicadores oficiais e Bento Grid com oito módulos.
+2. Rotas lazy-loaded de Clientes, Cadastro de Pessoas, Viagens/Economia, Pontuações, Formulários, Interesses, Transferências e Saída Manual.
+3. Cadastro de cliente com nascimento, endereço normalizado, observação e contrato no bundle PostgreSQL existente.
+4. Ranking server-side, interesses paginados e viagens/economia sobre a fonte oficial `redemptions`.
+5. Transferência e saída manual atômicas e idempotentes sobre o ledger do PATCH 002.
+6. Formulários administrativos com React Hook Form, Zod, máscaras `pt-BR`, estados de carregamento/erro/vazio e interface responsiva.
+7. Migrações `202607160005_manual_exit_category.sql` e `202607160006_admin_hero_bento_modules.sql`, com teste pgTAP direcionado.
+
+### Segurança e integridade
+
+1. Mutações administrativas passam a exigir AAL2 também no banco; cadastro via Edge Function valida o claim após validar o token no Auth.
+2. Novas tabelas usam RLS forçada, grants mínimos, auditoria e funções `security definer` com `search_path` fixo.
+3. Arquivamento lógico revoga vínculos e acesso sem apagar histórico ou usuário Auth.
+4. Auditoria de clientes e endereços elimina PII dos snapshots de log.
+5. Transferências, viagens em milhas e saídas bloqueiam a conta, conferem pertencimento e atualizam movimentos/snapshots numa transação.
+
+### Alterado
+
+1. `transfers` e `redemptions` foram evoluídas aditivamente; nenhuma estrutura paralela de saldos, transferências ou economia foi criada.
+2. Versão do sistema atualizada para `0.3.0` e lógica oficial para `1.3.0`.
+
 ## 0.2.0, 15/07/2026
 
 ### Adicionado

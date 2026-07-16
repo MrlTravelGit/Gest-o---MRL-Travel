@@ -2,12 +2,18 @@ import { supabase } from "@/lib/supabase";
 
 export interface CreateClientInput {
   fullName: string;
-  email?: string;
+  birthDate: string;
+  email: string;
   phone?: string;
   accessChannel: "email" | "phone";
   startsOn: string;
   endsOn: string;
   planName?: string;
+  notes?: string;
+  address: {
+    postalCode: string; street: string; number: string; complement?: string;
+    neighborhood: string; city: string; state: string; countryCode: string;
+  };
 }
 
 export interface CreateClientResult {

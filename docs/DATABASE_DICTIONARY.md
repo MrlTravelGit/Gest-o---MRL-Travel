@@ -7,6 +7,7 @@
 | `profiles` | Dados mínimos do usuário autenticado |
 | `staff_members` | Função e status da equipe |
 | `clients` | Cadastro principal e `public_id` |
+| `client_addresses` | Endereço principal normalizado; leitura restrita à equipe |
 | `client_users` | Associação segura entre cliente e usuário |
 | `client_access_challenges` | Desafios temporários de código |
 | `client_access_attempts` | Controle de tentativas sem armazenar nome ou IP em texto puro |
@@ -41,6 +42,17 @@
 | `expiration_lots` | Quantidades e datas de vencimento |
 | `transfers` | Transferências e bônus |
 
+### Estruturas adicionadas ou evoluídas na versão 0.3.0
+
+| Estrutura | Alteração | Regra |
+| :--- | :--- | :--- |
+| `clients` | `birth_date` | Não aceita data futura na criação |
+| `client_addresses` | nova tabela | Um endereço principal por cliente, RLS forçada e auditoria sem PII |
+| `travel_interests` | nova tabela | Período consistente e quatro estados operacionais |
+| `redemptions` | modo, data, operação e conta/pontos | Fonte única de viagens e economia; operação em milhas pode baixar atomicamente |
+| `transfers` | paridade, base, bônus, datas e operação | Evolução in-place, concluída no salvamento |
+| `point_entry_category` | `manual_exit` | Saída excepcional no mesmo ledger |
+
 ### Campos adicionados na versão 0.2.0
 
 | Estrutura | Campo | Regra |
@@ -57,6 +69,8 @@
 
 O enum `point_entry_category` contém `initial_balance`, `points_purchase`, `transfer`, `credit_card` e `other`. Um índice parcial permite apenas um `initial_balance` por conta.
 
+Na versão 0.3.0, o enum também contém `manual_exit`.
+
 ## RPCs administrativos de pontos
 
 | Função | Responsabilidade |
@@ -66,6 +80,22 @@ O enum `point_entry_category` contém `initial_balance`, `points_purchase`, `tra
 | `record_point_entry` | Cria conta quando necessário e grava transação, snapshot e lote atomicamente |
 | `set_program_club_status` | Atualiza o clube por conta de programa |
 | `add_expiration_lot` | Classifica vencimento sem alterar saldo e limita lotes ao saldo atual |
+
+## RPCs administrativas da versão 0.3.0
+
+| Função | Responsabilidade |
+| :--- | :--- |
+| `get_admin_overview` | Indicadores, papel e capacidades do operador |
+| `get_admin_form_options` | Clientes ativos e contas com o último saldo oficial |
+| `get_admin_clients` (4 argumentos) | Pesquisa, status, agregados e paginação |
+| `archive_client` | Arquivamento lógico transacional para manager/super_admin |
+| `record_travel_sale` / `get_travel_sales` | Viagens, economia e baixa explícita em milhas |
+| `upsert_travel_interest` / `get_travel_interests` | Cadastro, atualização, busca e paginação de interesses |
+| `get_points_ranking` | Ranking global antes da paginação, com vencimentos e programas |
+| `confirm_transfer` | Transferência, três movimentos possíveis, snapshots e validade |
+| `record_manual_exit` | Baixa idempotente, snapshot e consumo FIFO de lotes classificados |
+
+Todas as mutações autenticadas exigem staff de escrita ativo e claim `aal2`. Auditor possui apenas consultas.
 
 As mutações são `security definer`, fixam `search_path`, usam `auth.uid()` e permitem execução somente a `authenticated`; a autorização efetiva é refeita internamente por `can_write_client_data()`.
 

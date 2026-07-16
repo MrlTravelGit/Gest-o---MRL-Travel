@@ -57,4 +57,10 @@ export interface AdminOverview {
   expiringIn30Days: number;
   contractsEndingIn30Days: number;
   openTasks: number;
+  openInterests: number;
+  transfersCount: number;
+  operatorName: string;
+  role: "super_admin" | "manager" | "operator" | "auditor";
+  canWrite: boolean;
+  canArchive: boolean;
 }

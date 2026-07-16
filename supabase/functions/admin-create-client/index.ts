@@ -1,22 +1,36 @@
 import { z } from "npm:zod@3.25.76";
 import { isAllowedOrigin, jsonResponse, normalizeOrigin, preflightResponse } from "../_shared/http.ts";
-import { bearerToken } from "../_shared/security.ts";
+import { bearerToken, jwtAssuranceLevel } from "../_shared/security.ts";
 import { adminClient } from "../_shared/supabase.ts";
 
 const createSchema = z.object({
   fullName: z.string().trim().min(3).max(160),
-  email: z.string().trim().email().optional(),
+  birthDate: z.string().date(),
+  email: z.string().trim().email(),
   phone: z.string().trim().regex(/^\+[1-9][0-9]{7,14}$/).optional(),
   accessChannel: z.enum(["email", "phone"]),
   startsOn: z.string().date(),
   endsOn: z.string().date(),
   planName: z.string().trim().max(120).optional(),
-}).refine((data) => data.email || data.phone, {
-  message: "Informe e-mail ou telefone",
+  notes: z.string().trim().max(2000).optional(),
+  address: z.object({
+    postalCode: z.string().trim().min(3).max(16),
+    street: z.string().trim().min(2).max(160),
+    number: z.string().trim().min(1).max(30),
+    complement: z.string().trim().max(120).optional(),
+    neighborhood: z.string().trim().min(2).max(100),
+    city: z.string().trim().min(2).max(100),
+    state: z.string().trim().min(2).max(80),
+    countryCode: z.string().trim().length(2).default("BR"),
+  }),
 }).refine((data) => data.accessChannel === "email" ? Boolean(data.email) : Boolean(data.phone), {
   message: "O canal escolhido precisa estar preenchido",
 }).refine((data) => data.endsOn >= data.startsOn, {
   message: "A data final deve ser igual ou posterior à inicial",
+}).refine((data) => data.birthDate <= new Date().toISOString().slice(0, 10), {
+  message: "A data de nascimento não pode estar no futuro",
+}).refine((data) => data.address.countryCode.toUpperCase() !== "BR" || /^[A-Za-z]{2}$/.test(data.address.state), {
+  message: "Informe uma UF válida",
 });
 
 Deno.serve(async (request) => {
@@ -45,6 +59,10 @@ Deno.serve(async (request) => {
     const caller = callerResult?.user;
     if (callerError || !caller) {
       return jsonResponse(request, { error: "Sessão administrativa inválida" }, 401);
+    }
+
+    if (jwtAssuranceLevel(token) !== "aal2") {
+      return jsonResponse(request, { error: "Confirme o segundo fator para continuar" }, 403);
     }
 
     const { data: staff } = await admin
@@ -113,6 +131,16 @@ Deno.serve(async (request) => {
       p_email: body.email ?? "",
       p_phone_e164: body.phone ?? "",
       p_access_channel: body.accessChannel,
+      p_birth_date: body.birthDate,
+      p_notes: body.notes ?? null,
+      p_postal_code: body.address.postalCode,
+      p_street: body.address.street,
+      p_number: body.address.number,
+      p_complement: body.address.complement ?? null,
+      p_neighborhood: body.address.neighborhood,
+      p_city: body.address.city,
+      p_state: body.address.state,
+      p_country_code: body.address.countryCode.toUpperCase(),
       p_starts_on: body.startsOn,
       p_ends_on: body.endsOn,
       p_plan_name: body.planName ?? null,
@@ -134,7 +162,10 @@ Deno.serve(async (request) => {
     if (createdAuthUserId) {
       await admin.auth.admin.deleteUser(createdAuthUserId).catch(() => undefined);
     }
-    console.error("admin-create-client failed", error instanceof Error ? error.message : "unknown");
+    const errorCode = error && typeof error === "object" && "code" in error
+      ? String(error.code)
+      : "unknown";
+    console.error("admin-create-client failed", errorCode);
     return jsonResponse(request, { error: "Não foi possível concluir o cadastro" }, 500);
   }
 });

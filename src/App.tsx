@@ -7,6 +7,13 @@ import { LoadingScreen } from "@/components/routes/LoadingScreen";
 const AdminDashboardPage = lazy(() => import("@/pages/AdminDashboardPage").then((module) => ({ default: module.AdminDashboardPage })));
 const AdminClientsPage = lazy(() => import("@/pages/AdminClientsPage").then((module) => ({ default: module.AdminClientsPage })));
 const AdminClientDetailPage = lazy(() => import("@/pages/AdminClientDetailPage").then((module) => ({ default: module.AdminClientDetailPage })));
+const AdminCreateClientPage = lazy(() => import("@/pages/admin/AdminCreateClientPage").then((module) => ({ default: module.AdminCreateClientPage })));
+const AdminTravelEconomyPage = lazy(() => import("@/pages/admin/AdminTravelEconomyPage").then((module) => ({ default: module.AdminTravelEconomyPage })));
+const AdminPointsPage = lazy(() => import("@/pages/admin/AdminPointsPage").then((module) => ({ default: module.AdminPointsPage })));
+const AdminFormsPage = lazy(() => import("@/pages/admin/AdminFormsPage").then((module) => ({ default: module.AdminFormsPage })));
+const AdminInterestsPage = lazy(() => import("@/pages/admin/AdminInterestsPage").then((module) => ({ default: module.AdminInterestsPage })));
+const AdminTransfersPage = lazy(() => import("@/pages/admin/AdminTransfersPage").then((module) => ({ default: module.AdminTransfersPage })));
+const AdminManualExitsPage = lazy(() => import("@/pages/admin/AdminManualExitsPage").then((module) => ({ default: module.AdminManualExitsPage })));
 const AdminLoginPage = lazy(() => import("@/pages/AdminLoginPage").then((module) => ({ default: module.AdminLoginPage })));
 const AdminMfaPage = lazy(() => import("@/pages/AdminMfaPage").then((module) => ({ default: module.AdminMfaPage })));
 const ClientAccessPage = lazy(() => import("@/pages/ClientAccessPage").then((module) => ({ default: module.ClientAccessPage })));
@@ -27,7 +34,14 @@ export default function App() {
         <Route element={<AdminProtectedRoute />}>
           <Route path="/admin" element={<AdminDashboardPage />} />
           <Route path="/admin/clientes" element={<AdminClientsPage />} />
+          <Route path="/admin/clientes/novo" element={<AdminCreateClientPage />} />
           <Route path="/admin/clientes/:clientId" element={<AdminClientDetailPage />} />
+          <Route path="/admin/viagens-e-economia" element={<AdminTravelEconomyPage />} />
+          <Route path="/admin/pontuacoes" element={<AdminPointsPage />} />
+          <Route path="/admin/formularios" element={<AdminFormsPage />} />
+          <Route path="/admin/interesses" element={<AdminInterestsPage />} />
+          <Route path="/admin/transferencias" element={<AdminTransfersPage />} />
+          <Route path="/admin/saidas" element={<AdminManualExitsPage />} />
         </Route>
         <Route path="*" element={<NotFoundPage />} />
       </Routes>

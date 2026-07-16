@@ -23,10 +23,20 @@ describe("createClient", () => {
 
     await expect(createClient({
       fullName: "Cliente Teste",
+      birthDate: "1990-05-20",
       email: "cliente@example.com",
       accessChannel: "email",
       startsOn: "2026-07-15",
       endsOn: "2027-07-15",
+      address: {
+        postalCode: "35500-000",
+        street: "Rua das Milhas",
+        number: "10",
+        neighborhood: "Centro",
+        city: "Divinópolis",
+        state: "MG",
+        countryCode: "BR",
+      },
     })).rejects.toThrow("Este e-mail já pertence a outro usuário");
   });
 

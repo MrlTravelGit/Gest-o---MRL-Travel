@@ -1,4 +1,5 @@
 import { LogOut, ShieldCheck } from "lucide-react";
+import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 
 export function AppShell({
@@ -6,24 +7,26 @@ export function AppShell({
   subtitle,
   children,
   showLogout = true,
+  hideHeading = false,
 }: {
   title: string;
   subtitle?: string;
   children: React.ReactNode;
   showLogout?: boolean;
+  hideHeading?: boolean;
 }) {
   const { signOut } = useAuth();
 
   return (
     <div className="app-shell">
       <header className="app-header">
-        <div className="brand-lockup">
+        <Link className="brand-lockup" to="/admin" aria-label="MRL Travel — painel administrativo">
           <div className="brand-mark">MRL</div>
           <div>
             <strong>MRL Travel</strong>
             <span>Gestão de Milhas</span>
           </div>
-        </div>
+        </Link>
         <div className="header-security">
           <ShieldCheck size={18} />
           <span>Ambiente protegido</span>
@@ -35,12 +38,12 @@ export function AppShell({
         </div>
       </header>
       <main className="page-container">
-        <div className="page-heading">
+        {!hideHeading && <div className="page-heading">
           <div>
             <h1>{title}</h1>
             {subtitle && <p>{subtitle}</p>}
           </div>
-        </div>
+        </div>}
         {children}
       </main>
     </div>

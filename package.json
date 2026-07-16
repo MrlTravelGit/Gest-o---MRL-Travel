@@ -1,7 +1,7 @@
 {
   "name": "mrl-mileage-management",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -15,12 +15,16 @@
     "supabase:functions:deploy": "supabase functions deploy"
   },
   "dependencies": {
+    "@hookform/resolvers": "^5.4.0",
+    "@radix-ui/react-alert-dialog": "^1.1.19",
     "@supabase/supabase-js": "^2.93.3",
     "@tanstack/react-query": "^5.83.0",
     "date-fns": "^4.1.0",
     "lucide-react": "^0.574.0",
+    "ogl": "^1.0.11",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-hook-form": "^7.81.0",
     "react-router-dom": "^6.30.1",
     "recharts": "^3.9.2",
     "zod": "^3.25.76"

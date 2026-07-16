@@ -25,6 +25,7 @@ insert into public.client_users (client_id, user_id, role, active, created_by)
 values ('00000000-0000-0000-0000-000000000201', '00000000-0000-0000-0000-000000000104', 'client', true, '00000000-0000-0000-0000-000000000101');
 
 set local role authenticated;
+select set_config('request.jwt.claim.aal', 'aal2', true);
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000101', true);
 
 select is((public.get_admin_clients(null, 20, 0) ->> 'total')::integer, 2, 'staff lista clientes');

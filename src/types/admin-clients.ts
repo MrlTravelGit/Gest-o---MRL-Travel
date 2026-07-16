@@ -13,6 +13,7 @@ export interface AdminClientListItem {
   fullName: string;
   status: string;
   totalPoints: number;
+  generatedSavings: number;
   programsCount: number;
   activeClubsCount: number;
   nextExpirationDate: string | null;
