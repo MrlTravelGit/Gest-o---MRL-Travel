@@ -8,10 +8,21 @@ export type PointEntryCategory =
 export type ValuationMode = "total_value" | "per_thousand";
 
 export interface AdminClientListItem {
+  id: string;
   clientId: string;
   publicId: string;
   fullName: string;
+  email: string | null;
+  phone: string | null;
   status: string;
+  createdAt: string;
+  contract: {
+    startsOn: string | null;
+    endsOn: string | null;
+    status: string | null;
+    planName: string | null;
+  } | null;
+  pointsBalance: number;
   totalPoints: number;
   generatedSavings: number;
   programsCount: number;

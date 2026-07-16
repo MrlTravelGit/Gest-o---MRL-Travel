@@ -1,5 +1,13 @@
 # Histórico de versões
 
+## 0.3.2, 16/07/2026
+
+### Corrigido
+
+1. Removidos os overloads conflitantes de `get_admin_clients` que causavam `PGRST203` no PostgREST.
+2. Estabelecida assinatura canônica única `get_admin_clients(p_limit, p_offset, p_search, p_status)` com `p_status = 'all'`.
+3. Frontend, testes unitários e pgTAP passam a usar apenas o contrato oficial, sem fallback para assinaturas antigas.
+
 ## 0.3.1, 16/07/2026
 
 ### Corrigido

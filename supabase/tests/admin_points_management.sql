@@ -4,7 +4,7 @@ create extension if not exists pgtap with schema extensions;
 select plan(20);
 
 insert into auth.users (
-  id, instance_id, aud, role, email, encrypted_password, email_confirmed_at,
+  id, instance_id, aud, role, email, encrypted_password, confirmed_at,
   raw_app_meta_data, raw_user_meta_data, created_at, updated_at
 ) values
   ('00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'admin-test@example.invalid', '', now(), '{}'::jsonb, '{"full_name":"Admin Teste"}'::jsonb, now(), now()),
@@ -28,7 +28,7 @@ set local role authenticated;
 select set_config('request.jwt.claim.aal', 'aal2', true);
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000101', true);
 
-select is((public.get_admin_clients(null, 20, 0) ->> 'total')::integer, 2, 'staff lista clientes');
+select is((public.get_admin_clients(20, 0, '', 'all') ->> 'total')::integer, 2, 'staff lista clientes');
 select ok(jsonb_array_length(public.get_admin_client_points_detail('00000000-0000-0000-0000-000000000201') -> 'programs') >= 6, 'detalhe inclui programas ativos sem conta');
 
 select is(

@@ -27,16 +27,19 @@ describe("getAdminClients", () => {
     });
   });
 
-  it("faz fallback para a assinatura antiga quando nao ha filtro de status", async () => {
-    rpc
-      .mockResolvedValueOnce({ data: null, error: { code: "PGRST202", message: "schema cache" } })
-      .mockResolvedValueOnce({ data: { items: [], total: 1, limit: 20, offset: 0 }, error: null });
+  it("usa all como status canonico quando nao ha filtro", async () => {
+    rpc.mockResolvedValueOnce({
+      data: { items: [], total: 1, limit: 50, offset: 0 },
+      error: null,
+    });
 
     await expect(getAdminClients("", "", 20, 0)).resolves.toMatchObject({ total: 1 });
-    expect(rpc).toHaveBeenLastCalledWith("get_admin_clients", {
-      p_search: null,
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(rpc).toHaveBeenCalledWith("get_admin_clients", {
       p_limit: 20,
       p_offset: 0,
+      p_search: "",
+      p_status: "all",
     });
   });
 });
