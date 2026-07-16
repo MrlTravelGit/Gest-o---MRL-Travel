@@ -4,17 +4,17 @@
 
 ### Link direto do cliente
 
-O link direto novo é uma credencial bearer: quem possuir a URL com token válido poderá abrir a página de economia do cliente vinculado. Esse risco é aceito funcionalmente para remover nome, senha e OTP do fluxo novo, e é mitigado por:
+O link direto novo é uma credencial bearer: quem possuir a URL com token válido poderá abrir a página de economia do cliente vinculado. O cliente não possui login, OTP ou sessão Supabase Auth nesse fluxo. Esse risco é aceito funcionalmente e é mitigado por:
 
 1. token aleatório de 256 bits gerado no frontend com `crypto.getRandomValues`;
 2. armazenamento somente do SHA-256 do token em `client_direct_access_links`;
 3. expiração opcional, revogação imediata e rotação por novo link;
-4. troca do token exclusivamente via Edge Function `exchange-client-link`;
+4. consulta silenciosa do token exclusivamente via Edge Function `get-client-economy-by-link`;
 5. validação de link ativo, cliente ativo, contrato vigente e vínculo `client_users`;
 6. rate limit por fingerprint minimizado em `client_direct_access_events`;
 7. eventos de sucesso/falha sem token bruto, e-mail ou dados financeiros;
-8. `Referrer-Policy: no-referrer`, limpeza da URL com navegação `replace` para `/c/economia` e sessão protegida por RLS;
-9. RPC estreita `get_my_client_economy`, que retorna apenas economia acumulada, contagem de emissões e histórico de economias.
+8. `Referrer-Policy: no-referrer`, `Cache-Control: no-store` e ausência de recursos de terceiros na página pública;
+9. DTO público mínimo, sem IDs internos, contatos, endereço, auditoria, faturas, cartões ou módulos administrativos.
 
 Links antigos por `public_id` não são convertidos em segredo e não devem renderizar a tela antiga de primeiro nome/código.
 
@@ -41,14 +41,14 @@ O principal risco residual é encaminhamento, captura por histórico do navegado
 
 ```text
 Link exclusivo
-→ Edge Function troca token bearer por sessão
-→ Navegação limpa para /c/economia
-→ Sessão Supabase criada
-→ RLS valida auth.uid e client_id
-→ RPC retorna somente economia do cliente
+→ Página /economia/{token}
+→ Edge Function valida hash do token
+→ Backend resolve client_id silenciosamente
+→ Backend consulta somente economia do cliente resolvido
+→ Página renderiza DTO público mínimo
 ```
 
-Não existe mais tela de primeiro nome, código temporário ou confirmação visual no fluxo do cliente.
+Não existe mais tela de primeiro nome, código temporário, confirmação visual, login ou sessão Supabase Auth no fluxo do cliente.
 
 ## Acesso administrativo
 

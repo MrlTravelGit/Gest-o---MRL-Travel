@@ -22,10 +22,3 @@ export async function revokeDirectAccessLink(linkId: string, reason: string) {
   if (error || !data) throw new Error(error?.message ?? "Link não foi revogado.");
   return data;
 }
-
-export async function exchangeDirectAccessToken(token: string): Promise<void> {
-  const { data, error } = await supabase.functions.invoke<{ accessToken: string; refreshToken: string }>("exchange-client-link", { body: { token } });
-  if (error || !data?.accessToken || !data.refreshToken) throw new Error("Link inválido, expirado ou revogado.");
-  const { error: sessionError } = await supabase.auth.setSession({ access_token: data.accessToken, refresh_token: data.refreshToken });
-  if (sessionError) throw new Error("Não foi possível iniciar a sessão.");
-}

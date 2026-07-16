@@ -35,10 +35,12 @@ Todas as tabelas novas possuem RLS habilitado e forçado. Consultas de cliente d
 | `get_client_direct_access_links` | Lista links diretos administrativos sem token bruto |
 | `get_my_client_dashboard` | Retorna o dashboard do cliente autenticado sem depender de `public_id` na rota |
 | `build_client_economy_payload` | Helper interno para montar somente dados de economia; execução revogada para papéis de aplicação |
-| `get_my_client_economy` | Retorna apenas economia do cliente autenticado pelo link direto |
+| `get_my_client_economy` | Contrato revogado para cliente público; substituído por Edge Function sem sessão |
 | `get_admin_client_economy_preview` | Prévia administrativa de economia por `client_id`, sem revelar token bearer |
 
 Na versão 0.4.0 definitiva, `get_client_dashboard(public_id)` deixa de ser contrato frontend ativo para clientes e tem execução revogada para `authenticated` pela migration `202607160010_client_economy_only_no_mfa.sql`.
+
+Na versão 0.4.1, a leitura pública da economia acontece exclusivamente pela Edge Function `get-client-economy-by-link`. Nenhuma tabela privada recebe `SELECT` para `anon`, e o navegador nunca envia `client_id`.
 
 ## Identidade e acesso
 

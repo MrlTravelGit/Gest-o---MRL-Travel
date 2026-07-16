@@ -23,11 +23,27 @@ Não foi executado `db reset` local nem qualquer comando destrutivo. Como o hist
 ### Arquivos críticos validados
 
 1. Migrations aditivas: `supabase/migrations/202607160009_sidebar_clubs_invoices_history_access.sql` e `supabase/migrations/202607160010_client_economy_only_no_mfa.sql`.
-2. Edge Function nova: `supabase/functions/exchange-client-link/index.ts`.
+2. Edge Function substituída no PATCH 005: `exchange-client-link` foi removida e deu lugar a `get-client-economy-by-link`.
 3. Rotas administrativas: `/admin/clubes`, `/admin/faturas`, `/admin/movimentacoes`, `/admin/acessos` e `/admin/auditoria`.
-4. Fluxo do cliente: `/c/link/:token` troca o token e navega para `/c/economia`; `/c/:publicId` e `/c/:publicId/dashboard` saíram das rotas ativas.
+4. Fluxo do cliente antigo: supersedido pelo PATCH 005; a rota pública atual é `/economia/:token` e também aceita `/c/link/:token` sem criar sessão.
 5. Login admin: e-mail/senha com `staff_members` ativo; a rota antiga `/admin/mfa` redireciona e não renderiza Authenticator.
 6. Validação pós-ajuste: `npm run typecheck`, `npm test`, `npm run build`, `git diff --check` e parse SQL das migrations 009/010 aprovados em 16/07/2026.
+
+## Validação da versão 0.4.1 — PATCH 005, 16/07/2026
+
+| Verificação | Resultado real |
+| :--- | :--- |
+| Fluxo `exchange-client-link` | Removido do frontend; função local antiga removida |
+| Página “Validando link seguro” | Removida do bundle ativo |
+| Sessão Supabase do cliente | Removida do fluxo público; `/economia/:token` consulta Edge Function pública |
+| Edge Function pública | `supabase/functions/get-client-economy-by-link/index.ts` criada |
+| Migration | `202607160011_client_economy_direct_link_path.sql` criada para novos links `/economia/{token}` e revogações de RPCs antigas |
+| Admin sem MFA | `admin-create-client` não exige mais claim `aal2`; permanece validação de JWT e `staff_members` |
+| TypeScript | `npm run typecheck` aprovado |
+| Testes automatizados | `npm test` aprovado: 12 arquivos, 35 testes |
+| Build de produção | `npm run build` aprovado |
+| Diff check | `git diff --check` aprovado, apenas avisos CRLF do Windows |
+| Migração local real | `npx supabase migration up --local` não conectou ao Postgres local (`LegacyDbConnectError`); não foi executado reset |
 
 ## Versão
 

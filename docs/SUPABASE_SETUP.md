@@ -67,7 +67,7 @@ No painel do Supabase:
 9. Revise políticas de expiração de sessão e proteção contra abuso.
 10. Configure limites de autenticação e proteção contra abuso.
 
-O acesso público do cliente não usa mais código temporário, SMS ou WhatsApp: o link direto bearer é trocado por sessão e abre somente `/c/economia`.
+O acesso público do cliente não usa mais código temporário, SMS, WhatsApp, login ou sessão Supabase: o link direto bearer consulta a Edge Function pública e abre diretamente a página `/economia/{token}`.
 
 ## 5. Criar o primeiro administrador
 
@@ -98,10 +98,10 @@ Para desenvolvimento, copie `supabase/functions/.env.example` para um arquivo lo
 
 ```bash
 npx supabase functions deploy admin-create-client --project-ref bdkazlhvnowjehdgxege
-npx supabase functions deploy exchange-client-link --project-ref bdkazlhvnowjehdgxege
+npx supabase functions deploy get-client-economy-by-link --project-ref bdkazlhvnowjehdgxege
 ```
 
-`exchange-client-link` é a função ativa do acesso do cliente: troca o token bearer do link direto por sessão Supabase e a interface navega para `/c/economia`. As funções antigas de solicitação/confirmação de código ficam obsoletas para o frontend novo e só devem permanecer publicadas durante janela controlada de desativação operacional.
+`get-client-economy-by-link` é a função ativa do acesso do cliente: valida silenciosamente o token bearer e retorna somente o DTO público mínimo de economia. `exchange-client-link` e as funções antigas de solicitação/confirmação de código ficam obsoletas para o frontend novo e devem ser despublicadas após a validação do deploy.
 
 `admin-create-client` exige JWT válido e função administrativa no banco.
 

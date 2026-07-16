@@ -1,22 +1,59 @@
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { PiggyBank, PlaneTakeoff, ReceiptText, ShieldCheck, TrendingUp } from "lucide-react";
+import { RefreshCw, PiggyBank, PlaneTakeoff, ReceiptText, ShieldCheck, TrendingUp } from "lucide-react";
+import { useParams } from "react-router-dom";
 import { formatCurrency, formatDate, formatPoints } from "@/lib/formatters";
-import { getMyClientEconomy } from "@/services/dashboard";
+import { getPublicClientEconomyByLink } from "@/services/dashboard";
 import type { ClientEconomy } from "@/types/dashboard";
 
 export function ClientEconomyPage() {
-  const economy = useQuery({ queryKey: ["client-economy"], queryFn: getMyClientEconomy, retry: 1 });
+  const { token } = useParams();
+  useEffect(() => {
+    const referrer = document.createElement("meta");
+    referrer.name = "referrer";
+    referrer.content = "no-referrer";
+    document.head.appendChild(referrer);
+
+    const cacheControl = document.createElement("meta");
+    cacheControl.httpEquiv = "Cache-Control";
+    cacheControl.content = "no-store";
+    document.head.appendChild(cacheControl);
+
+    return () => {
+      referrer.remove();
+      cacheControl.remove();
+    };
+  }, []);
+
+  const economy = useQuery({
+    queryKey: ["public-client-economy", token],
+    queryFn: () => getPublicClientEconomyByLink(token!),
+    enabled: Boolean(token),
+    retry: 1,
+  });
 
   return (
     <main className="client-economy-page">
-      {economy.isLoading && <ClientEconomyShell><div className="panel-state">Carregando sua economia...</div></ClientEconomyShell>}
-      {economy.isError && <ClientEconomyShell><div className="panel-state error-state">{economy.error.message}</div></ClientEconomyShell>}
-      {economy.data && <ClientEconomyContent economy={economy.data} />}
+      {economy.isLoading && <ClientEconomySkeleton />}
+      {(economy.isError || !token) && <ClientEconomyUnavailable />}
+      {economy.data && <ClientEconomyContent economy={economy.data} onRefresh={() => void economy.refetch()} refreshing={economy.isFetching} />}
     </main>
   );
 }
 
-export function ClientEconomyContent({ economy, adminPreview = false }: { economy: ClientEconomy; adminPreview?: boolean }) {
+export function ClientEconomyContent({
+  economy,
+  adminPreview = false,
+  onRefresh,
+  refreshing = false,
+}: {
+  economy: ClientEconomy;
+  adminPreview?: boolean;
+  onRefresh?: () => void;
+  refreshing?: boolean;
+}) {
+  const displayName = economy.client.displayName ?? economy.client.fullName ?? "Cliente MRL";
+
   return (
     <ClientEconomyShell>
       <section className="economy-hero" aria-labelledby="economy-title">
@@ -24,7 +61,7 @@ export function ClientEconomyContent({ economy, adminPreview = false }: { econom
           <span className="eyebrow">{adminPreview ? "Prévia administrativa" : "Página exclusiva de economia"}</span>
           <h1 id="economy-title">Economia MRL Travel</h1>
           <p>
-            {economy.client.fullName}, esta página mostra somente a economia registrada nas suas emissões.
+            {displayName}, esta página mostra somente a economia registrada nas suas emissões.
             Nenhum dado administrativo, senha, fatura ou movimentação interna é exibido aqui.
           </p>
           <small>Última atualização: {formatDate(economy.client.lastUpdatedAt)}</small>
@@ -48,13 +85,14 @@ export function ClientEconomyContent({ economy, adminPreview = false }: { econom
             <span className="eyebrow">Histórico</span>
             <h2 id="economy-history-title">Viagens e emissões</h2>
           </div>
+          {onRefresh && <button className="secondary-button" onClick={onRefresh} disabled={refreshing}><RefreshCw size={15} /> Atualizar</button>}
         </div>
         {economy.items.length === 0 ? (
           <div className="panel-state">Nenhuma economia registrada ainda.</div>
         ) : (
           <div className="economy-list">
-            {economy.items.map((item) => (
-              <article className="economy-item" key={item.id}>
+            {economy.items.map((item, index) => (
+              <article className="economy-item" key={`${item.issuedAt}-${index}`}>
                 <div className="economy-item-icon"><ReceiptText aria-hidden /></div>
                 <div>
                   <span>{formatDate(item.launchedOn ?? item.issuedAt)}</span>
@@ -70,6 +108,48 @@ export function ClientEconomyContent({ economy, adminPreview = false }: { econom
             ))}
           </div>
         )}
+      </section>
+    </ClientEconomyShell>
+  );
+}
+
+function ClientEconomySkeleton() {
+  return (
+    <ClientEconomyShell>
+      <section className="economy-hero economy-skeleton" aria-label="Carregando economia">
+        <div>
+          <span className="skeleton-line short" />
+          <span className="skeleton-title" />
+          <span className="skeleton-line" />
+          <span className="skeleton-line medium" />
+        </div>
+        <div className="economy-hero-card">
+          <span className="skeleton-line short" />
+          <span className="skeleton-title small" />
+        </div>
+      </section>
+      <section className="economy-kpis" aria-hidden>
+        <article><span className="skeleton-line short" /><span className="skeleton-line medium" /></article>
+        <article><span className="skeleton-line short" /><span className="skeleton-line medium" /></article>
+        <article><span className="skeleton-line short" /><span className="skeleton-line medium" /></article>
+      </section>
+      <section className="economy-history">
+        <div className="economy-list">
+          <div className="economy-item"><span className="skeleton-dot" /><div><span className="skeleton-line short" /><span className="skeleton-line" /></div><span className="skeleton-line short" /></div>
+          <div className="economy-item"><span className="skeleton-dot" /><div><span className="skeleton-line short" /><span className="skeleton-line" /></div><span className="skeleton-line short" /></div>
+        </div>
+      </section>
+    </ClientEconomyShell>
+  );
+}
+
+function ClientEconomyUnavailable() {
+  return (
+    <ClientEconomyShell>
+      <section className="economy-unavailable">
+        <div className="brand-mark">MRL</div>
+        <h1>Página indisponível</h1>
+        <p>Não foi possível carregar esta página de economia. Solicite um novo link à equipe MRL Travel.</p>
       </section>
     </ClientEconomyShell>
   );

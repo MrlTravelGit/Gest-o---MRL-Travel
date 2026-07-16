@@ -1,6 +1,6 @@
 import { z } from "npm:zod@3.25.76";
 import { isAllowedOrigin, jsonResponse, normalizeOrigin, preflightResponse } from "../_shared/http.ts";
-import { bearerToken, jwtAssuranceLevel } from "../_shared/security.ts";
+import { bearerToken } from "../_shared/security.ts";
 import { adminClient } from "../_shared/supabase.ts";
 
 const createSchema = z.object({
@@ -59,10 +59,6 @@ Deno.serve(async (request) => {
     const caller = callerResult?.user;
     if (callerError || !caller) {
       return jsonResponse(request, { error: "Sessão administrativa inválida" }, 401);
-    }
-
-    if (jwtAssuranceLevel(token) !== "aal2") {
-      return jsonResponse(request, { error: "Confirme o segundo fator para continuar" }, 403);
     }
 
     const { data: staff } = await admin

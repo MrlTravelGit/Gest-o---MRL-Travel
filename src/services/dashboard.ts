@@ -1,9 +1,9 @@
 import { supabase } from "@/lib/supabase";
 import type { AdminOverview, ClientEconomy } from "@/types/dashboard";
 
-export async function getMyClientEconomy(): Promise<ClientEconomy> {
-  const { data, error } = await supabase.rpc("get_my_client_economy");
-  if (error || !data) throw new Error("Página de economia indisponível ou acesso não autorizado");
+export async function getPublicClientEconomyByLink(token: string): Promise<ClientEconomy> {
+  const { data, error } = await supabase.functions.invoke<ClientEconomy>("get-client-economy-by-link", { body: { token } });
+  if (error || !data) throw new Error("Página indisponível.");
   return data as unknown as ClientEconomy;
 }
 

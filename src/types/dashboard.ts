@@ -1,5 +1,4 @@
 export interface ClientEconomyItem {
-  id: string;
   issuedAt: string;
   launchedOn: string | null;
   travelType: string;
@@ -8,14 +7,14 @@ export interface ClientEconomyItem {
   originalValue: number;
   paidValue: number;
   savingsAmount: number;
-  programName: string | null;
-  pointsUsed: number | null;
+  programName?: string | null;
+  pointsUsed?: number | null;
 }
 
 export interface ClientEconomy {
   client: {
-    id: string;
-    fullName: string;
+    displayName?: string;
+    fullName?: string;
     lastUpdatedAt: string | null;
   };
   summary: {

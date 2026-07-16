@@ -1,5 +1,20 @@
 # Histórico de versões
 
+## 0.4.1, 16/07/2026
+
+### Corrigido
+
+1. Removido o fluxo `exchange-client-link` do acesso do cliente; o link público agora consulta a economia diretamente pela Edge Function `get-client-economy-by-link`.
+2. Removida a tela intermediária “Validando link seguro” e qualquer criação de sessão Supabase Auth para clientes.
+3. Novos links passam a ser gerados como `/economia/{token}`; links legados `/c/link/{token}` renderizam a mesma página final de economia sem redirecionar para login.
+4. A página pública retorna somente DTO mínimo de economia: nome de exibição, totais, lista de economias e última atualização.
+5. Removida a exigência AAL2 restante da Edge Function `admin-create-client`; autorização por JWT válido e `staff_members` ativo permanece obrigatória.
+
+### Removido
+
+1. Função local `supabase/functions/exchange-client-link`.
+2. Dependência ativa de `ClientAccessPage` e `ClientProtectedRoute` no fluxo público do cliente.
+
 ## 0.4.0, 16/07/2026
 
 ### Adicionado

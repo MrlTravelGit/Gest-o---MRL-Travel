@@ -5,7 +5,7 @@
 | Campo | Definição |
 | :--- | :--- |
 | Documento | Fonte oficial da lógica do projeto |
-| Versão | 1.4.0 |
+| Versão | 1.4.1 |
 | Data inicial | 15 de julho de 2026 |
 | Responsável pelo negócio | MRL Travel |
 | Objetivo | Preservar a lógica funcional, técnica e de segurança durante todo o desenvolvimento |
@@ -38,9 +38,9 @@ O sistema também terá um painel administrativo para a equipe da MRL Travel cad
 4. Assinaturas de clube geram previsões em `scheduled_point_credits`; saldo real só muda quando a equipe confirma o crédito, criando movimento em `point_transactions`.
 5. Faturas reutilizam `credit_cards`, `card_earning_rules` e `card_statements`; o backend calcula pontos esperados com `numeric` e grava snapshot de regra, cotação e fórmula.
 6. O histórico administrativo em `/admin/movimentacoes` consulta o ledger canônico `point_transactions`; exclusão visual significa estorno/correção auditável, não remoção física.
-7. Links diretos novos usam token bearer separado do `public_id`; o banco armazena apenas hash e a Edge Function troca o segredo por sessão Supabase.
+7. Links diretos novos usam token bearer separado do `public_id`; o banco armazena apenas hash e a Edge Function consulta a economia silenciosamente, sem criar sessão Supabase para o cliente.
 8. O fluxo antigo por `public_id`, primeiro nome e código temporário deixa de existir nas rotas ativas; links antigos não devem renderizar formulário.
-9. O cliente autenticado pelo link acessa somente `/c/economia`, página restrita a economia acumulada, emissões contabilizadas e histórico de economias.
+9. O cliente abre `/economia/{token}` e vê somente economia acumulada, emissões contabilizadas e histórico de economias.
 10. O login administrativo visível passa a ser e-mail e senha individuais; a página de Authenticator/MFA deixa de existir no aplicativo.
 11. A autorização administrativa continua no backend por `staff_members`, papel ativo, RPCs, RLS e auditoria.
 
@@ -107,15 +107,15 @@ Uma operação somente poderá continuar quando todas as condições forem verda
 2. O sistema cria o vínculo entre o cliente e o usuário autenticável.
 3. O administrador gera ou rotaciona um link direto de economia.
 4. O banco armazena somente o hash do token bearer.
-5. O cliente acessa `https://gestao-mrltravel.vercel.app/c/link/{token}`.
-6. O frontend envia o token à Edge Function `exchange-client-link` por HTTPS.
-7. A Edge Function valida hash, status, expiração, cliente ativo, contrato vigente e vínculo de usuário.
-8. O Supabase cria a sessão autenticada por mecanismo suportado.
-9. O navegador limpa a URL e navega por `replace` para `/c/economia`.
-10. A RPC `get_my_client_economy` retorna somente dados de economia do cliente autenticado.
+5. O cliente acessa `https://gestao-mrltravel.vercel.app/economia/{token}`.
+6. A própria página de economia envia o token à Edge Function `get-client-economy-by-link` por HTTPS.
+7. A Edge Function valida hash, status, expiração, cliente ativo e contrato vigente.
+8. O backend resolve o `client_id` pelo token; o navegador nunca envia `client_id`.
+9. A Edge Function retorna somente dados públicos mínimos de economia.
+10. A página renderiza o DTO sem login, OTP, Authenticator, confirmação ou sessão Supabase do cliente.
 11. Tentativas inválidas são registradas de forma minimizada e limitadas.
 
-Não existe mais tela de primeiro nome, confirmação por código ou dashboard completo do cliente no fluxo público. O link direto abre exclusivamente a página de economia.
+Não existe mais tela de primeiro nome, confirmação por código, login, sessão Supabase ou dashboard completo do cliente no fluxo público. O link direto abre exclusivamente a página de economia.
 
 ### 5.1 Regras do link exclusivo
 
@@ -603,7 +603,8 @@ O documento e o sistema usarão versão semântica:
 | 1.1.4 | 15/07/2026 | Origem canônica de Production, CORS exato e bloqueio explícito de operações administrativas em Preview |
 | 1.2.0 | 15/07/2026 | Painel administrativo de pontos, clubes por programa, custo médio e vencimentos transacionais |
 | 1.3.0 | 16/07/2026 | Hero + Bento e módulos de clientes, viagens/economia, ranking, interesses, transferências e saída manual |
-| 1.4.0 | 16/07/2026 | Sidebar administrativa, clubes, faturas, histórico, link direto para `/c/economia` e remoção visual de OTP/MFA |
+| 1.4.0 | 16/07/2026 | Sidebar administrativa, clubes, faturas, histórico, link direto para economia e remoção visual de OTP/MFA |
+| 1.4.1 | 16/07/2026 | Economia direta por token em `/economia/{token}`, sem login/sessão Supabase do cliente e sem `exchange-client-link` |
 
 ## 21. Decisões iniciais consolidadas
 
@@ -613,7 +614,7 @@ O documento e o sistema usarão versão semântica:
 4. O MVP começará com lançamentos manuais e importação padronizada.
 5. O cliente terá acesso público somente à própria página de economia.
 6. O administrador entrará com e-mail e senha individual; Authenticator/MFA não é tela obrigatória do aplicativo.
-7. O link exclusivo bearer substitui o fluxo visual de nome/código e é trocado por sessão Supabase antes de consultar dados.
+7. O link exclusivo bearer substitui o fluxo visual de nome/código e autoriza somente a consulta pública mínima de economia pela Edge Function.
 8. Todos os cálculos oficiais serão executados no backend.
 9. Toda nova demanda produzirá análise, patch, testes e atualização da documentação quando necessário.
 10. Primeiro nome e código temporário não fazem mais parte das rotas ativas do cliente.
