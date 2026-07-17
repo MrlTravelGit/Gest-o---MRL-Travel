@@ -1,27 +1,20 @@
 import { z } from "npm:zod@3.25.76";
+import { hashClientLinkToken, isClientLinkTokenFormat, requestFingerprintHash } from "../_shared/client-link.ts";
 import { isAllowedOrigin, jsonResponse, preflightResponse } from "../_shared/http.ts";
 import { adminClient } from "../_shared/supabase.ts";
 
 const schema = z.object({
-  token: z.string().trim().regex(/^[a-f0-9]{64}$/i),
+  token: z.string().refine(isClientLinkTokenFormat),
 });
 
 const GENERIC_ERROR = { error: "Painel indisponível." };
 
-async function sha256Hex(value: string): Promise<string> {
-  const data = new TextEncoder().encode(value);
-  const hash = await crypto.subtle.digest("SHA-256", data);
-  return [...new Uint8Array(hash)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
-async function fingerprint(request: Request): Promise<string> {
-  const raw = [
-    request.headers.get("x-forwarded-for") ?? "",
-    request.headers.get("user-agent") ?? "",
-    request.headers.get("accept-language") ?? "",
-  ].join("|").slice(0, 500);
-
-  return sha256Hex(raw);
+async function readJsonBody(request: Request): Promise<unknown> {
+  try {
+    return await request.json();
+  } catch {
+    return {};
+  }
 }
 
 Deno.serve(async (request) => {
@@ -30,13 +23,13 @@ Deno.serve(async (request) => {
   if (!isAllowedOrigin(request)) return jsonResponse(request, { error: "Origem não autorizada" }, 403);
 
   const admin = adminClient();
-  const fingerprintHash = await fingerprint(request);
+  const fingerprintHash = await requestFingerprintHash(request);
 
   try {
-    const parsed = schema.safeParse(await request.json());
+    const parsed = schema.safeParse(await readJsonBody(request));
     if (!parsed.success) {
       await admin.from("client_direct_access_events").insert({ event_type: "invalid", fingerprint_hash: fingerprintHash });
-      return jsonResponse(request, GENERIC_ERROR, 401);
+      return jsonResponse(request, GENERIC_ERROR, 400);
     }
 
     const windowStart = new Date(Date.now() - 15 * 60 * 1000).toISOString();
@@ -51,7 +44,7 @@ Deno.serve(async (request) => {
       return jsonResponse(request, GENERIC_ERROR, 429);
     }
 
-    const tokenHash = await sha256Hex(parsed.data.token.toLowerCase());
+    const tokenHash = await hashClientLinkToken(parsed.data.token);
     const { data: link } = await admin
       .from("client_direct_access_links")
       .select("id, client_id, status, expires_at, use_count")

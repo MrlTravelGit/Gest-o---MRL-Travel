@@ -11,6 +11,7 @@ const chartMargin = { top: 12, right: 12, bottom: 4, left: 0 };
 
 export function ClientEconomyPage() {
   const { token } = useParams();
+  const safeTokenKey = token ? createSafeTokenKey(token) : "missing";
 
   useEffect(() => {
     const referrer = document.createElement("meta");
@@ -30,10 +31,10 @@ export function ClientEconomyPage() {
   }, []);
 
   const dashboard = useQuery({
-    queryKey: ["public-client-dashboard", token],
+    queryKey: ["public-client-dashboard", safeTokenKey],
     queryFn: () => getPublicClientDashboardByLink(token!),
     enabled: Boolean(token),
-    retry: 1,
+    retry: false,
   });
 
   return (
@@ -299,6 +300,16 @@ function formatMonth(value: unknown) {
 
 function formatCompactNumber(value: number) {
   return new Intl.NumberFormat("pt-BR", { notation: "compact", maximumFractionDigits: 1 }).format(value);
+}
+
+function createSafeTokenKey(token: string) {
+  let hash = 2166136261;
+  for (let index = 0; index < token.length; index += 1) {
+    hash ^= token.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return `${token.length}:${(hash >>> 0).toString(16)}`;
 }
 
 const tooltipStyle = {

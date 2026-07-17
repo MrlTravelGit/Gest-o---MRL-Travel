@@ -1,5 +1,19 @@
 # Histórico de versões
 
+## 0.4.3, 17/07/2026
+
+### Corrigido
+
+1. Corrigida a configuração pública da Edge Function `get-client-dashboard-by-link`: ela deve ser publicada com `verify_jwt = false`/`--no-verify-jwt`, pois o token bearer do link é a credencial do cliente.
+2. Mantidas as funções administrativas com verificação JWT; `admin-create-client` continua com `verify_jwt = true`.
+3. Centralizada a normalização e o hash do token em `supabase/functions/_shared/client-link.ts`, preservando o algoritmo existente SHA-256 puro usado por `create_client_direct_access_link`.
+4. O frontend do link público deixou de fazer retry automático em erro definitivo e não usa mais o token bruto como parte da query key.
+
+### Diagnóstico
+
+1. Chamada remota sem `Authorization` retornou `401` com `UNAUTHORIZED_NO_AUTH_HEADER` e headers de gateway Supabase, evidenciando bloqueio antes da execução da Edge Function.
+2. A função em si não exige usuário autenticado, não chama `auth.getUser()` e continua validando silenciosamente o token exclusivo.
+
 ## 0.4.2, 17/07/2026
 
 ### Corrigido

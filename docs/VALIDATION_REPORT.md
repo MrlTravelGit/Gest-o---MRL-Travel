@@ -71,6 +71,27 @@ Não foi executado `db reset` local nem qualquer comando destrutivo. Como o hist
 5. Teste um token inválido e confirme resposta genérica `Painel indisponível`.
 6. Teste um link revogado/expirado e confirme que nenhum dado do cliente é exibido.
 
+## Validação da versão 0.4.3 — PATCH 007, 17/07/2026
+
+| Verificação | Resultado real |
+| :--- | :--- |
+| Origem do 401 | Confirmada no gateway Supabase: chamada remota sem `Authorization` retornou `401` com `UNAUTHORIZED_NO_AUTH_HEADER` e mensagem `Missing authorization header` |
+| Exigência interna de usuário | Não encontrada: `get-client-dashboard-by-link` não chama `auth.getUser()` nem exige sessão/JWT de usuário |
+| Algoritmo de token | Confirmado e preservado: geração SQL usa SHA-256 puro do token hex; Edge Function usa o mesmo hash via helper `client-link.ts`; `ACCESS_HASH_PEPPER` não é usado neste fluxo |
+| Configuração local | `supabase/config.toml` agora possui `[functions.get-client-dashboard-by-link] verify_jwt = false`; funções administrativas não foram alteradas |
+| Frontend | React Query do link público usa `retry: false` e query key sem token bruto |
+| TypeScript | `npm run typecheck` aprovado |
+| Testes automatizados | `npm test` aprovado: 15 arquivos, 41 testes |
+| Build de produção | `npm run build` aprovado; aviso esperado de chunk `charts` > 500 kB |
+| Diff check | `git diff --check` aprovado, apenas avisos CRLF do Windows |
+| Deploy obrigatório | `npx supabase functions deploy get-client-dashboard-by-link --project-ref bdkazlhvnowjehdgxege --no-verify-jwt` executado com sucesso |
+| Configuração remota | `npx supabase functions list --project-ref bdkazlhvnowjehdgxege` confirmou `get-client-dashboard-by-link verify_jwt:false` e `admin-create-client verify_jwt:true` |
+| Smoke remoto pós-deploy | Token falso retornou `401` com corpo genérico `{"error":"Painel indisponível."}` e sem `sb-error-code` de gateway, comprovando que a função executou |
+
+### Observação sobre link existente
+
+Nenhum token real foi impresso ou usado nos testes. Como a geração e a verificação permanecem no mesmo algoritmo SHA-256 puro, links ativos gerados pelo mecanismo atual são preservados. Se um link específico continuar falhando após este deploy, a causa provável passa a ser link revogado/expirado, cliente/contrato inativo ou migração/payload ainda não aplicado no banco remoto.
+
 ## Versão
 
 | Campo | Valor |

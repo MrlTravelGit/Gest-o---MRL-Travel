@@ -16,6 +16,8 @@ O link direto novo é uma credencial bearer: quem possuir a URL com token válid
 8. `Referrer-Policy: no-referrer`, `Cache-Control: no-store` e ausência de recursos de terceiros na página pública;
 9. DTO público de dashboard sem IDs internos, contatos, CPF, endereço, auditoria, tokens/hashes, dados administrativos ou número completo de cartão.
 
+A função `get-client-dashboard-by-link` é pública no gateway (`verify_jwt = false`) somente para permitir chamada sem sessão Supabase do cliente. Essa configuração não abre dados por si só: a função continua exigindo token exclusivo válido, ativo, não expirado, associado a cliente ativo e contrato vigente. Funções administrativas permanecem com JWT obrigatório.
+
 Links antigos por `public_id` não são convertidos em segredo e não devem renderizar a tela antiga de primeiro nome/código.
 
 ### Login administrativo

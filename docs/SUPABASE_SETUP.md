@@ -98,10 +98,10 @@ Para desenvolvimento, copie `supabase/functions/.env.example` para um arquivo lo
 
 ```bash
 npx supabase functions deploy admin-create-client --project-ref bdkazlhvnowjehdgxege
-npx supabase functions deploy get-client-dashboard-by-link --project-ref bdkazlhvnowjehdgxege
+npx supabase functions deploy get-client-dashboard-by-link --project-ref bdkazlhvnowjehdgxege --no-verify-jwt
 ```
 
-`get-client-dashboard-by-link` é a função ativa do acesso do cliente: valida silenciosamente o token bearer e retorna o DTO público do dashboard completo, sem IDs internos ou PII. `get-client-economy-by-link`, `exchange-client-link` e as funções antigas de solicitação/confirmação de código ficam obsoletas para o frontend novo e devem ser despublicadas após a validação do deploy.
+`get-client-dashboard-by-link` é a função ativa do acesso do cliente: valida silenciosamente o token bearer e retorna o DTO público do dashboard completo, sem IDs internos ou PII. Ela deve ser publicada com `--no-verify-jwt`, porque o cliente não possui sessão Supabase; a autorização é o token exclusivo validado dentro da própria função. `get-client-economy-by-link`, `exchange-client-link` e as funções antigas de solicitação/confirmação de código ficam obsoletas para o frontend novo e devem ser despublicadas após a validação do deploy.
 
 `admin-create-client` exige JWT válido e função administrativa no banco.
 
