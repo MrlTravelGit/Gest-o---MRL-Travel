@@ -19,15 +19,16 @@ const months = [
   ["jul", "Julho"], ["aug", "Agosto"], ["sep", "Setembro"], ["oct", "Outubro"], ["nov", "Novembro"], ["dec", "Dezembro"],
 ] as const;
 
-export function PublicOnboardingPage() {
-  const { token } = useParams();
+export function PublicOnboardingPage({ legacy = false }: { legacy?: boolean }) {
+  const { token, formKey } = useParams();
+  const publicKey = legacy ? token : formKey;
   const [step, setStep] = useState(0);
   const [submitted, setSubmitted] = useState(false);
   const [globalError, setGlobalError] = useState("");
   const metadata = useQuery({
-    queryKey: ["public-onboarding", token ? `${token.length}:${token.slice(0, 3)}` : "missing"],
-    queryFn: () => getPublicOnboardingMetadata(token!),
-    enabled: Boolean(token),
+    queryKey: ["public-onboarding", legacy ? "legacy" : "entry", publicKey ? `${publicKey.length}:${publicKey.slice(0, 3)}` : "missing"],
+    queryFn: () => getPublicOnboardingMetadata(publicKey!, legacy),
+    enabled: Boolean(publicKey),
     retry: false,
   });
 
@@ -49,9 +50,9 @@ export function PublicOnboardingPage() {
     return () => referrer.remove();
   }, []);
 
-  const draft = useMutation({ mutationFn: (values: OnboardingPayload) => savePublicOnboardingDraft(token!, values) });
+  const draft = useMutation({ mutationFn: (values: OnboardingPayload) => savePublicOnboardingDraft(publicKey!, values, legacy) });
   const submit = useMutation({
-    mutationFn: (values: OnboardingPayload) => submitPublicOnboarding(token!, normalizeForSubmit(values)),
+    mutationFn: (values: OnboardingPayload) => submitPublicOnboarding(publicKey!, normalizeForSubmit(values), legacy),
     onSuccess: () => setSubmitted(true),
     onError: () => setGlobalError("Não foi possível enviar agora. Revise os campos e tente novamente."),
   });
@@ -66,7 +67,7 @@ export function PublicOnboardingPage() {
       setGlobalError("Revise os campos obrigatórios desta etapa.");
       return;
     }
-    if (token) void draft.mutateAsync(form.getValues()).catch(() => undefined);
+    if (publicKey) void draft.mutateAsync(form.getValues()).catch(() => undefined);
     setStep((value) => Math.min(value + 1, steps.length - 1));
   }
 
@@ -81,8 +82,9 @@ export function PublicOnboardingPage() {
   }
 
   if (metadata.isLoading) return <OnboardingShell><div className="onboarding-state">Carregando formulário...</div></OnboardingShell>;
-  if (metadata.isError || !token) return <OnboardingShell><Unavailable /></OnboardingShell>;
-  if (metadata.data?.status === "submitted" || submitted) return <OnboardingShell><Submitted submittedAt={metadata.data?.submittedAt} /></OnboardingShell>;
+  if (metadata.isError || !publicKey) return <OnboardingShell><Unavailable /></OnboardingShell>;
+  if (legacy && metadata.data?.status === "submitted") return <OnboardingShell><Submitted submittedAt={metadata.data?.submittedAt} /></OnboardingShell>;
+  if (submitted) return <OnboardingShell><Submitted submittedAt={metadata.data?.submittedAt} /></OnboardingShell>;
 
   return (
     <OnboardingShell>

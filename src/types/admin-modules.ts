@@ -203,13 +203,17 @@ export interface PointMovementsResult {
 }
 
 export interface DirectAccessLink {
-  linkId: string;
-  clientId: string;
-  clientName: string;
-  status: string;
+  linkId?: string;
+  clientId?: string;
+  clientName?: string;
+  status?: string;
   expiresAt: string | null;
   lastUsedAt: string | null;
   useCount: number;
   createdAt: string;
   revokedAt: string | null;
+  hasActiveLink?: boolean;
+  recoverable?: boolean;
+  requiresRotation?: boolean;
+  url?: string | null;
 }

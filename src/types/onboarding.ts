@@ -1,39 +1,76 @@
-export type OnboardingStatus = "pending" | "in_progress" | "submitted" | "expired" | "revoked" | "reopened";
+export type OnboardingStatus =
+  | "pending"
+  | "in_progress"
+  | "submitted"
+  | "expired"
+  | "revoked"
+  | "reopened"
+  | "published"
+  | "paused"
+  | "received"
+  | "client_created"
+  | "duplicate_review"
+  | "reviewed"
+  | "activated"
+  | "rejected";
 
-export interface OnboardingFormListItem {
-  formId: string;
-  clientId: string;
-  clientName: string;
-  status: OnboardingStatus;
-  expiresAt: string | null;
-  startedAt: string | null;
-  submittedAt: string | null;
-  createdAt: string;
-  tokenHint: string | null;
-  submissionId: string | null;
+export interface OnboardingPublication {
+  hasPublication: boolean;
+  publicationId?: string;
+  publicKeySuffix?: string;
+  status: string;
+  url: string | null;
+  formVersion?: string;
+  publishedAt?: string | null;
+  pausedAt?: string | null;
+  createdAt?: string;
 }
 
-export interface OnboardingFormListResult {
-  items: OnboardingFormListItem[];
+export interface OnboardingSubmissionListItem {
+  id: string;
+  publication_id: string;
+  client_id: string | null;
+  status: OnboardingStatus;
+  duplicate_candidate_client_id: string | null;
+  duplicate_reason: string | null;
+  full_name: string;
+  email: string;
+  whatsapp_e164: string;
+  phoneMasked: string | null;
+  cpf_last4: string | null;
+  submitted_at: string;
+  lead_created_at: string | null;
+  client: { id: string; full_name: string; status: string } | null;
+}
+
+export interface LegacyOnboardingForm {
+  id: string;
+  client_id: string;
+  status: string;
+  created_at: string;
+  submitted_at: string | null;
+  expires_at: string | null;
+  token_hint: string | null;
+}
+
+export interface OnboardingOverview {
+  publication: OnboardingPublication;
+  submissions: OnboardingSubmissionListItem[];
   total: number;
   limit: number;
   offset: number;
   summary: {
-    pending: number;
-    inProgress: number;
-    submitted: number;
-    expired: number;
+    received: number;
+    awaitingReview: number;
+    clientsCreated: number;
+    duplicates: number;
+    activated: number;
   };
-}
-
-export interface CreateOnboardingFormResult {
-  formId: string;
-  token: string;
-  path: string;
-  expiresAt: string;
+  legacyForms: LegacyOnboardingForm[];
 }
 
 export interface PublicOnboardingMetadata {
+  mode: "public_entry" | "legacy_client_invite";
   clientDisplayName: string;
   status: OnboardingStatus;
   expiresAt: string | null;
@@ -129,11 +166,10 @@ export interface OnboardingTripInput {
 }
 
 export interface OnboardingDetail {
-  form: OnboardingFormListItem;
-  submission: Record<string, unknown> | null;
+  submission: Record<string, unknown>;
+  client: Record<string, unknown> | null;
   cards: Array<Record<string, unknown>>;
   loyaltyAccounts: Array<Record<string, unknown>>;
   plannedTrips: Array<Record<string, unknown>>;
-  divergences: Array<Record<string, unknown>>;
-  events: Array<{ eventType: string; createdAt: string }>;
+  events: Array<Record<string, unknown>>;
 }

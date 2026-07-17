@@ -29,7 +29,8 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Navigate to="/admin/login" replace />} />
         <Route path="/economia/:token" element={<PublicClientDashboardPage />} />
-        <Route path="/onboarding/:token" element={<PublicOnboardingPage />} />
+        <Route path="/entrar-na-gestao/:formKey" element={<PublicOnboardingPage />} />
+        <Route path="/onboarding/:token" element={<PublicOnboardingPage legacy />} />
         <Route path="/c/link/:token" element={<PublicClientDashboardPage />} />
         <Route path="/c/acesso-expirado" element={<PublicClientDashboardPage />} />
         <Route path="/admin/login" element={<AdminLoginPage />} />

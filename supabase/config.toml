@@ -48,3 +48,9 @@ verify_jwt = false
 
 [functions.onboarding-public]
 verify_jwt = false
+
+[functions.admin-direct-access-link]
+verify_jwt = true
+
+[functions.admin-onboarding]
+verify_jwt = true
