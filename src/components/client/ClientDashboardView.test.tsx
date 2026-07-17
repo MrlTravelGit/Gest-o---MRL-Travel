@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
-import { ClientDashboardContent } from "./ClientEconomyPage";
+import { ClientDashboardView } from "./ClientDashboardView";
 import type { PublicClientDashboard } from "@/types/dashboard";
 
 vi.mock("recharts", () => ({
@@ -14,10 +14,6 @@ vi.mock("recharts", () => ({
   Tooltip: () => null,
   Line: () => null,
   Bar: () => null,
-}));
-
-vi.mock("@/services/dashboard", () => ({
-  getPublicClientDashboardByLink: vi.fn(),
 }));
 
 const dashboard: PublicClientDashboard = {
@@ -47,9 +43,9 @@ const dashboard: PublicClientDashboard = {
   contract: null,
 };
 
-describe("ClientDashboardContent", () => {
+describe("ClientDashboardView", () => {
   it("renderiza o dashboard completo e não a tela simplificada de economia", () => {
-    render(<ClientDashboardContent dashboard={dashboard} />);
+    render(<ClientDashboardView dashboard={dashboard} />);
 
     expect(screen.getByRole("heading", { name: /painel completo de maria cliente/i })).toBeInTheDocument();
     expect(screen.getByText("Saldo de Pontos/Milhas")).toBeInTheDocument();

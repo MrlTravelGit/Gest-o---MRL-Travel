@@ -92,6 +92,26 @@ Não foi executado `db reset` local nem qualquer comando destrutivo. Como o hist
 
 Nenhum token real foi impresso ou usado nos testes. Como a geração e a verificação permanecem no mesmo algoritmo SHA-256 puro, links ativos gerados pelo mecanismo atual são preservados. Se um link específico continuar falhando após este deploy, a causa provável passa a ser link revogado/expirado, cliente/contrato inativo ou migração/payload ainda não aplicado no banco remoto.
 
+## Validação da versão 0.4.4 — PATCH 008, 17/07/2026
+
+| Verificação | Resultado real |
+| :--- | :--- |
+| Causa do chunk incorreto | Confirmada: `src/App.tsx` fazia lazy import de `@/pages/ClientEconomyPage` para `/economia/:token` |
+| Rota pública | Alterada para `PublicClientDashboardPage`, preservando `/economia/:token` e aliases legados |
+| View compartilhada | `ClientDashboardView` passa a renderizar o painel completo no link público e na prévia admin |
+| Arquivo removido | `src/pages/ClientEconomyPage.tsx` removido do código ativo |
+| Teste de rota | Adicionado teste para `/economia/:token` renderizar o dashboard completo sem validação intermediária |
+
+### Verificação obrigatória de bundle
+
+Após o build da versão 0.4.4, executar:
+
+```bash
+rg -n "ClientEconomyPage|Economia MRL Travel|Escopo da pagina" dist
+```
+
+O resultado esperado é zero ocorrência.
+
 ## Versão
 
 | Campo | Valor |

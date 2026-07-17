@@ -1,52 +1,11 @@
-import { useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, BarChart3, CalendarClock, Coins, LineChart as LineChartIcon, PiggyBank, PlaneTakeoff, RefreshCw, WalletCards } from "lucide-react";
-import { useParams } from "react-router-dom";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { formatCurrency, formatDate, formatPoints } from "@/lib/formatters";
-import { getPublicClientDashboardByLink } from "@/services/dashboard";
 import type { PublicClientDashboard } from "@/types/dashboard";
 
 const chartMargin = { top: 12, right: 12, bottom: 4, left: 0 };
 
-export function ClientEconomyPage() {
-  const { token } = useParams();
-  const safeTokenKey = token ? createSafeTokenKey(token) : "missing";
-
-  useEffect(() => {
-    const referrer = document.createElement("meta");
-    referrer.name = "referrer";
-    referrer.content = "no-referrer";
-    document.head.appendChild(referrer);
-
-    const cacheControl = document.createElement("meta");
-    cacheControl.httpEquiv = "Cache-Control";
-    cacheControl.content = "no-store";
-    document.head.appendChild(cacheControl);
-
-    return () => {
-      referrer.remove();
-      cacheControl.remove();
-    };
-  }, []);
-
-  const dashboard = useQuery({
-    queryKey: ["public-client-dashboard", safeTokenKey],
-    queryFn: () => getPublicClientDashboardByLink(token!),
-    enabled: Boolean(token),
-    retry: false,
-  });
-
-  return (
-    <main className="client-dashboard-page">
-      {dashboard.isLoading && <ClientDashboardSkeleton />}
-      {(dashboard.isError || !token) && <ClientDashboardUnavailable />}
-      {dashboard.data && <ClientDashboardContent dashboard={dashboard.data} onRefresh={() => void dashboard.refetch()} refreshing={dashboard.isFetching} />}
-    </main>
-  );
-}
-
-export function ClientDashboardContent({
+export function ClientDashboardView({
   dashboard,
   adminPreview = false,
   onRefresh,
@@ -223,17 +182,7 @@ export function ClientDashboardContent({
   );
 }
 
-function SummaryCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
-  return (
-    <article>
-      <div className="summary-icon">{icon}</div>
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </article>
-  );
-}
-
-function ClientDashboardSkeleton() {
+export function ClientDashboardSkeleton() {
   return (
     <ClientDashboardShell>
       <section className="dashboard-hero dashboard-skeleton" aria-label="Carregando painel">
@@ -269,15 +218,29 @@ function ClientDashboardSkeleton() {
   );
 }
 
-function ClientDashboardUnavailable() {
+export function ClientDashboardErrorState() {
   return (
     <ClientDashboardShell>
-      <section className="dashboard-unavailable">
-        <div className="brand-mark">MRL</div>
-        <h1>Painel indisponível</h1>
-        <p>Não foi possível carregar este painel. Solicite um novo link à equipe MRL Travel.</p>
+      <section className="dashboard-section" aria-live="polite">
+        <div className="section-heading">
+          <div>
+            <span className="eyebrow">Acesso protegido</span>
+            <h1>Painel indisponível</h1>
+            <p>Não foi possível carregar este painel. Solicite um novo link à equipe MRL Travel.</p>
+          </div>
+        </div>
       </section>
     </ClientDashboardShell>
+  );
+}
+
+function SummaryCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return (
+    <article>
+      <div className="summary-icon">{icon}</div>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </article>
   );
 }
 
@@ -300,16 +263,6 @@ function formatMonth(value: unknown) {
 
 function formatCompactNumber(value: number) {
   return new Intl.NumberFormat("pt-BR", { notation: "compact", maximumFractionDigits: 1 }).format(value);
-}
-
-function createSafeTokenKey(token: string) {
-  let hash = 2166136261;
-  for (let index = 0; index < token.length; index += 1) {
-    hash ^= token.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-
-  return `${token.length}:${(hash >>> 0).toString(16)}`;
 }
 
 const tooltipStyle = {

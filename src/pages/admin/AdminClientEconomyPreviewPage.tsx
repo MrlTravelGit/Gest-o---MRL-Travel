@@ -2,8 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, Navigate, useParams } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { ErrorState, LoadingState } from "@/components/admin/AdminPage";
+import { ClientDashboardView } from "@/components/client/ClientDashboardView";
 import { AppShell } from "@/components/layout/AppShell";
-import { ClientDashboardContent } from "@/pages/ClientEconomyPage";
 import { getAdminClientDashboardPreview } from "@/services/dashboard";
 
 export function AdminClientEconomyPreviewPage() {
@@ -23,7 +23,7 @@ export function AdminClientEconomyPreviewPage() {
       </div>
       {dashboard.isLoading && <LoadingState label="Carregando painel do cliente..." />}
       {dashboard.isError && <ErrorState message={dashboard.error.message} />}
-      {dashboard.data && <ClientDashboardContent dashboard={dashboard.data} adminPreview />}
+      {dashboard.data && <ClientDashboardView dashboard={dashboard.data} adminPreview />}
     </AppShell>
   );
 }

@@ -1,5 +1,14 @@
 # Histórico de versões
 
+## 0.4.4, 17/07/2026
+
+### Corrigido
+
+1. Removido `ClientEconomyPage` da rota pública e do bundle ativo.
+2. `/economia/:token`, `/c/link/:token` e `/c/acesso-expirado` agora importam `PublicClientDashboardPage`.
+3. A visualização do painel foi extraída para `ClientDashboardView`, compartilhada entre link público e prévia administrativa.
+4. O build não deve mais emitir chunk ativo `ClientEconomyPage-*.js`.
+
 ## 0.4.3, 17/07/2026
 
 ### Corrigido
