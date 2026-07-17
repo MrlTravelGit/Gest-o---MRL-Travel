@@ -20,6 +20,7 @@ const AdminAccessLinksPage = lazy(() => import("@/pages/admin/AdminAccessLinksPa
 const AdminClientEconomyPreviewPage = lazy(() => import("@/pages/admin/AdminClientEconomyPreviewPage").then((module) => ({ default: module.AdminClientEconomyPreviewPage })));
 const AdminLoginPage = lazy(() => import("@/pages/AdminLoginPage").then((module) => ({ default: module.AdminLoginPage })));
 const PublicClientDashboardPage = lazy(() => import("@/pages/PublicClientDashboardPage").then((module) => ({ default: module.PublicClientDashboardPage })));
+const PublicOnboardingPage = lazy(() => import("@/pages/PublicOnboardingPage").then((module) => ({ default: module.PublicOnboardingPage })));
 const NotFoundPage = lazy(() => import("@/pages/NotFoundPage").then((module) => ({ default: module.NotFoundPage })));
 
 export default function App() {
@@ -28,6 +29,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Navigate to="/admin/login" replace />} />
         <Route path="/economia/:token" element={<PublicClientDashboardPage />} />
+        <Route path="/onboarding/:token" element={<PublicOnboardingPage />} />
         <Route path="/c/link/:token" element={<PublicClientDashboardPage />} />
         <Route path="/c/acesso-expirado" element={<PublicClientDashboardPage />} />
         <Route path="/admin/login" element={<AdminLoginPage />} />

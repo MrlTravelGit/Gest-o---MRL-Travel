@@ -14,8 +14,10 @@ vi.mock("recharts", () => ({
   XAxis: () => null,
   YAxis: () => null,
   Tooltip: () => null,
+  Legend: () => null,
   Line: () => null,
   Bar: () => null,
+  LabelList: () => null,
 }));
 
 vi.mock("@/components/routes/AdminProtectedRoute", () => ({
@@ -65,8 +67,9 @@ describe("rota pública do dashboard do cliente", () => {
       </QueryClientProvider>,
     );
 
-    expect(await screen.findByRole("heading", { name: /painel completo de cliente rota/i })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Cliente Rota" })).toBeInTheDocument();
     expect(getPublicClientDashboardByLink).toHaveBeenCalledWith("a".repeat(64));
+    expect(screen.queryByText(/painel completo de/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/validando link seguro/i)).not.toBeInTheDocument();
     expect(screen.queryByText("Economia MRL Travel")).not.toBeInTheDocument();
   });

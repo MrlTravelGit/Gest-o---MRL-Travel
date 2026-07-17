@@ -45,3 +45,6 @@ verify_jwt = true
 
 [functions.get-client-dashboard-by-link]
 verify_jwt = false
+
+[functions.onboarding-public]
+verify_jwt = false
