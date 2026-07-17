@@ -1,5 +1,21 @@
 # Histórico de versões
 
+## 0.4.2, 17/07/2026
+
+### Corrigido
+
+1. Restaurado o dashboard completo do cliente no link direto `/economia/{token}`, sem login, código, OTP, tela de validação ou sessão Supabase do cliente.
+2. Substituída a Edge Function pública `get-client-economy-by-link` por `get-client-dashboard-by-link`, que valida silenciosamente o token bearer e monta saldos, patrimônio, economia, emissões, programas, custos, vencimentos e gráficos para o `client_id` resolvido no backend.
+3. Criado o helper interno `build_public_client_dashboard_payload(p_client_id)` e a prévia admin `get_admin_client_dashboard_preview(p_client_id)` para fazer os números públicos e administrativos convergirem na mesma fonte.
+4. Removido o destino simplificado “Economia MRL Travel” do bundle ativo; `/economia/{token}` permanece como rota compatível, mas não limita o painel a viagens/economia.
+5. Adicionados testes de regressão para impedir retorno ao endpoint economia-only e aos textos “Somente economia”/“Página exclusiva de economia”.
+
+### Segurança
+
+1. O navegador continua enviando somente o token à Edge Function; `client_id`, IDs internos, contatos, CPF, endereço, auditoria e tokens/hashes não são retornados no DTO público.
+2. `anon` continua sem `SELECT` direto nas tabelas privadas e sem permissão para executar o helper interno de montagem.
+3. Rate limit, CORS exato, `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, revogação/expiração e auditoria minimizada do link bearer permanecem ativos.
+
 ## 0.4.1, 16/07/2026
 
 ### Corrigido

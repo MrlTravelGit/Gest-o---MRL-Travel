@@ -1,20 +1,20 @@
 # Arquitetura e segurança
 
-## Atualização 0.4.0 — links diretos e login administrativo
+## Atualização 0.4.2 — dashboard completo por link e login administrativo
 
 ### Link direto do cliente
 
-O link direto novo é uma credencial bearer: quem possuir a URL com token válido poderá abrir a página de economia do cliente vinculado. O cliente não possui login, OTP ou sessão Supabase Auth nesse fluxo. Esse risco é aceito funcionalmente e é mitigado por:
+O link direto novo é uma credencial bearer: quem possuir a URL com token válido poderá abrir o dashboard completo do cliente vinculado. O cliente não possui login, OTP ou sessão Supabase Auth nesse fluxo. Esse risco é aceito funcionalmente e é mitigado por:
 
 1. token aleatório de 256 bits gerado no frontend com `crypto.getRandomValues`;
 2. armazenamento somente do SHA-256 do token em `client_direct_access_links`;
 3. expiração opcional, revogação imediata e rotação por novo link;
-4. consulta silenciosa do token exclusivamente via Edge Function `get-client-economy-by-link`;
-5. validação de link ativo, cliente ativo, contrato vigente e vínculo `client_users`;
+4. consulta silenciosa do token exclusivamente via Edge Function `get-client-dashboard-by-link`;
+5. validação de link ativo, cliente ativo e contrato vigente;
 6. rate limit por fingerprint minimizado em `client_direct_access_events`;
 7. eventos de sucesso/falha sem token bruto, e-mail ou dados financeiros;
 8. `Referrer-Policy: no-referrer`, `Cache-Control: no-store` e ausência de recursos de terceiros na página pública;
-9. DTO público mínimo, sem IDs internos, contatos, endereço, auditoria, faturas, cartões ou módulos administrativos.
+9. DTO público de dashboard sem IDs internos, contatos, CPF, endereço, auditoria, tokens/hashes, dados administrativos ou número completo de cartão.
 
 Links antigos por `public_id` não são convertidos em segredo e não devem renderizar a tela antiga de primeiro nome/código.
 
@@ -44,11 +44,11 @@ Link exclusivo
 → Página /economia/{token}
 → Edge Function valida hash do token
 → Backend resolve client_id silenciosamente
-→ Backend consulta somente economia do cliente resolvido
-→ Página renderiza DTO público mínimo
+→ Backend monta o dashboard completo somente do cliente resolvido
+→ Página renderiza saldos, patrimônio, economia, emissões, programas, custos, vencimentos e gráficos
 ```
 
-Não existe mais tela de primeiro nome, código temporário, confirmação visual, login ou sessão Supabase Auth no fluxo do cliente.
+Não existe mais tela de primeiro nome, código temporário, confirmação visual, login ou sessão Supabase Auth no fluxo do cliente. O termo `/economia` permanece apenas como rota compatível; ele não limita o painel a viagens/economia.
 
 ## Acesso administrativo
 

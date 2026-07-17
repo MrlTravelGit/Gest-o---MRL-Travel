@@ -1,13 +1,17 @@
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { RefreshCw, PiggyBank, PlaneTakeoff, ReceiptText, ShieldCheck, TrendingUp } from "lucide-react";
+import { AlertTriangle, BarChart3, CalendarClock, Coins, LineChart as LineChartIcon, PiggyBank, PlaneTakeoff, RefreshCw, WalletCards } from "lucide-react";
 import { useParams } from "react-router-dom";
+import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { formatCurrency, formatDate, formatPoints } from "@/lib/formatters";
-import { getPublicClientEconomyByLink } from "@/services/dashboard";
-import type { ClientEconomy } from "@/types/dashboard";
+import { getPublicClientDashboardByLink } from "@/services/dashboard";
+import type { PublicClientDashboard } from "@/types/dashboard";
+
+const chartMargin = { top: 12, right: 12, bottom: 4, left: 0 };
 
 export function ClientEconomyPage() {
   const { token } = useParams();
+
   useEffect(() => {
     const referrer = document.createElement("meta");
     referrer.name = "referrer";
@@ -25,144 +29,281 @@ export function ClientEconomyPage() {
     };
   }, []);
 
-  const economy = useQuery({
-    queryKey: ["public-client-economy", token],
-    queryFn: () => getPublicClientEconomyByLink(token!),
+  const dashboard = useQuery({
+    queryKey: ["public-client-dashboard", token],
+    queryFn: () => getPublicClientDashboardByLink(token!),
     enabled: Boolean(token),
     retry: 1,
   });
 
   return (
-    <main className="client-economy-page">
-      {economy.isLoading && <ClientEconomySkeleton />}
-      {(economy.isError || !token) && <ClientEconomyUnavailable />}
-      {economy.data && <ClientEconomyContent economy={economy.data} onRefresh={() => void economy.refetch()} refreshing={economy.isFetching} />}
+    <main className="client-dashboard-page">
+      {dashboard.isLoading && <ClientDashboardSkeleton />}
+      {(dashboard.isError || !token) && <ClientDashboardUnavailable />}
+      {dashboard.data && <ClientDashboardContent dashboard={dashboard.data} onRefresh={() => void dashboard.refetch()} refreshing={dashboard.isFetching} />}
     </main>
   );
 }
 
-export function ClientEconomyContent({
-  economy,
+export function ClientDashboardContent({
+  dashboard,
   adminPreview = false,
   onRefresh,
   refreshing = false,
 }: {
-  economy: ClientEconomy;
+  dashboard: PublicClientDashboard;
   adminPreview?: boolean;
   onRefresh?: () => void;
   refreshing?: boolean;
 }) {
-  const displayName = economy.client.displayName ?? economy.client.fullName ?? "Cliente MRL";
+  const displayName = dashboard.client.displayName || "Cliente MRL";
+  const hasBalanceHistory = dashboard.balanceHistory.length > 0;
+  const hasMonthlyMovements = dashboard.monthlyMovements.length > 0;
 
   return (
-    <ClientEconomyShell>
-      <section className="economy-hero" aria-labelledby="economy-title">
+    <ClientDashboardShell>
+      <section className="dashboard-hero" aria-labelledby="client-dashboard-title">
         <div>
-          <span className="eyebrow">{adminPreview ? "Prévia administrativa" : "Página exclusiva de economia"}</span>
-          <h1 id="economy-title">Economia MRL Travel</h1>
+          <span className="eyebrow">{adminPreview ? "Prévia administrativa" : "Acesso exclusivo por link"}</span>
+          <h1 id="client-dashboard-title">Painel completo de {displayName}</h1>
           <p>
-            {displayName}, esta página mostra somente a economia registrada nas suas emissões.
-            Nenhum dado administrativo, senha, fatura ou movimentação interna é exibido aqui.
+            Saldos, patrimônio, economia, emissões, programas, custos médios, vencimentos e gráficos consolidados pela MRL Travel.
           </p>
-          <small>Última atualização: {formatDate(economy.client.lastUpdatedAt)}</small>
+          <small>Última atualização: {formatDate(dashboard.client.lastUpdatedAt)}</small>
         </div>
-        <div className="economy-hero-card">
-          <PiggyBank aria-hidden />
-          <span>Economia acumulada</span>
-          <strong>{formatCurrency(economy.summary.generatedSavings)}</strong>
+        <div className="dashboard-hero-card">
+          <Coins aria-hidden />
+          <span>Saldo de pontos/milhas</span>
+          <strong>{formatPoints(dashboard.summary.totalPoints)}</strong>
         </div>
       </section>
 
-      <section className="economy-kpis" aria-label="Resumo de economia">
-        <article><PlaneTakeoff aria-hidden /><span>Emissões contabilizadas</span><strong>{formatPoints(economy.summary.redemptionsCount)}</strong></article>
-        <article><TrendingUp aria-hidden /><span>Com economia positiva</span><strong>{formatPoints(economy.summary.positiveSavingsCount)}</strong></article>
-        <article><ShieldCheck aria-hidden /><span>Escopo da página</span><strong>Somente economia</strong></article>
+      <section className="dashboard-kpis" aria-label="Resumo do painel">
+        <SummaryCard icon={<Coins />} label="Saldo de Pontos/Milhas" value={formatPoints(dashboard.summary.totalPoints)} />
+        <SummaryCard icon={<WalletCards />} label="Patrimônio" value={formatCurrency(dashboard.summary.estimatedPatrimony)} />
+        <SummaryCard icon={<PiggyBank />} label="Economia" value={formatCurrency(dashboard.summary.generatedSavings)} />
+        <SummaryCard icon={<PlaneTakeoff />} label="Emissões/Economias" value={formatPoints(dashboard.summary.redemptionsCount)} />
       </section>
 
-      <section className="economy-history" aria-labelledby="economy-history-title">
+      {dashboard.summary.expiringIn90Days > 0 && (
+        <div className="dashboard-alert" role="status">
+          <AlertTriangle size={18} aria-hidden />
+          <span>{formatPoints(dashboard.summary.expiringIn90Days)} pontos vencem nos próximos 90 dias.</span>
+        </div>
+      )}
+
+      <section className="dashboard-section" aria-labelledby="programs-title">
         <div className="section-heading">
           <div>
-            <span className="eyebrow">Histórico</span>
-            <h2 id="economy-history-title">Viagens e emissões</h2>
+            <span className="eyebrow">Carteira do cliente</span>
+            <h2 id="programs-title">Milhas por programa</h2>
           </div>
-          {onRefresh && <button className="secondary-button" onClick={onRefresh} disabled={refreshing}><RefreshCw size={15} /> Atualizar</button>}
+          {onRefresh && (
+            <button className="secondary-button" onClick={onRefresh} disabled={refreshing}>
+              <RefreshCw size={15} /> Atualizar
+            </button>
+          )}
         </div>
-        {economy.items.length === 0 ? (
-          <div className="panel-state">Nenhuma economia registrada ainda.</div>
+        {dashboard.programs.length === 0 ? (
+          <div className="panel-state">Nenhum programa ativo cadastrado para este cliente.</div>
         ) : (
-          <div className="economy-list">
-            {economy.items.map((item, index) => (
-              <article className="economy-item" key={`${item.issuedAt}-${index}`}>
-                <div className="economy-item-icon"><ReceiptText aria-hidden /></div>
-                <div>
-                  <span>{formatDate(item.launchedOn ?? item.issuedAt)}</span>
-                  <h3>{item.details}</h3>
-                  <p>
-                    Valor original {formatCurrency(item.originalValue)} · Valor pago {formatCurrency(item.paidValue)}
-                    {item.programName ? ` · ${item.programName}` : ""}
-                    {item.pointsUsed ? ` · ${formatPoints(item.pointsUsed)} pontos` : ""}
-                  </p>
+          <div className="public-program-grid">
+            {dashboard.programs.map((program) => (
+              <article className="public-program-card" key={program.slug}>
+                <div className="program-card-header">
+                  {program.logoUrl ? <img src={program.logoUrl} alt="" loading="lazy" /> : <div className="program-logo-fallback">{program.name.slice(0, 2).toUpperCase()}</div>}
+                  <div>
+                    <h3>{program.name}</h3>
+                    <span>Atualizado em {formatDate(program.capturedAt)}</span>
+                  </div>
                 </div>
-                <strong className={item.savingsAmount < 0 ? "value-negative" : "value-positive"}>{formatCurrency(item.savingsAmount)}</strong>
+                <strong>{formatPoints(program.balance)}</strong>
+                <dl>
+                  <div><dt>Custo médio/milheiro</dt><dd>{formatCurrency(program.averageCostPerThousand)}</dd></div>
+                  <div><dt>Valor estimado</dt><dd>{formatCurrency(program.estimatedValue)}</dd></div>
+                  <div><dt>Vencendo em 90 dias</dt><dd>{formatPoints(program.expiringPoints)}</dd></div>
+                </dl>
               </article>
             ))}
           </div>
         )}
       </section>
-    </ClientEconomyShell>
+
+      <div className="dashboard-charts-grid">
+        <section className="dashboard-section chart-card" aria-labelledby="balance-chart-title">
+          <div className="section-heading">
+            <div>
+              <span className="eyebrow"><LineChartIcon size={14} /> Histórico</span>
+              <h2 id="balance-chart-title">Saldo acumulado</h2>
+            </div>
+          </div>
+          {hasBalanceHistory ? (
+            <div className="chart-container">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={dashboard.balanceHistory} margin={chartMargin}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,.08)" />
+                  <XAxis dataKey="month" tickFormatter={formatMonth} tick={{ fill: "#a9a39b", fontSize: 12 }} />
+                  <YAxis tickFormatter={(value) => formatCompactNumber(Number(value))} tick={{ fill: "#a9a39b", fontSize: 12 }} width={58} />
+                  <Tooltip formatter={(value) => formatPoints(Number(value))} labelFormatter={formatMonth} contentStyle={tooltipStyle} />
+                  <Line type="monotone" dataKey="balance" stroke="#f3c66d" strokeWidth={3} dot={{ r: 3 }} activeDot={{ r: 5 }} name="Saldo" />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="panel-state">Sem histórico de saldo suficiente para exibir gráfico.</div>
+          )}
+        </section>
+
+        <section className="dashboard-section chart-card" aria-labelledby="movement-chart-title">
+          <div className="section-heading">
+            <div>
+              <span className="eyebrow"><BarChart3 size={14} /> Movimentações</span>
+              <h2 id="movement-chart-title">Movimentação mensal</h2>
+            </div>
+          </div>
+          {hasMonthlyMovements ? (
+            <div className="chart-container">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={dashboard.monthlyMovements} margin={chartMargin}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,.08)" />
+                  <XAxis dataKey="month" tickFormatter={formatMonth} tick={{ fill: "#a9a39b", fontSize: 12 }} />
+                  <YAxis tickFormatter={(value) => formatCompactNumber(Number(value))} tick={{ fill: "#a9a39b", fontSize: 12 }} width={58} />
+                  <Tooltip formatter={(value) => formatPoints(Number(value))} labelFormatter={formatMonth} contentStyle={tooltipStyle} />
+                  <Bar dataKey="points" fill="#d8a973" radius={[10, 10, 0, 0]} name="Pontos" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="panel-state">Sem movimentações mensais registradas.</div>
+          )}
+        </section>
+      </div>
+
+      {dashboard.cardStatements && dashboard.cardStatements.length > 0 && (
+        <section className="dashboard-section" aria-labelledby="cards-title">
+          <div className="section-heading">
+            <div>
+              <span className="eyebrow">Cartões</span>
+              <h2 id="cards-title">Faturas e pontos esperados</h2>
+            </div>
+          </div>
+          <div className="statement-list">
+            {dashboard.cardStatements.slice(-6).map((statement) => (
+              <article key={statement.month}>
+                <CalendarClock aria-hidden />
+                <div>
+                  <span>{formatMonth(statement.month)}</span>
+                  <strong>{formatCurrency(statement.eligibleSpend)}</strong>
+                </div>
+                <p>{formatPoints(statement.expectedPoints)} esperados · {formatPoints(statement.receivedPoints)} recebidos</p>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {dashboard.contract && (
+        <section className="dashboard-section public-contract-card" aria-label="Contrato ativo">
+          <div>
+            <span>Plano</span>
+            <strong>{dashboard.contract.planName ?? "MRL Travel"}</strong>
+          </div>
+          <div>
+            <span>Vigência</span>
+            <strong>{formatDate(dashboard.contract.startsOn)} — {formatDate(dashboard.contract.endsOn)}</strong>
+          </div>
+          <div>
+            <span>Dias restantes</span>
+            <strong>{formatPoints(dashboard.contract.daysRemaining)}</strong>
+          </div>
+        </section>
+      )}
+    </ClientDashboardShell>
   );
 }
 
-function ClientEconomySkeleton() {
+function SummaryCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
-    <ClientEconomyShell>
-      <section className="economy-hero economy-skeleton" aria-label="Carregando economia">
+    <article>
+      <div className="summary-icon">{icon}</div>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </article>
+  );
+}
+
+function ClientDashboardSkeleton() {
+  return (
+    <ClientDashboardShell>
+      <section className="dashboard-hero dashboard-skeleton" aria-label="Carregando painel">
         <div>
           <span className="skeleton-line short" />
           <span className="skeleton-title" />
           <span className="skeleton-line" />
           <span className="skeleton-line medium" />
         </div>
-        <div className="economy-hero-card">
+        <div className="dashboard-hero-card">
           <span className="skeleton-line short" />
           <span className="skeleton-title small" />
         </div>
       </section>
-      <section className="economy-kpis" aria-hidden>
-        <article><span className="skeleton-line short" /><span className="skeleton-line medium" /></article>
-        <article><span className="skeleton-line short" /><span className="skeleton-line medium" /></article>
-        <article><span className="skeleton-line short" /><span className="skeleton-line medium" /></article>
+      <section className="dashboard-kpis" aria-hidden>
+        <article><span className="skeleton-dot" /><span className="skeleton-line short" /><span className="skeleton-line medium" /></article>
+        <article><span className="skeleton-dot" /><span className="skeleton-line short" /><span className="skeleton-line medium" /></article>
+        <article><span className="skeleton-dot" /><span className="skeleton-line short" /><span className="skeleton-line medium" /></article>
+        <article><span className="skeleton-dot" /><span className="skeleton-line short" /><span className="skeleton-line medium" /></article>
       </section>
-      <section className="economy-history">
-        <div className="economy-list">
-          <div className="economy-item"><span className="skeleton-dot" /><div><span className="skeleton-line short" /><span className="skeleton-line" /></div><span className="skeleton-line short" /></div>
-          <div className="economy-item"><span className="skeleton-dot" /><div><span className="skeleton-line short" /><span className="skeleton-line" /></div><span className="skeleton-line short" /></div>
+      <section className="dashboard-section">
+        <div className="public-program-grid">
+          <div className="public-program-card"><span className="skeleton-line short" /><span className="skeleton-title small" /><span className="skeleton-line" /></div>
+          <div className="public-program-card"><span className="skeleton-line short" /><span className="skeleton-title small" /><span className="skeleton-line" /></div>
+          <div className="public-program-card"><span className="skeleton-line short" /><span className="skeleton-title small" /><span className="skeleton-line" /></div>
         </div>
       </section>
-    </ClientEconomyShell>
+      <div className="dashboard-charts-grid">
+        <section className="dashboard-section chart-card"><span className="skeleton-title small" /><div className="chart-container skeleton-panel" /></section>
+        <section className="dashboard-section chart-card"><span className="skeleton-title small" /><div className="chart-container skeleton-panel" /></section>
+      </div>
+    </ClientDashboardShell>
   );
 }
 
-function ClientEconomyUnavailable() {
+function ClientDashboardUnavailable() {
   return (
-    <ClientEconomyShell>
-      <section className="economy-unavailable">
+    <ClientDashboardShell>
+      <section className="dashboard-unavailable">
         <div className="brand-mark">MRL</div>
-        <h1>Página indisponível</h1>
-        <p>Não foi possível carregar esta página de economia. Solicite um novo link à equipe MRL Travel.</p>
+        <h1>Painel indisponível</h1>
+        <p>Não foi possível carregar este painel. Solicite um novo link à equipe MRL Travel.</p>
       </section>
-    </ClientEconomyShell>
+    </ClientDashboardShell>
   );
 }
 
-function ClientEconomyShell({ children }: { children: React.ReactNode }) {
+function ClientDashboardShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="client-economy-shell">
-      <div className="brand-lockup economy-brand">
+    <div className="client-dashboard-shell">
+      <div className="brand-lockup dashboard-brand">
         <div className="brand-mark">MRL</div>
-        <div><strong>MRL Travel</strong><span>Economia protegida</span></div>
+        <div><strong>MRL Travel</strong><span>Painel protegido</span></div>
       </div>
       {children}
     </div>
   );
 }
+
+function formatMonth(value: unknown) {
+  if (typeof value !== "string" && typeof value !== "number") return "";
+  return new Intl.DateTimeFormat("pt-BR", { month: "short", year: "2-digit" }).format(new Date(value));
+}
+
+function formatCompactNumber(value: number) {
+  return new Intl.NumberFormat("pt-BR", { notation: "compact", maximumFractionDigits: 1 }).format(value);
+}
+
+const tooltipStyle = {
+  background: "#111316",
+  border: "1px solid rgba(216,169,115,.32)",
+  borderRadius: "14px",
+  color: "#f7f3ed",
+};

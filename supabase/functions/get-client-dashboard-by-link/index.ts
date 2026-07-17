@@ -6,7 +6,7 @@ const schema = z.object({
   token: z.string().trim().regex(/^[a-f0-9]{64}$/i),
 });
 
-const GENERIC_ERROR = { error: "Página indisponível." };
+const GENERIC_ERROR = { error: "Painel indisponível." };
 
 async function sha256Hex(value: string): Promise<string> {
   const data = new TextEncoder().encode(value);
@@ -20,6 +20,7 @@ async function fingerprint(request: Request): Promise<string> {
     request.headers.get("user-agent") ?? "",
     request.headers.get("accept-language") ?? "",
   ].join("|").slice(0, 500);
+
   return sha256Hex(raw);
 }
 
@@ -77,12 +78,12 @@ Deno.serve(async (request) => {
 
     const today = new Date().toISOString().slice(0, 10);
     const [{ data: client }, { data: contract }] = await Promise.all([
-      admin.from("clients").select("id, full_name, status").eq("id", link.client_id).eq("status", "active").maybeSingle(),
+      admin.from("clients").select("id").eq("id", link.client_id).eq("status", "active").maybeSingle(),
       admin
         .from("management_contracts")
         .select("id")
         .eq("client_id", link.client_id)
-        .eq("status", "active")
+        .in("status", ["active", "paused"])
         .lte("starts_on", today)
         .gte("ends_on", today)
         .limit(1)
@@ -94,51 +95,17 @@ Deno.serve(async (request) => {
       return jsonResponse(request, GENERIC_ERROR, 401);
     }
 
-    const { data: redemptions, error: redemptionsError } = await admin
-      .from("redemptions")
-      .select("issued_at, launched_on, redemption_type, payment_mode, description, cash_reference_total, effective_cost, savings_amount, created_at")
-      .eq("client_id", link.client_id)
-      .eq("status", "confirmed")
-      .order("issued_at", { ascending: false });
-
-    if (redemptionsError) throw redemptionsError;
-
-    const items = (redemptions ?? []).map((item) => ({
-      issuedAt: item.issued_at,
-      launchedOn: item.launched_on,
-      travelType: item.redemption_type,
-      paymentMode: item.payment_mode,
-      details: item.description,
-      originalValue: Number(item.cash_reference_total ?? 0),
-      paidValue: Number(item.effective_cost ?? 0),
-      savingsAmount: Number(item.savings_amount ?? 0),
-    }));
-
-    const generatedSavings = items.reduce((total, item) => total + item.savingsAmount, 0);
-    const lastUpdatedAt = (redemptions ?? []).reduce<string | null>((latest, item) => {
-      if (!item.created_at) return latest;
-      return latest && latest > item.created_at ? latest : item.created_at;
-    }, null);
+    const { data: dashboard, error: dashboardError } = await admin.rpc("build_public_client_dashboard_payload", { p_client_id: link.client_id });
+    if (dashboardError || !dashboard) throw dashboardError ?? new Error("dashboard payload vazio");
 
     await Promise.all([
       admin.from("client_direct_access_links").update({ last_used_at: new Date().toISOString(), use_count: (link.use_count ?? 0) + 1 }).eq("id", link.id),
       admin.from("client_direct_access_events").insert({ link_id: link.id, client_id: link.client_id, event_type: "success", fingerprint_hash: fingerprintHash }),
     ]);
 
-    return jsonResponse(request, {
-      client: {
-        displayName: client.full_name,
-        lastUpdatedAt,
-      },
-      summary: {
-        generatedSavings,
-        redemptionsCount: items.length,
-        positiveSavingsCount: items.filter((item) => item.savingsAmount > 0).length,
-      },
-      items,
-    });
+    return jsonResponse(request, dashboard);
   } catch (error) {
-    console.error("get-client-economy-by-link failed", error instanceof Error ? error.message : "unknown");
+    console.error("get-client-dashboard-by-link failed", error instanceof Error ? error.message : "unknown");
     await admin.from("client_direct_access_events").insert({ event_type: "exchange_failed", fingerprint_hash: fingerprintHash });
     return jsonResponse(request, GENERIC_ERROR, 401);
   }

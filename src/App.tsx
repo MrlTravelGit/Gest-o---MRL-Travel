@@ -38,6 +38,7 @@ export default function App() {
           <Route path="/admin/clientes/novo" element={<AdminCreateClientPage />} />
           <Route path="/admin/pessoas/novo" element={<AdminCreateClientPage />} />
           <Route path="/admin/clientes/:clientId" element={<AdminClientDetailPage />} />
+          <Route path="/admin/clientes/:clientId/painel" element={<AdminClientEconomyPreviewPage />} />
           <Route path="/admin/clientes/:clientId/economia" element={<AdminClientEconomyPreviewPage />} />
           <Route path="/admin/clubes" element={<AdminClubsPage />} />
           <Route path="/admin/faturas" element={<AdminInvoicesPage />} />

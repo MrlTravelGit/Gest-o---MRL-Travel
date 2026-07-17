@@ -56,10 +56,10 @@ export function AdminClientDetailPage() {
         {!detail.data.canWrite && <div className="read-only-banner"><AlertTriangle size={18} /> Perfil auditor: consultas liberadas, alterações bloqueadas.</div>}
 
         <section className="module-form client-economy-admin-card">
-          <div className="form-title"><KeyRound /><div><h2>Página de economia</h2><p>Abra uma prévia administrativa ou gere um link bearer exclusivo para o cliente.</p></div></div>
+          <div className="form-title"><KeyRound /><div><h2>Painel do cliente</h2><p>Abra uma prévia administrativa ou gere um link bearer exclusivo para o dashboard completo.</p></div></div>
           <div className="economy-admin-actions">
-            <Link className="secondary-button" to={`/admin/clientes/${clientId}/economia`} target="_blank" rel="noreferrer">
-              <ExternalLink size={15} /> Abrir página de economia
+            <Link className="secondary-button" to={`/admin/clientes/${clientId}/painel`} target="_blank" rel="noreferrer">
+              <ExternalLink size={15} /> Abrir painel do cliente
             </Link>
             <button className="secondary-button" disabled={!detail.data.canWrite || rotateLink.isPending} onClick={() => rotateLink.mutate()}>
               <RotateCw size={15} /> {rotateLink.isPending ? "Gerando..." : "Gerar/rotacionar link"}

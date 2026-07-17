@@ -37,10 +37,12 @@ Todas as tabelas novas possuem RLS habilitado e forçado. Consultas de cliente d
 | `build_client_economy_payload` | Helper interno para montar somente dados de economia; execução revogada para papéis de aplicação |
 | `get_my_client_economy` | Contrato revogado para cliente público; substituído por Edge Function sem sessão |
 | `get_admin_client_economy_preview` | Prévia administrativa de economia por `client_id`, sem revelar token bearer |
+| `build_public_client_dashboard_payload` | Helper interno 0.4.2 que monta o dashboard público completo a partir de `client_id` já autorizado; sem execução para `anon`/`authenticated` |
+| `get_admin_client_dashboard_preview` | Prévia administrativa 0.4.2 com o mesmo DTO do link público, sem revelar token bearer |
 
 Na versão 0.4.0 definitiva, `get_client_dashboard(public_id)` deixa de ser contrato frontend ativo para clientes e tem execução revogada para `authenticated` pela migration `202607160010_client_economy_only_no_mfa.sql`.
 
-Na versão 0.4.1, a leitura pública da economia acontece exclusivamente pela Edge Function `get-client-economy-by-link`. Nenhuma tabela privada recebe `SELECT` para `anon`, e o navegador nunca envia `client_id`.
+Na versão 0.4.2, a leitura pública do dashboard completo acontece exclusivamente pela Edge Function `get-client-dashboard-by-link`. O termo “economia” na rota `/economia/{token}` não limita o painel: o DTO inclui saldos, patrimônio, economia, emissões, programas, custos, vencimentos e gráficos. Nenhuma tabela privada recebe `SELECT` para `anon`, e o navegador nunca envia `client_id`.
 
 ## Identidade e acesso
 

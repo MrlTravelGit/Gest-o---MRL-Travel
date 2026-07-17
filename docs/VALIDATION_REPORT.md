@@ -45,6 +45,32 @@ Não foi executado `db reset` local nem qualquer comando destrutivo. Como o hist
 | Diff check | `git diff --check` aprovado, apenas avisos CRLF do Windows |
 | Migração local real | `npx supabase migration up --local` não conectou ao Postgres local (`LegacyDbConnectError`); não foi executado reset |
 
+## Validação da versão 0.4.2 — PATCH 006, 17/07/2026
+
+| Verificação | Resultado real |
+| :--- | :--- |
+| Causa da regressão | Confirmada: `/economia/:token` renderizava a página simplificada `Economia MRL Travel` e chamava `get-client-economy-by-link`, que retornava apenas economia |
+| Contrato público | Substituído por `get-client-dashboard-by-link` + DTO `PublicClientDashboard` com saldos, patrimônio, economia, emissões, programas, custos, vencimentos e gráficos |
+| Prévia administrativa | Substituída por `get_admin_client_dashboard_preview`, com o mesmo payload do link público |
+| Migration | `202607160012_client_dashboard_direct_link_contract.sql` criada, sem editar migrações aplicadas |
+| Sintaxe SQL | `pglast.parse_sql` aprovado para a migration 012 |
+| TypeScript | `npm run typecheck` aprovado |
+| Testes automatizados | `npm test` aprovado: 14 arquivos, 38 testes |
+| Build de produção | `npm run build` aprovado com Vite 8.1.4; aviso esperado de chunk `charts` > 500 kB |
+| Diff check | `git diff --check` aprovado, apenas avisos CRLF do Windows |
+| Bundle ativo | Testes de regressão garantem ausência de `Economia MRL Travel`, `Somente economia` e `Página exclusiva de economia` no componente ativo; artefatos antigos ignorados em `dist` local não são parte do Git |
+| Edge Function local | Deno não está instalado neste ambiente, portanto não houve typecheck Deno local |
+| Migração local real | `npx supabase migration up --local` não conectou ao Postgres local (`LegacyDbConnectError`); não foi executado reset |
+
+### Smoke test obrigatório após deploy 0.4.2
+
+1. No admin, abra um cliente com dados conhecidos e anote `Total de pontos`, `Valor estimado`, `Programas ativos`, `Economia` e `Vencendo em 90 dias`.
+2. Gere/rotacione o link em **Painel do cliente** e abra `/economia/{token}` em janela anônima.
+3. Confirme que não aparece login, código, OTP, Authenticator ou “Validando link seguro”.
+4. Confirme que o painel público mostra os mesmos totais do admin para o mesmo cliente e lista os mesmos programas ativos.
+5. Teste um token inválido e confirme resposta genérica `Painel indisponível`.
+6. Teste um link revogado/expirado e confirme que nenhum dado do cliente é exibido.
+
 ## Versão
 
 | Campo | Valor |

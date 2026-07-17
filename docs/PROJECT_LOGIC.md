@@ -38,9 +38,9 @@ O sistema também terá um painel administrativo para a equipe da MRL Travel cad
 4. Assinaturas de clube geram previsões em `scheduled_point_credits`; saldo real só muda quando a equipe confirma o crédito, criando movimento em `point_transactions`.
 5. Faturas reutilizam `credit_cards`, `card_earning_rules` e `card_statements`; o backend calcula pontos esperados com `numeric` e grava snapshot de regra, cotação e fórmula.
 6. O histórico administrativo em `/admin/movimentacoes` consulta o ledger canônico `point_transactions`; exclusão visual significa estorno/correção auditável, não remoção física.
-7. Links diretos novos usam token bearer separado do `public_id`; o banco armazena apenas hash e a Edge Function consulta a economia silenciosamente, sem criar sessão Supabase para o cliente.
+7. Links diretos novos usam token bearer separado do `public_id`; o banco armazena apenas hash e a Edge Function consulta o dashboard completo silenciosamente, sem criar sessão Supabase para o cliente.
 8. O fluxo antigo por `public_id`, primeiro nome e código temporário deixa de existir nas rotas ativas; links antigos não devem renderizar formulário.
-9. O cliente abre `/economia/{token}` e vê somente economia acumulada, emissões contabilizadas e histórico de economias.
+9. O cliente abre `/economia/{token}` e vê o dashboard completo: saldos, patrimônio, economia, emissões, programas, custos, vencimentos e gráficos.
 10. O login administrativo visível passa a ser e-mail e senha individuais; a página de Authenticator/MFA deixa de existir no aplicativo.
 11. A autorização administrativa continua no backend por `staff_members`, papel ativo, RPCs, RLS e auditoria.
 
@@ -105,17 +105,17 @@ Uma operação somente poderá continuar quando todas as condições forem verda
 
 1. O administrador cadastra o cliente e mantém contrato vigente.
 2. O sistema cria o vínculo entre o cliente e o usuário autenticável.
-3. O administrador gera ou rotaciona um link direto de economia.
+3. O administrador gera ou rotaciona um link direto do painel do cliente.
 4. O banco armazena somente o hash do token bearer.
 5. O cliente acessa `https://gestao-mrltravel.vercel.app/economia/{token}`.
-6. A própria página de economia envia o token à Edge Function `get-client-economy-by-link` por HTTPS.
+6. A própria página pública envia o token à Edge Function `get-client-dashboard-by-link` por HTTPS.
 7. A Edge Function valida hash, status, expiração, cliente ativo e contrato vigente.
 8. O backend resolve o `client_id` pelo token; o navegador nunca envia `client_id`.
-9. A Edge Function retorna somente dados públicos mínimos de economia.
+9. A Edge Function retorna o DTO público do dashboard completo, sem PII, IDs internos, tokens ou dados administrativos.
 10. A página renderiza o DTO sem login, OTP, Authenticator, confirmação ou sessão Supabase do cliente.
 11. Tentativas inválidas são registradas de forma minimizada e limitadas.
 
-Não existe mais tela de primeiro nome, confirmação por código, login, sessão Supabase ou dashboard completo do cliente no fluxo público. O link direto abre exclusivamente a página de economia.
+Não existe mais tela de primeiro nome, confirmação por código, login ou sessão Supabase no fluxo público. O link direto abre o dashboard completo do cliente identificado pelo token. O termo “economia” no caminho `/economia/{token}` é compatibilidade histórica e não limita o painel.
 
 ### 5.1 Regras do link exclusivo
 
@@ -605,6 +605,7 @@ O documento e o sistema usarão versão semântica:
 | 1.3.0 | 16/07/2026 | Hero + Bento e módulos de clientes, viagens/economia, ranking, interesses, transferências e saída manual |
 | 1.4.0 | 16/07/2026 | Sidebar administrativa, clubes, faturas, histórico, link direto para economia e remoção visual de OTP/MFA |
 | 1.4.1 | 16/07/2026 | Economia direta por token em `/economia/{token}`, sem login/sessão Supabase do cliente e sem `exchange-client-link` |
+| 1.4.2 | 17/07/2026 | Dashboard completo do cliente por `/economia/{token}`, com saldos, patrimônio, economia, programas e gráficos pelo token bearer |
 
 ## 21. Decisões iniciais consolidadas
 
@@ -612,9 +613,9 @@ O documento e o sistema usarão versão semântica:
 2. O projeto terá banco Supabase próprio.
 3. O código visual existente poderá ser reaproveitado seletivamente.
 4. O MVP começará com lançamentos manuais e importação padronizada.
-5. O cliente terá acesso público somente à própria página de economia.
+5. O cliente terá acesso público somente ao próprio dashboard completo resolvido pelo token bearer.
 6. O administrador entrará com e-mail e senha individual; Authenticator/MFA não é tela obrigatória do aplicativo.
-7. O link exclusivo bearer substitui o fluxo visual de nome/código e autoriza somente a consulta pública mínima de economia pela Edge Function.
+7. O link exclusivo bearer substitui o fluxo visual de nome/código e autoriza somente a consulta pública do dashboard completo pela Edge Function.
 8. Todos os cálculos oficiais serão executados no backend.
 9. Toda nova demanda produzirá análise, patch, testes e atualização da documentação quando necessário.
 10. Primeiro nome e código temporário não fazem mais parte das rotas ativas do cliente.
