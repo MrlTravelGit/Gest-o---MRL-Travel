@@ -186,3 +186,52 @@ Por segurança, a migração 004 e o frontend 0.2.0 não foram publicados. Antes
 3. Reparar o histórico somente após essa comparação.
 4. Executar a migração e os testes em homologação.
 5. Aplicar 004 em produção e somente então publicar o frontend.
+
+## Validação do PATCH 017 — 20/07/2026
+
+Estado local: versão `0.4.4`, branch `main`, projeto Supabase vinculado
+`bdkazlhvnowjehdgxege` e migration mais recente
+`202607200016_notion_imports_and_management_tasks.sql`.
+
+| Área | Causa comprovada | Correção e validação local |
+| :--- | :--- | :--- |
+| Gráficos públicos | O componente repassava valores e datas sem normalização robusta e dependia de dimensões/legenda frágeis do Recharts. | Adaptador canônico para saldo e movimentos, consolidação mensal, domínios para zero/um ponto, wrappers responsivos, eixos separados e empty state. |
+| Logos dos programas | O registro usava `atomos.svg`, `azul-fidelidade.svg` e `livelo.svg`, mas os arquivos reais são `átomos.svg`, `azul.svg` e `logo-livelo.svg`. | Registro tipado único, aliases normalizados, componente com `img` e fallback somente em erro real. Todos os sete assets testados via HTTP 200 no preview. |
+| Marca MRL | O dashboard renderizava o selo provisório em texto. O repositório não contém o PNG citado no patch; contém somente o asset oficial `public/assets/brand/logo-mrl-travel.svg`. | `BrandLogo` reutilizável no topo, rodapé, loading e erro, usando o SVG existente sem recriar a marca. A troca para PNG fica condicionada à inclusão do arquivo oficial. |
+| Importador | O frontend dependia de uma Edge Function/schema ainda não comprovados no remoto; upload direto também não era adequado para ZIP de até 15 MB. | Upload assinado em bucket privado, checksum, magic bytes, limites de ZIP, staging/dry-run, claim atômico do lote, limpeza oportunista, CORS por allowlist e códigos estáveis. `verify_jwt=true` foi preservado. |
+| Pop-up | `window.open()` bloqueado gerava exceção não capturada. | O handler retorna estado não destrutivo e oferece cópia do link sem lançar erro. |
+
+Contrato canônico dos gráficos:
+
+- `BalanceHistoryPoint { period, points, averageCost }`;
+- `MonthlyMovementPoint { period, pointsIn, pointsOut, netPoints }`;
+- compatibilidade com o payload legado fica concentrada em `dashboard-chart-data.ts`.
+
+Validações executadas:
+
+- `npm test`: 22 arquivos e 71 testes aprovados;
+- parser do export real: 21 clientes, 41 demandas, 56 programas, 9 onboardings, 1 passagem, 28 relações vinculadas, 13 pendentes, 35 visões filtradas ignoradas e zero saldos oficiais criados;
+- `npm run typecheck`: aprovado;
+- `npm run build`: aprovado;
+- `npx deno check --node-modules-dir=auto supabase/functions/admin-imports/index.ts`: aprovado;
+- `git diff --check`: aprovado (somente avisos de conversão LF/CRLF no Windows);
+- `dist`: um único chunk `ClientDashboardView`, zero referências a `ClientEconomyPage`, `/src/assets` ou nomes antigos de SVG;
+- XML dos SVGs: todos válidos, com `viewBox` e sem referências locais quebradas.
+
+### Produção pendente
+
+Nenhum deploy foi feito. A conta Supabase disponível retorna HTTP 403 ao executar
+`functions list` e `db lint --linked`, portanto não foi possível confirmar ou aplicar
+schema, RLS, bucket, Edge Function, preflight e smoke tests no projeto remoto. A Vercel
+também não foi publicada. O backend deve ser publicado e validado antes do frontend.
+
+Leituras remotas não destrutivas confirmaram o estado atual:
+
+- o domínio Vercel responde HTTP 200 e serve o chunk corrigido do dashboard;
+- a logo MRL e os seis SVGs de programas respondem HTTP 200 em produção;
+- o `OPTIONS` e o `POST` de `admin-imports` retornam HTTP 404 com
+  `sb-error-code: NOT_FOUND` e `Requested function was not found`;
+- portanto, o sintoma de CORS do importador em produção é consequência comprovada da
+  ausência da Edge Function remota, não de `mode: cors` no frontend;
+- o bundle publicado do importador difere do build local e não deve ser atualizado antes
+  da migration e da função administrativa estarem prontas no Supabase.

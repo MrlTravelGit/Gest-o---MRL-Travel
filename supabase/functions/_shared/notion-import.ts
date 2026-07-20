@@ -44,6 +44,21 @@ const schemas: Array<{ entity: ImportEntity; required: string[] }> = [
   { entity: "client", required: ["nome completo", "cpf", "demandas", "e mail", "whatsapp"] },
 ];
 
+// O export do Notion inclui, além das bases `_all.csv`, visões relacionais
+// filtradas com menos colunas. Elas precisam ser reconhecidas para que possam
+// ser ignoradas quando a base canônica equivalente estiver presente, mas nunca
+// devem substituir o contrato mais estrito usado para identificar a canônica.
+const filteredViewSchemas: Array<{ entity: ImportEntity; required: string[] }> = [
+  { entity: "task", required: ["titulo", "prazo", "responsavel", "status", "tipo", "urgencia"] },
+  { entity: "program", required: ["programa", "saldo atual", "pontos a expirar", "clube ativo", "ultima edicao"] },
+  {
+    entity: "onboarding",
+    required: ["nome completo", "cpf", "rg", "whatsapp", "e mail", "o que voce espera do nosso servico liste exatamente todas as suas expectativas"],
+  },
+  { entity: "passage", required: ["nome do trecho", "iata origem", "iata destino", "companhia", "programa", "pontos utilizados"] },
+  { entity: "client", required: ["nome completo", "cpf", "data de nascimento", "e mail", "whatsapp"] },
+];
+
 export function normalizeText(value: string): string {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
@@ -123,7 +138,9 @@ export function parseCsv(content: string, delimiter = detectDelimiter(content)):
 
 export function detectEntity(headers: string[]): ImportEntity | null {
   const normalized = new Set(headers.map(normalizeText));
-  return schemas.find((schema) => schema.required.every((field) => normalized.has(field)))?.entity ?? null;
+  const canonical = schemas.find((schema) => schema.required.every((field) => normalized.has(field)));
+  if (canonical) return canonical.entity;
+  return filteredViewSchemas.find((schema) => schema.required.every((field) => normalized.has(field)))?.entity ?? null;
 }
 
 function valueOf(row: Record<string, string>, normalizedHeader: string): string {

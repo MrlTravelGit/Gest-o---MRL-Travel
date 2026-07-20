@@ -1,11 +1,11 @@
-const DEFAULT_ORIGIN = "http://localhost:5173";
+const DEFAULT_ORIGINS = "https://gestao-mrltravel.vercel.app,http://localhost:5173";
 
 export function normalizeOrigin(origin: string): string {
   return origin.trim().replace(/\/+$/, "");
 }
 
 function allowedOrigins(): Set<string> {
-  const configured = Deno.env.get("ALLOWED_ORIGINS") ?? DEFAULT_ORIGIN;
+  const configured = Deno.env.get("ALLOWED_ORIGINS") ?? DEFAULT_ORIGINS;
   return new Set(
     configured
       .split(",")

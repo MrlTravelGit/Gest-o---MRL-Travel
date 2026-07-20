@@ -22,7 +22,7 @@ const actionSchema = z.discriminatedUnion("action", [
 
 function safeError(request: Request, requestId: string, error: unknown): Response {
   if (error instanceof Response) return new Response(JSON.stringify({ code: error.status === 401 ? "UNAUTHORIZED" : "FORBIDDEN", message: error.status === 401 ? "Não autorizado." : "Acesso não autorizado.", requestId }), { status: error.status, headers: { ...corsHeaders(request), "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
-  const known = error instanceof ImportError ? error : new ImportError("IMPORT_UNAVAILABLE", "A importação não pôde ser processada.", 500);
+  const known = error instanceof ImportError ? error : new ImportError("INTERNAL_ERROR", "A importação não pôde ser processada.", 500);
   if (!(error instanceof ImportError)) console.error("admin-imports failed", { requestId, code: known.code });
   return jsonResponse(request, { code: known.code, message: known.message, requestId }, known.status);
 }
@@ -54,7 +54,9 @@ function uploadMetadataAllowed(filename: string, mimeType: string): boolean {
 
 async function sha256Hex(input: Uint8Array | string): Promise<string> {
   const bytes = typeof input === "string" ? new TextEncoder().encode(input) : input;
-  const hash = await crypto.subtle.digest("SHA-256", bytes);
+  const owned = new Uint8Array(bytes.byteLength);
+  owned.set(bytes);
+  const hash = await crypto.subtle.digest("SHA-256", owned.buffer);
   return [...new Uint8Array(hash)].map((value) => value.toString(16).padStart(2, "0")).join("");
 }
 
@@ -117,6 +119,12 @@ async function readUpload(file: File): Promise<SourceFile[]> {
   const bytes = new Uint8Array(await file.arrayBuffer());
   if (file.name.toLowerCase().endsWith(".csv")) return [{ path: safeFilename(file.name), content: decodeUtf8(bytes) }];
   return readZip(bytes);
+}
+
+async function removeTemporaryUpload(admin: ReturnType<typeof adminClient>, storagePath: string): Promise<void> {
+  // A falha de limpeza não altera o resultado do dry-run. O objeto permanece
+  // privado e pode ser removido depois sem registrar seu caminho nos logs.
+  try { await admin.storage.from("admin-imports").remove([storagePath]); } catch { /* limpeza oportunista */ }
 }
 
 function hasValidMagic(filename: string, bytes: Uint8Array): boolean {
@@ -256,7 +264,14 @@ Deno.serve(async (request) => {
     if (batch.status === "parsing") throw new ImportError("BATCH_ALREADY_PROCESSING", "Este lote já está em análise.", 409);
     if (["review", "committed"].includes(batch.status)) return jsonResponse(request, { batchId, status: batch.status, summary: batch.dry_run_summary, duplicate: true, requestId });
     if (batch.status !== "uploaded") throw new ImportError("ANALYSIS_FAILED", "Este lote não está pronto para análise.", 409);
-    await admin.from("import_batches").update({ status: "parsing", started_at: new Date().toISOString(), uploaded_at: new Date().toISOString(), request_id: requestId }).eq("id", batchId).eq("status", "uploaded");
+    const { data: claimed, error: claimError } = await admin.from("import_batches")
+      .update({ status: "parsing", started_at: new Date().toISOString(), uploaded_at: new Date().toISOString(), request_id: requestId })
+      .eq("id", batchId)
+      .eq("status", "uploaded")
+      .select("id")
+      .maybeSingle();
+    if (claimError) throw claimError;
+    if (!claimed) throw new ImportError("BATCH_ALREADY_PROCESSING", "Este lote já está em análise.", 409);
     try {
       const { data: stored, error: downloadError } = await admin.storage.from("admin-imports").download(batch.storage_path);
       if (downloadError || !stored) throw new ImportError("UPLOAD_FAILED", "O arquivo enviado não foi encontrado no armazenamento privado.", 404);
@@ -274,10 +289,12 @@ Deno.serve(async (request) => {
       const summary = summarizeAnalysis(analyzed);
       await admin.from("import_batches").update({ status: "review", dry_run_summary: summary, finished_at: new Date().toISOString() }).eq("id", batchId);
       await admin.from("audit_logs").insert({ actor_user_id: actor.userId, action: "parse_import_batch", table_name: "import_batches", record_id: batchId, request_id: requestId, new_data: { adapterVersion: NOTION_ADAPTER_VERSION, canonical: summary.canonical, taskRelations: summary.taskRelations, officialBalancesCreatedByDefault: 0 } });
+      await removeTemporaryUpload(admin, batch.storage_path);
       return jsonResponse(request, { batchId, status: "review", summary, duplicate: false, requestId });
     } catch (error) {
       const code = error instanceof ImportError ? error.code : "ANALYSIS_FAILED";
       await admin.from("import_batches").update({ status: "failed", error_code: code, finished_at: new Date().toISOString() }).eq("id", batchId);
+      await removeTemporaryUpload(admin, batch.storage_path);
       throw error;
     }
   } catch (error) { return safeError(request, requestId, error); }

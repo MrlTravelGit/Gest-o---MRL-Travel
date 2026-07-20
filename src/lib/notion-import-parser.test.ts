@@ -1,4 +1,5 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import JSZip from "jszip";
 import { describe, expect, it } from "vitest";
 import { analyzeNotionFiles, detectDelimiter, extractNotionPageId, parseCsv, parsePointQuantity, sanitizeMarkdown, summarizeAnalysis, type SourceFile } from "../../supabase/functions/_shared/notion-import";
@@ -41,16 +42,17 @@ describe("notion_mrl_v1 parser", () => {
 });
 
 const realZipPath = process.env.MRL_NOTION_ZIP ?? String.raw`C:\Users\GESTAO\Desktop\f3152da7-5364-4a91-8b55-e65986ddebbf_ExportBlock-b919e00c-95ea-48a6-ac8b-41a28215e846.zip`.replaceAll("\\\\", "\\");
-const realZipTest = existsSync(realZipPath) ? it : it.skip;
+const extractedDir = process.env.MRL_NOTION_EXTRACTED_DIR ?? String.raw`C:\Users\GESTAO\AppData\Local\Temp\mrl_patch016_d420eabbd1c24b39a7f220505887f7c4\inner`.replaceAll("\\\\", "\\");
+const realZipTest = existsSync(realZipPath) || existsSync(extractedDir) ? it : it.skip;
 
 describe("ZIP real do Notion", () => {
   realZipTest("produz as contagens canônicas e conflitos de referência", async () => {
-    const files = await extractTextFiles(new Uint8Array(readFileSync(realZipPath)));
+    const files = existsSync(realZipPath) ? await extractTextFiles(new Uint8Array(readFileSync(realZipPath))) : readExtractedTextFiles(extractedDir);
     const summary = summarizeAnalysis(analyzeNotionFiles(files));
     expect(summary.canonical).toEqual({ clients: 21, tasks: 41, programs: 56, onboardings: 9, passages: 1 });
     expect(summary.taskRelations).toEqual({ linked: 28, needsDecision: 13 });
     expect(summary.officialBalancesCreatedByDefault).toBe(0);
-    expect(summary.ignoredFilteredFiles).toBeGreaterThan(0);
+    expect(summary.ignoredFilteredFiles).toBe(35);
   });
 });
 
@@ -65,4 +67,13 @@ async function extractTextFiles(bytes: Uint8Array, depth = 0): Promise<SourceFil
     } else if (/\.(csv|md)$/i.test(entry.name)) output.push({ path: entry.name, content: await entry.async("string") });
   }
   return output;
+}
+
+function readExtractedTextFiles(root: string, current = root): SourceFile[] {
+  return readdirSync(current, { withFileTypes: true }).flatMap((entry) => {
+    const fullPath = join(current, entry.name);
+    if (entry.isDirectory()) return readExtractedTextFiles(root, fullPath);
+    if (!/\.(csv|md)$/i.test(entry.name)) return [];
+    return [{ path: fullPath.slice(root.length + 1).replace(/\\/g, "/"), content: readFileSync(fullPath, "utf8") }];
+  });
 }

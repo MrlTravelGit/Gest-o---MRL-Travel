@@ -10,6 +10,12 @@ describe("brand assets", () => {
     expect(screen.getByAltText("MRL Travel")).toHaveAttribute("width", "112");
   });
 
+  it("usa fallback textual somente quando a marca falha", () => {
+    render(<BrandLogo size="small" />);
+    fireEvent.error(screen.getByAltText("MRL Travel"));
+    expect(screen.getByRole("img", { name: "MRL Travel" })).toHaveTextContent("MRL Travel");
+  });
+
   it("Livelo usa o SVG real e só cai para fallback em erro", () => {
     render(<LoyaltyProgramLogo program={{ slug: "livelo", name: "Livelo" }} />);
     const logo = screen.getByAltText("Logo Livelo");

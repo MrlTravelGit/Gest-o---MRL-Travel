@@ -13,6 +13,9 @@ export default defineConfig({
     port: 5173,
   },
   build: {
+    // Evita publicar chunks órfãos de builds anteriores (inclusive assets já
+    // removidos do código-fonte) quando o diretório de saída é reutilizado.
+    emptyOutDir: true,
     rollupOptions: {
       output: {
         manualChunks(id) {

@@ -39,4 +39,17 @@ describe("preflightResponse", () => {
     expect(response.status).toBe(403);
     expect(response.headers.has("Access-Control-Allow-Origin")).toBe(false);
   });
+
+  it("mantém produção e desenvolvimento na allowlist padrão", () => {
+    envGet.mockReturnValue(undefined);
+
+    for (const origin of ["https://gestao-mrltravel.vercel.app", "http://localhost:5173"]) {
+      const response = preflightResponse(new Request("https://example.test", {
+        method: "OPTIONS",
+        headers: { Origin: origin },
+      }));
+      expect(response.status).toBe(204);
+      expect(response.headers.get("Access-Control-Allow-Origin")).toBe(origin);
+    }
+  });
 });
