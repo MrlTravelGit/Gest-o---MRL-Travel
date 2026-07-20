@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { BarChart3, ClipboardList, CreditCard, DatabaseZap, FileText, Gem, History, KeyRound, LogOut, MapPinned, Menu, PlaneTakeoff, Send, ShieldCheck, UserPlus, Users, X } from "lucide-react";
+import { BarChart3, ClipboardList, CreditCard, DatabaseZap, FileInput, FileText, Gem, History, KeyRound, ListChecks, LogOut, MapPinned, Menu, PlaneTakeoff, Send, ShieldCheck, UserPlus, Users, X } from "lucide-react";
 import { Link, NavLink } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -14,7 +14,9 @@ const navItems = [
   { label: "Transferências", to: "/admin/transferencias", icon: Send },
   { label: "Saída manual", to: "/admin/saidas", icon: ClipboardList },
   { label: "Interesses", to: "/admin/interesses", icon: MapPinned },
+  { label: "Demandas", to: "/admin/demandas", icon: ListChecks },
   { label: "Formulários", to: "/admin/formularios", icon: FileText },
+  { label: "Importações", to: "/admin/importacoes", icon: FileInput },
   { label: "Cadastro", to: "/admin/pessoas/novo", icon: UserPlus },
   { label: "Acessos", to: "/admin/acessos", icon: KeyRound },
 ] as const;

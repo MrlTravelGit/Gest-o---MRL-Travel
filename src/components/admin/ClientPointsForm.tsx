@@ -39,12 +39,14 @@ export function ClientPointsForm({
   clientName,
   programs,
   canWrite,
+  disabledReason,
 }: {
   clientId: string;
   publicId: string;
   clientName: string;
   programs: AdminProgramDetail[];
   canWrite: boolean;
+  disabledReason?: string;
 }) {
   const queryClient = useQueryClient();
   const submitLock = useRef(false);
@@ -139,6 +141,7 @@ export function ClientPointsForm({
         <Calculator className="section-icon" aria-hidden="true" />
       </div>
       <form className="points-form" onSubmit={submit}>
+        {disabledReason && <div className="lead-operation-lock full-field">{disabledReason}</div>}
         <label>Cliente<input value={clientName} readOnly /></label>
         <label>Programa
           <select value={programId} onChange={(event) => setProgramId(event.target.value)} required>
@@ -185,7 +188,7 @@ export function ClientPointsForm({
         {formError && <div className="form-error full-field" role="alert">{formError}</div>}
         {success && <div className="form-success full-field" role="status">Lançamento salvo. Novo saldo: {formatPoints(success.newBalance)}.</div>}
         <button className="primary-button full-field" disabled={!canWrite || mutation.isPending}>
-          <Save size={18} /> {mutation.isPending ? "Salvando..." : canWrite ? "Salvar lançamento" : "Somente leitura"}
+          <Save size={18} /> {mutation.isPending ? "Salvando..." : canWrite ? "Salvar lançamento" : disabledReason ?? "Somente leitura"}
         </button>
       </form>
     </section>

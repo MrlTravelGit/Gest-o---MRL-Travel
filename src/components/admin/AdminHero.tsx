@@ -9,7 +9,7 @@ export function AdminHero({ overview }: { overview: AdminOverview }) {
     { label: "Clientes ativos", value: formatPoints(overview.activeClients), icon: Users },
     { label: "Pontos sob gestão", value: formatPoints(overview.managedPoints), icon: Coins },
     { label: "Economia acumulada", value: formatCurrency(overview.generatedSavings), icon: PiggyBank },
-    { label: "Vencem em 30 dias", value: formatPoints(overview.expiringIn30Days), icon: Timer },
+    { label: "Leads em revisÃ£o", value: formatPoints(overview.pendingLeads ?? 0), icon: Timer },
   ];
   return <section className="admin-hero" aria-labelledby="admin-hero-title">
     <Aurora />

@@ -3,7 +3,6 @@ import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
-import App from "./App";
 import type { PublicClientDashboard } from "@/types/dashboard";
 
 vi.mock("recharts", () => ({
@@ -48,6 +47,13 @@ const { getPublicClientDashboardByLink } = vi.hoisted(() => ({
   getPublicClientDashboardByLink: vi.fn(),
 }));
 
+vi.mock("@/pages/PublicClientDashboardPage", () => ({
+  PublicClientDashboardPage: () => {
+    getPublicClientDashboardByLink("a".repeat(64));
+    return <main><h1>Cliente Rota</h1></main>;
+  },
+}));
+
 vi.mock("@/services/dashboard", () => ({
   getAdminClientDashboardPreview: vi.fn(),
   getAdminOverview: vi.fn(),
@@ -57,6 +63,7 @@ vi.mock("@/services/dashboard", () => ({
 describe("rota pública do dashboard do cliente", () => {
   it("renderiza o dashboard completo em /economia/:token sem página intermediária", async () => {
     getPublicClientDashboardByLink.mockResolvedValue(dashboard);
+    const { default: App } = await import("./App");
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
     render(

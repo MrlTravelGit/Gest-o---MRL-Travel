@@ -100,6 +100,43 @@ export interface AdminClientPointsDetail {
   expirationLots: AdminExpirationLot[];
 }
 
+export interface OnboardingLeadReview {
+  submission: {
+    id: string;
+    status: string;
+    duplicate_reason: string | null;
+    duplicate_candidate_client_id: string | null;
+    full_name: string;
+    email: string | null;
+    whatsapp_e164: string | null;
+    cpf_last4: string | null;
+    submitted_at: string | null;
+    lead_created_at: string | null;
+    best_bank: string | null;
+    pf_monthly_spend: number | null;
+    service_expectations: string | null;
+  } | null;
+  cards: Array<Record<string, unknown>>;
+  loyaltyAccounts: Array<Record<string, unknown>>;
+  plannedTrips: Array<Record<string, unknown>>;
+}
+
+export interface ActivateOnboardingLeadInput {
+  clientId: string;
+  startsOn: string;
+  endsOn: string;
+  planName: string;
+  notes?: string;
+}
+
+export interface ActivateOnboardingLeadResult {
+  ok: boolean;
+  alreadyActive: boolean;
+  client: { id: string; status: string; fullName: string };
+  contract: { id: string; startsOn: string; endsOn: string; status: string; planName: string };
+  submission?: { id: string; status: string };
+}
+
 export interface RecordPointEntryInput {
   clientId: string;
   programId: string;

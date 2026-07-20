@@ -1,13 +1,18 @@
 import { supabase } from "@/lib/supabase";
 import type {
+  ActivateOnboardingLeadInput,
+  ActivateOnboardingLeadResult,
   AddExpirationLotInput,
   AdminClientPointsDetail,
   AdminClientsResult,
+  OnboardingLeadReview,
   RecordPointEntryInput,
   RecordPointEntryResult,
 } from "@/types/admin-clients";
 
 const SAFE_MESSAGES = [
+  "Ative o cliente antes de realizar esta operação.",
+  "Cadastre uma vigência ativa antes de continuar.",
   "Selecione um programa.",
   "Informe uma quantidade maior que zero.",
   "A data da entrada não pode estar no futuro.",
@@ -20,12 +25,27 @@ const SAFE_MESSAGES = [
   "O programa ainda não possui saldo para classificar.",
 ];
 
+const DOMAIN_ERRORS: Record<string, string> = {
+  CLIENT_NOT_ACTIVE: "Ative o cliente antes de realizar esta operação.",
+  ACTIVE_CONTRACT_REQUIRED: "Cadastre uma vigência ativa antes de continuar.",
+  CLIENT_NOT_FOUND: "Cliente não encontrado.",
+  CLIENT_NOT_LEAD: "Este cadastro não está aguardando ativação.",
+  DUPLICATE_REVIEW_REQUIRED: "Resolva a possível duplicidade antes de ativar.",
+  ONBOARDING_SUBMISSION_REQUIRED: "Não encontramos a submissão de onboarding vinculada.",
+  INVALID_CONTRACT_DATES: "A vigência do contrato está inválida.",
+  PLAN_REQUIRED: "Informe o plano contratado.",
+  ACTIVE_CONTRACT_OVERLAP: "Já existe contrato ativo no período informado.",
+  FORBIDDEN: "Seu usuário não possui permissão para esta ação.",
+};
+
 function mutationError(error: unknown): Error {
   const raw = error instanceof Error
     ? error.message
     : typeof error === "object" && error && "message" in error
       ? String((error as { message: unknown }).message)
       : "";
+  const domain = Object.entries(DOMAIN_ERRORS).find(([code]) => raw.includes(code));
+  if (domain) return new Error(domain[1]);
   const safe = SAFE_MESSAGES.find((message) => raw.includes(message));
   return new Error(safe ?? "O lançamento não foi concluído. Nenhum dado foi alterado.");
 }
@@ -55,6 +75,43 @@ export async function getAdminClientPointsDetail(clientId: string): Promise<Admi
   const { data, error } = await supabase.rpc("get_admin_client_points_detail", { p_client_id: clientId });
   if (error || !data) throw new Error("Não foi possível carregar a gestão de pontos deste cliente.");
   return data as unknown as AdminClientPointsDetail;
+}
+
+export async function getOnboardingLeadReview(clientId: string): Promise<OnboardingLeadReview> {
+  const { data: submission, error: submissionError } = await supabase
+    .from("client_onboarding_submissions")
+    .select("id,status,duplicate_reason,duplicate_candidate_client_id,full_name,email,whatsapp_e164,cpf_last4,submitted_at,lead_created_at,best_bank,pf_monthly_spend,service_expectations")
+    .eq("client_id", clientId)
+    .order("submitted_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (submissionError) throw new Error("Não foi possível carregar o onboarding vinculado.");
+  if (!submission) return { submission: null, cards: [], loyaltyAccounts: [], plannedTrips: [] };
+
+  const [cards, loyaltyAccounts, plannedTrips] = await Promise.all([
+    supabase.from("client_onboarding_cards").select("card_kind,bank_name,card_brand,product_name,pays_annual_fee,annual_fee_monthly").eq("submission_id", submission.id),
+    supabase.from("client_onboarding_loyalty_accounts").select("program_name,has_account,declared_points,notes").eq("submission_id", submission.id),
+    supabase.from("client_onboarding_planned_trips").select("destination,approximate_date,notes").eq("submission_id", submission.id),
+  ]);
+  if (cards.error || loyaltyAccounts.error || plannedTrips.error) throw new Error("Não foi possível carregar as respostas do onboarding.");
+  return {
+    submission,
+    cards: cards.data ?? [],
+    loyaltyAccounts: loyaltyAccounts.data ?? [],
+    plannedTrips: plannedTrips.data ?? [],
+  } as OnboardingLeadReview;
+}
+
+export async function activateOnboardingLead(input: ActivateOnboardingLeadInput): Promise<ActivateOnboardingLeadResult> {
+  const { data, error } = await supabase.rpc("activate_onboarding_lead", {
+    p_client_id: input.clientId,
+    p_starts_on: input.startsOn,
+    p_ends_on: input.endsOn,
+    p_plan_name: input.planName,
+    p_notes: input.notes || null,
+  });
+  if (error || !data) throw mutationError(error);
+  return data as unknown as ActivateOnboardingLeadResult;
 }
 
 export async function recordPointEntry(input: RecordPointEntryInput): Promise<RecordPointEntryResult> {

@@ -9,10 +9,11 @@ function todayInput(): string {
   return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
 }
 
-export function ExpirationLotForm({ clientId, programs, canWrite }: {
+export function ExpirationLotForm({ clientId, programs, canWrite, disabledReason }: {
   clientId: string;
   programs: AdminProgramDetail[];
   canWrite: boolean;
+  disabledReason?: string;
 }) {
   const queryClient = useQueryClient();
   const submitLock = useRef(false);
@@ -60,12 +61,13 @@ export function ExpirationLotForm({ clientId, programs, canWrite }: {
         <CalendarPlus className="section-icon" aria-hidden="true" />
       </div>
       <form className="expiration-form" onSubmit={submit}>
+        {disabledReason && <div className="lead-operation-lock full-field">{disabledReason}</div>}
         <label>Programa<select value={programId} onChange={(event) => setProgramId(event.target.value)}><option value="">Selecione</option>{programs.map((program) => <option key={program.programId} value={program.programId}>{program.name}</option>)}</select></label>
         <label>Quantidade<input inputMode="numeric" value={points} onChange={(event) => setPoints(event.target.value.replace(/\D/g, ""))} /></label>
         <label>Data de vencimento<input type="date" min={todayInput()} value={expiresOn} onChange={(event) => setExpiresOn(event.target.value)} /></label>
         <label className="full-field">Observação<textarea value={notes} onChange={(event) => setNotes(event.target.value)} /></label>
         {message && <div className={message.type === "error" ? "form-error full-field" : "form-success full-field"} role={message.type === "error" ? "alert" : "status"}>{message.text}</div>}
-        <button className="primary-button full-field" disabled={!canWrite || mutation.isPending}><Save size={18} /> {mutation.isPending ? "Salvando..." : canWrite ? "Adicionar vencimento" : "Somente leitura"}</button>
+        <button className="primary-button full-field" disabled={!canWrite || mutation.isPending}><Save size={18} /> {mutation.isPending ? "Salvando..." : canWrite ? "Adicionar vencimento" : disabledReason ?? "Somente leitura"}</button>
       </form>
     </section>
   );

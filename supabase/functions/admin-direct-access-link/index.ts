@@ -12,6 +12,10 @@ const bodySchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("copy"), linkId: z.string().uuid() }).strict(),
 ]);
 
+function domainError(request: Request, status: number, code: string, error: string) {
+  return jsonResponse(request, { code, error }, status);
+}
+
 function appUrl(): string {
   return (Deno.env.get("APP_URL") ?? "https://gestao-mrltravel.vercel.app").replace(/\/+$/, "");
 }
@@ -129,7 +133,21 @@ Deno.serve(async (request) => {
       .eq("id", parsed.data.clientId)
       .maybeSingle();
     if (clientError) throw clientError;
-    if (!client || client.status !== "active") return jsonResponse(request, { error: "Cliente ativo não encontrado." }, 404);
+    if (!client) return domainError(request, 404, "CLIENT_NOT_FOUND", "Cliente não encontrado.");
+    if (client.status !== "active") return domainError(request, 409, "CLIENT_NOT_ACTIVE", "Ative o cliente e cadastre o contrato primeiro.");
+
+    const today = new Date().toISOString().slice(0, 10);
+    const { data: contract, error: contractError } = await admin
+      .from("management_contracts")
+      .select("id")
+      .eq("client_id", parsed.data.clientId)
+      .eq("status", "active")
+      .lte("starts_on", today)
+      .gte("ends_on", today)
+      .limit(1)
+      .maybeSingle();
+    if (contractError) throw contractError;
+    if (!contract) return domainError(request, 409, "ACTIVE_CONTRACT_REQUIRED", "Cadastre uma vigência ativa antes de gerar o link.");
 
     const previous = await activeLinkForClient(parsed.data.clientId);
     if (previous) {

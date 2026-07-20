@@ -1,6 +1,50 @@
 import { supabase } from "@/lib/supabase";
 import type { OnboardingDetail, OnboardingOverview, OnboardingPayload, PublicOnboardingMetadata } from "@/types/onboarding";
 
+export interface OnboardingFieldError {
+  path: string;
+  code: string;
+  message: string;
+}
+
+interface PublicFunctionErrorPayload {
+  code?: string;
+  error?: string;
+  requestId?: string;
+  fields?: OnboardingFieldError[];
+}
+
+export class PublicOnboardingError extends Error {
+  code?: string;
+  requestId?: string;
+  fields: OnboardingFieldError[];
+
+  constructor(message: string, options: { code?: string; requestId?: string; fields?: OnboardingFieldError[] } = {}) {
+    super(message);
+    this.name = "PublicOnboardingError";
+    this.code = options.code;
+    this.requestId = options.requestId;
+    this.fields = options.fields ?? [];
+  }
+}
+
+async function readFunctionError(error: unknown, fallback: string): Promise<PublicOnboardingError> {
+  const context = (error as { context?: Response })?.context;
+  if (context) {
+    try {
+      const payload = await context.clone().json() as PublicFunctionErrorPayload;
+      return new PublicOnboardingError(payload.error || fallback, {
+        code: payload.code,
+        requestId: payload.requestId,
+        fields: payload.fields,
+      });
+    } catch {
+      // Mantém fallback seguro abaixo.
+    }
+  }
+  return new PublicOnboardingError(fallback);
+}
+
 async function invokeAdminOnboarding<T>(body: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke<T>("admin-onboarding", { body });
   if (error || !data) throw new Error(error?.message ?? "Operação de onboarding indisponível.");
@@ -41,14 +85,14 @@ export async function getOnboardingDetail(submissionId: string): Promise<Onboard
 export async function getPublicOnboardingMetadata(formKey: string, legacy = false): Promise<PublicOnboardingMetadata> {
   const body = legacy ? { action: "metadata", token: formKey } : { action: "metadata", formKey };
   const { data, error } = await supabase.functions.invoke<PublicOnboardingMetadata>("onboarding-public", { body });
-  if (error || !data) throw new Error("Onboarding indisponível.");
+  if (error || !data) throw await readFunctionError(error, "Onboarding indisponível.");
   return data;
 }
 
 export async function savePublicOnboardingDraft(formKey: string, payload: OnboardingPayload, legacy = false): Promise<{ status: string }> {
   const body = legacy ? { action: "draft", token: formKey, payload } : { action: "draft", formKey, payload };
   const { data, error } = await supabase.functions.invoke<{ status: string }>("onboarding-public", { body });
-  if (error || !data) throw new Error("Rascunho não foi salvo.");
+  if (error || !data) throw await readFunctionError(error, "Rascunho não foi salvo.");
   return data;
 }
 
@@ -57,6 +101,6 @@ export async function submitPublicOnboarding(formKey: string, payload: Onboardin
     ? { action: "submit", token: formKey, payload }
     : { action: "submit", formKey, payload, idempotencyKey: crypto.randomUUID(), honeypot: "" };
   const { data, error } = await supabase.functions.invoke<{ status: string; submissionStatus?: string; submissionId: string; clientCreated?: boolean; alreadySubmitted: boolean }>("onboarding-public", { body });
-  if (error || !data) throw new Error("Onboarding não foi enviado.");
+  if (error || !data) throw await readFunctionError(error, "Não foi possível enviar agora. Revise os campos e tente novamente.");
   return data;
 }

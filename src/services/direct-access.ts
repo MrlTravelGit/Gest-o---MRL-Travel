@@ -16,9 +16,33 @@ export interface DirectAccessState {
   revokedAt?: string | null;
 }
 
+const DIRECT_ACCESS_MESSAGES: Record<string, string> = {
+  CLIENT_NOT_ACTIVE: "Ative o cliente antes de gerar o link público.",
+  ACTIVE_CONTRACT_REQUIRED: "Cadastre uma vigência ativa antes de gerar o link público.",
+  CLIENT_NOT_FOUND: "Cliente não encontrado.",
+  FORBIDDEN: "Seu usuário não possui permissão para esta ação.",
+  LINK_GENERATION_FAILED: "Não foi possível gerar o link agora.",
+};
+
+async function directAccessError(error: unknown, fallback: string) {
+  const context = (error as { context?: Response })?.context;
+  if (context) {
+    try {
+      const payload = await context.clone().json() as { code?: string; error?: string };
+      if (payload.code && DIRECT_ACCESS_MESSAGES[payload.code]) return new Error(DIRECT_ACCESS_MESSAGES[payload.code]);
+      if (payload.error) return new Error(payload.error);
+    } catch {
+      // usa fallback abaixo
+    }
+  }
+  const message = error instanceof Error ? error.message : fallback;
+  const domain = Object.entries(DIRECT_ACCESS_MESSAGES).find(([code]) => message.includes(code));
+  return new Error(domain?.[1] ?? fallback);
+}
+
 async function invokeDirectAccess<T>(body: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke<T>("admin-direct-access-link", { body });
-  if (error || !data) throw new Error(error?.message ?? "Operação de link indisponível.");
+  if (error || !data) throw await directAccessError(error, "Operação de link indisponível.");
   return data;
 }
 

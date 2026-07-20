@@ -18,6 +18,8 @@ const AdminInvoicesPage = lazy(() => import("@/pages/admin/AdminInvoicesPage").t
 const AdminMovementsPage = lazy(() => import("@/pages/admin/AdminMovementsPage").then((module) => ({ default: module.AdminMovementsPage })));
 const AdminAccessLinksPage = lazy(() => import("@/pages/admin/AdminAccessLinksPage").then((module) => ({ default: module.AdminAccessLinksPage })));
 const AdminClientEconomyPreviewPage = lazy(() => import("@/pages/admin/AdminClientEconomyPreviewPage").then((module) => ({ default: module.AdminClientEconomyPreviewPage })));
+const AdminTasksPage = lazy(() => import("@/pages/admin/AdminTasksPage").then((module) => ({ default: module.AdminTasksPage })));
+const AdminImportsPage = lazy(() => import("@/pages/admin/AdminImportsPage").then((module) => ({ default: module.AdminImportsPage })));
 const AdminLoginPage = lazy(() => import("@/pages/AdminLoginPage").then((module) => ({ default: module.AdminLoginPage })));
 const PublicClientDashboardPage = lazy(() => import("@/pages/PublicClientDashboardPage").then((module) => ({ default: module.PublicClientDashboardPage })));
 const PublicOnboardingPage = lazy(() => import("@/pages/PublicOnboardingPage").then((module) => ({ default: module.PublicOnboardingPage })));
@@ -55,6 +57,8 @@ export default function App() {
           <Route path="/admin/interesses" element={<AdminInterestsPage />} />
           <Route path="/admin/transferencias" element={<AdminTransfersPage />} />
           <Route path="/admin/saidas" element={<AdminManualExitsPage />} />
+          <Route path="/admin/demandas" element={<AdminTasksPage />} />
+          <Route path="/admin/importacoes" element={<AdminImportsPage />} />
         </Route>
         <Route path="*" element={<NotFoundPage />} />
       </Routes>

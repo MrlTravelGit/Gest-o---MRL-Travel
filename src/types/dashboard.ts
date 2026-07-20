@@ -58,6 +58,7 @@ export interface PublicClientDashboard {
 
 export interface AdminOverview {
   activeClients: number;
+  pendingLeads?: number;
   managedPoints: number;
   generatedSavings: number;
   expiringIn30Days: number;

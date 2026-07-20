@@ -31,6 +31,49 @@ const submitSchema = z.object({
 const bodySchema = z.discriminatedUnion("action", [metadataSchema, draftSchema, submitSchema]);
 const GENERIC_ERROR = { error: "Onboarding indisponível." };
 
+type PublicErrorCode =
+  | "ONBOARDING_BAD_REQUEST"
+  | "ONBOARDING_VALIDATION_FAILED"
+  | "ONBOARDING_UNAVAILABLE"
+  | "ONBOARDING_RATE_LIMITED"
+  | "ONBOARDING_PAYLOAD_TOO_LARGE"
+  | "ONBOARDING_SUBMIT_FAILED";
+
+function newRequestId(): string {
+  return crypto.randomUUID();
+}
+
+function publicError(
+  request: Request,
+  status: number,
+  code: PublicErrorCode,
+  error: string,
+  requestId: string,
+  extra: Record<string, unknown> = {},
+) {
+  return jsonResponse(request, { code, error, requestId, ...extra }, status);
+}
+
+function safeIssues(error: z.ZodError) {
+  return error.issues.slice(0, 20).map((issue) => ({
+    path: issue.path.join("."),
+    code: issue.code,
+    message: issue.message,
+  }));
+}
+
+function logFailure(requestId: string, stage: string, code: string, error: unknown, startedAt: number) {
+  const err = error as { code?: unknown; name?: unknown };
+  console.error(JSON.stringify({
+    requestId,
+    stage,
+    code,
+    errorClass: err?.name ?? (error instanceof Error ? error.name : typeof error),
+    sqlstate: typeof err?.code === "string" ? err.code : null,
+    durationMs: Date.now() - startedAt,
+  }));
+}
+
 async function readJsonBody(request: Request): Promise<unknown> {
   try {
     const contentLength = Number(request.headers.get("content-length") ?? "0");
@@ -100,21 +143,42 @@ async function legacySubmit(request: Request, token: string, payload: z.infer<ty
 }
 
 Deno.serve(async (request) => {
+  const requestId = newRequestId();
+  const startedAt = Date.now();
   if (request.method === "OPTIONS") return preflightResponse(request);
-  if (request.method !== "POST") return jsonResponse(request, { error: "Método não permitido" }, 405);
-  if (!isAllowedOrigin(request)) return jsonResponse(request, { error: "Origem não autorizada" }, 403);
+  if (request.method !== "POST") return publicError(request, 405, "ONBOARDING_BAD_REQUEST", "Método não permitido.", requestId);
+  if (!isAllowedOrigin(request)) return publicError(request, 403, "ONBOARDING_BAD_REQUEST", "Origem não autorizada.", requestId);
 
   const admin = adminClient();
   const fingerprintHash = await requestFingerprintHash(request);
 
   try {
-    const parsed = bodySchema.safeParse(await readJsonBody(request));
-    if (!parsed.success) return jsonResponse(request, GENERIC_ERROR, 400);
-    if (!parsed.data.formKey && !parsed.data.token) return jsonResponse(request, GENERIC_ERROR, 400);
+    const rawBody = await readJsonBody(request);
+    if ((rawBody as { action?: string }).action === "too_large") {
+      return publicError(request, 413, "ONBOARDING_PAYLOAD_TOO_LARGE", "O formulário é muito grande para envio.", requestId);
+    }
+
+    const actionProbe = z.object({ action: z.string().optional() }).passthrough().safeParse(rawBody);
+    if (actionProbe.success && actionProbe.data.action === "submit") {
+      const submitParsed = submitSchema.safeParse(rawBody);
+      if (!submitParsed.success) {
+        return publicError(request, 422, "ONBOARDING_VALIDATION_FAILED", "Revise os campos destacados e tente novamente.", requestId, {
+          fields: safeIssues(submitParsed.error),
+        });
+      }
+    }
+
+    const parsed = bodySchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return publicError(request, 400, "ONBOARDING_BAD_REQUEST", "Requisição inválida.", requestId);
+    }
+    if (!parsed.data.formKey && !parsed.data.token) {
+      return publicError(request, 400, "ONBOARDING_BAD_REQUEST", "Link de onboarding inválido.", requestId);
+    }
 
     if (await rateLimited(fingerprintHash)) {
       await admin.from("client_onboarding_events").insert({ event_type: "rate_limited", fingerprint_hash: fingerprintHash });
-      return jsonResponse(request, GENERIC_ERROR, 429);
+      return publicError(request, 429, "ONBOARDING_RATE_LIMITED", "Muitas tentativas. Aguarde alguns minutos e tente novamente.", requestId);
     }
 
     if (parsed.data.token) {
@@ -132,7 +196,8 @@ Deno.serve(async (request) => {
 
     if (!publication || publication.status !== "published") {
       await admin.from("client_onboarding_events").insert({ publication_id: publication?.id ?? null, event_type: "invalid", fingerprint_hash: fingerprintHash });
-      return jsonResponse(request, GENERIC_ERROR, 401);
+      const status = publication ? 409 : 404;
+      return publicError(request, status, "ONBOARDING_UNAVAILABLE", "Onboarding indisponível.", requestId);
     }
 
     if (parsed.data.action === "metadata") {
@@ -170,8 +235,8 @@ Deno.serve(async (request) => {
     });
 
     if (error || !data?.ok) {
-      console.error("public onboarding submit failed", error?.message ?? data?.code ?? "unknown");
-      return jsonResponse(request, GENERIC_ERROR, 401);
+      logFailure(requestId, "submit_rpc", error?.code ?? data?.code ?? "RPC_FAILED", error ?? data, startedAt);
+      return publicError(request, 500, "ONBOARDING_SUBMIT_FAILED", "Não foi possível concluir o envio agora.", requestId);
     }
 
     return jsonResponse(request, {
@@ -182,8 +247,8 @@ Deno.serve(async (request) => {
       alreadySubmitted: Boolean(data.alreadySubmitted),
     });
   } catch (error) {
-    console.error("onboarding-public failed", error instanceof Error ? error.message : "unknown");
+    logFailure(requestId, "handler", "UNEXPECTED", error, startedAt);
     await admin.from("client_onboarding_events").insert({ event_type: "publication_submit_failed", fingerprint_hash: fingerprintHash });
-    return jsonResponse(request, GENERIC_ERROR, 401);
+    return publicError(request, 500, "ONBOARDING_SUBMIT_FAILED", "Não foi possível concluir o envio agora.", requestId);
   }
 });

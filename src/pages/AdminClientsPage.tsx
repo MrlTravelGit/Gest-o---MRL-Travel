@@ -3,6 +3,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { Link } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Plus, Search, Trash2, Users } from "lucide-react";
 import { ConfirmActionDialog } from "@/components/admin/ConfirmActionDialog";
+import { StatusBadge } from "@/components/admin/AdminFields";
 import { AppShell } from "@/components/layout/AppShell";
 import { formatDate, formatPoints } from "@/lib/formatters";
 import { archiveClient, getAdminClients } from "@/services/admin-clients";
@@ -36,7 +37,7 @@ export function AdminClientsPage() {
     <AppShell title="Clientes" subtitle="Saldos, clubes e vencimentos em uma visão operacional">
       <div className="page-toolbar">
         <Link className="secondary-button" to="/admin"><ArrowLeft size={17} /> Visão geral</Link>
-        <div className="toolbar-filters"><select aria-label="Filtrar por status" value={status} onChange={(event) => { setStatus(event.target.value); setOffset(0); }}><option value="">Todos os status</option><option value="active">Ativos</option><option value="paused">Pausados</option><option value="ended">Arquivados</option></select><div className="search-field"><Search size={18} /><input aria-label="Pesquisar clientes" placeholder="Pesquisar por nome" value={searchInput} onChange={(event) => setSearchInput(event.target.value)} /></div>{permissions.data?.canArchive&&<Link className="primary-button" to="/admin/clientes/novo"><Plus size={17}/> Nova pessoa</Link>}</div>
+        <div className="toolbar-filters"><select aria-label="Filtrar por status" value={status} onChange={(event) => { setStatus(event.target.value); setOffset(0); }}><option value="">Todos os status</option><option value="lead">Aguardando ativação</option><option value="active">Ativos</option><option value="paused">Pausados</option><option value="ended">Arquivados</option></select><div className="search-field"><Search size={18} /><input aria-label="Pesquisar clientes" placeholder="Pesquisar por nome" value={searchInput} onChange={(event) => setSearchInput(event.target.value)} /></div>{permissions.data?.canArchive&&<Link className="primary-button" to="/admin/clientes/novo"><Plus size={17}/> Nova pessoa</Link>}</div>
       </div>
 
       {clients.isLoading && <div className="panel-state">Carregando clientes...</div>}
@@ -48,7 +49,7 @@ export function AdminClientsPage() {
         <>
           <div className="responsive-table clients-table"><table><thead><tr><th>Cliente</th><th>Total de pontos</th><th>Economia</th><th>Programas</th><th>Próximo vencimento</th><th>Última movimentação</th><th></th></tr></thead><tbody>
             {clients.data.items.map((client) => <tr key={client.clientId}>
-              <td><strong>{client.fullName}</strong><small>{client.status}</small></td>
+              <td><strong>{client.fullName}</strong><small><StatusBadge status={client.status} />{client.status === "lead" ? " Recebido pelo onboarding" : ""}</small></td>
               <td>{formatPoints(client.totalPoints)}</td>
               <td>{formatCurrency(client.generatedSavings)}</td>
               <td>{client.programsCount}</td>

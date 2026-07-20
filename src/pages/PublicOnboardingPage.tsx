@@ -4,7 +4,7 @@ import { useFieldArray, useForm } from "react-hook-form";
 import { useParams } from "react-router-dom";
 import { AlertTriangle, CheckCircle2, CopyPlus, ShieldCheck, Trash2 } from "lucide-react";
 import { maskCepInput, maskCpfInput, onboardingDefaultValues, parseMoneyInput, splitList } from "@/lib/onboarding";
-import { getPublicOnboardingMetadata, savePublicOnboardingDraft, submitPublicOnboarding } from "@/services/onboarding";
+import { getPublicOnboardingMetadata, PublicOnboardingError, savePublicOnboardingDraft, submitPublicOnboarding } from "@/services/onboarding";
 import type { OnboardingPayload } from "@/types/onboarding";
 
 const steps = [
@@ -54,7 +54,15 @@ export function PublicOnboardingPage({ legacy = false }: { legacy?: boolean }) {
   const submit = useMutation({
     mutationFn: (values: OnboardingPayload) => submitPublicOnboarding(publicKey!, normalizeForSubmit(values), legacy),
     onSuccess: () => setSubmitted(true),
-    onError: () => setGlobalError("Não foi possível enviar agora. Revise os campos e tente novamente."),
+    onError: (error) => {
+      if (error instanceof PublicOnboardingError) {
+        const firstField = error.fields[0]?.path;
+        setGlobalError(`${error.message}${error.requestId ? ` Código de suporte: ${error.requestId}` : ""}`);
+        if (firstField) form.setFocus(firstField as Parameters<typeof form.setFocus>[0]);
+        return;
+      }
+      setGlobalError("Não foi possível enviar agora. Revise os campos e tente novamente.");
+    },
   });
 
   const currentTitle = steps[step];
@@ -78,7 +86,70 @@ export function PublicOnboardingPage({ legacy = false }: { legacy?: boolean }) {
       2: ["goals.domesticTrips12m", "goals.internationalTrips12m", "goals.businessClassInterest", "goals.seatPriority", "goals.preferredSeat", "goals.allInclusiveInterest"],
       3: ["expectations.priorities", "expectations.serviceExpectations", "expectations.privacyAcknowledged"],
     };
-    return form.trigger(fields[step] as Parameters<typeof form.trigger>[0], { shouldFocus: true });
+    const baseValid = await form.trigger(fields[step] as Parameters<typeof form.trigger>[0], { shouldFocus: true });
+    if (!baseValid) return false;
+    if (step === 1) return validateTechnicalRepeatables();
+    if (step === 2) return validatePlannedTrips();
+    return true;
+  }
+
+  function validateTechnicalRepeatables() {
+    let valid = true;
+    form.getValues("technical.pfCards").forEach((card, index) => {
+      if (!card.bank.trim()) {
+        form.setError(`technical.pfCards.${index}.bank`, { type: "manual", message: "Informe o banco." });
+        valid = false;
+      }
+      if (!card.brand.trim()) {
+        form.setError(`technical.pfCards.${index}.brand`, { type: "manual", message: "Informe a bandeira." });
+        valid = false;
+      }
+      if (!card.product.trim()) {
+        form.setError(`technical.pfCards.${index}.product`, { type: "manual", message: "Informe o produto." });
+        valid = false;
+      }
+    });
+
+    if (form.getValues("technical.hasPjCard") && form.getValues("technical.pjCards").length < 1) {
+      form.setError("technical.pjCards", { type: "manual", message: "Adicione ao menos um cartão PJ." });
+      valid = false;
+    }
+
+    form.getValues("technical.pjCards").forEach((card, index) => {
+      if (!card.bank.trim()) {
+        form.setError(`technical.pjCards.${index}.bank`, { type: "manual", message: "Informe o banco." });
+        valid = false;
+      }
+      if (!card.brand.trim()) {
+        form.setError(`technical.pjCards.${index}.brand`, { type: "manual", message: "Informe a bandeira." });
+        valid = false;
+      }
+      if (!card.product.trim()) {
+        form.setError(`technical.pjCards.${index}.product`, { type: "manual", message: "Informe o produto." });
+        valid = false;
+      }
+    });
+
+    if (!valid) form.setFocus("technical.bestBank");
+    return valid;
+  }
+
+  function validatePlannedTrips() {
+    if (!form.getValues("goals.hasPlannedTrip")) return true;
+    let valid = true;
+    const trips = form.getValues("goals.plannedTrips");
+    if (trips.length < 1) {
+      form.setError("goals.plannedTrips", { type: "manual", message: "Adicione ao menos uma viagem planejada." });
+      return false;
+    }
+    trips.forEach((trip, index) => {
+      if (!trip.destination.trim()) {
+        form.setError(`goals.plannedTrips.${index}.destination`, { type: "manual", message: "Informe o destino." });
+        valid = false;
+      }
+    });
+    if (!valid) form.setFocus("goals.plannedTrips.0.destination");
+    return valid;
   }
 
   if (metadata.isLoading) return <OnboardingShell><div className="onboarding-state">Carregando formulário...</div></OnboardingShell>;
