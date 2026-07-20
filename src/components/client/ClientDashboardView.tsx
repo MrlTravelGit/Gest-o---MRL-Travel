@@ -1,12 +1,14 @@
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { AlertTriangle, BarChart3, CalendarClock, Coins, LineChart as LineChartIcon, PiggyBank, PlaneTakeoff, WalletCards } from "lucide-react";
-import { Bar, BarChart, CartesianGrid, LabelList, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, CartesianGrid, ComposedChart, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { BrandLogo } from "@/components/brand/BrandLogo";
+import { LoyaltyProgramLogo } from "@/components/brand/LoyaltyProgramLogo";
 import { formatCurrency, formatDate, formatPoints } from "@/lib/formatters";
-import { resolveLoyaltyProgramBrand } from "@/lib/loyalty-program-brand";
-import type { PublicClientBalanceHistoryPoint, PublicClientDashboard, PublicClientMonthlyMovement, PublicClientProgram } from "@/types/dashboard";
+import { normalizeBalanceHistory, normalizeMonthlyMovements, numericDomain, type BalanceHistoryPoint } from "@/lib/dashboard-chart-data";
+import type { PublicClientDashboard, PublicClientProgram } from "@/types/dashboard";
 
-const balanceChartMargin = { top: 28, right: 18, bottom: 12, left: 2 };
-const movementChartMargin = { top: 28, right: 18, bottom: 12, left: 2 };
+const balanceChartMargin = { top: 16, right: 10, bottom: 8, left: 0 };
+const movementChartMargin = { top: 16, right: 10, bottom: 8, left: 0 };
 
 export function ClientDashboardView({
   dashboard,
@@ -18,8 +20,8 @@ export function ClientDashboardView({
   refreshing?: boolean;
 }) {
   const displayName = dashboard.client.displayName || "Cliente MRL";
-  const balanceHistory = orderBalanceHistory(dashboard.balanceHistory);
-  const monthlyMovements = orderMonthlyMovements(dashboard.monthlyMovements);
+  const balanceHistory = normalizeBalanceHistory(dashboard.balanceHistory);
+  const monthlyMovements = normalizeMonthlyMovements(dashboard.monthlyMovements);
   const hasBalanceHistory = balanceHistory.length > 0;
   const hasMonthlyMovements = monthlyMovements.length > 0;
 
@@ -32,10 +34,7 @@ export function ClientDashboardView({
           <p>Dashboard MRL Travel com saldos, patrimônio, economia, emissões, programas e evolução da carteira.</p>
           <small>Última atualização: {formatDate(dashboard.client.lastUpdatedAt)}</small>
         </div>
-        <div className="dashboard-public-seal" aria-hidden>
-          <span>MRL</span>
-          <small>Travel</small>
-        </div>
+        <BrandLogo size="medium" className="dashboard-public-brand" />
       </header>
 
       <section className="dashboard-kpis" aria-label="Resumo do painel">
@@ -68,34 +67,35 @@ export function ClientDashboardView({
       <section className="dashboard-section chart-card chart-card-wide" aria-labelledby="balance-chart-title">
         <SectionHeading eyebrow={<><LineChartIcon size={14} aria-hidden /> Histórico</>} title="Saldo Acumulado" id="balance-chart-title" />
         {hasBalanceHistory ? (
-          <div className="chart-container balance-chart-container">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="chart-container balance-chart-container" role="img" aria-label={`Evolução do saldo em ${balanceHistory.length} período(s).`}>
+            <span className="sr-only">Saldo mais recente: {formatPoints(balanceHistory.at(-1)?.points ?? 0)} pontos.</span>
+            <ResponsiveContainer width="100%" height="100%" minWidth={240} minHeight={260} debounce={80}>
               <LineChart data={balanceHistory} margin={balanceChartMargin}>
                 <CartesianGrid strokeDasharray="2 6" stroke="rgba(252,213,138,.13)" vertical={false} />
-                <XAxis dataKey="month" tickFormatter={formatMonth} tick={{ fill: "#c8beb0", fontSize: 12 }} axisLine={{ stroke: "rgba(252,213,138,.18)" }} tickLine={false} />
-                <YAxis tickFormatter={(value) => formatCompactNumber(Number(value))} tick={{ fill: "#c8beb0", fontSize: 12 }} axisLine={false} tickLine={false} width={62} />
+                <XAxis dataKey="period" tickFormatter={formatMonth} tick={{ fill: "#c8beb0", fontSize: 11 }} axisLine={{ stroke: "rgba(252,213,138,.18)" }} tickLine={false} minTickGap={22} />
+                <YAxis yAxisId="points" domain={numericDomain(balanceHistory.map((point) => point.points))} tickFormatter={(value) => formatCompactNumber(Number(value))} tick={{ fill: "#c8beb0", fontSize: 11 }} axisLine={false} tickLine={false} width={58} allowDecimals={false} />
+                {hasAverageCost(balanceHistory) && <YAxis yAxisId="cost" orientation="right" domain={numericDomain(balanceHistory.flatMap((point) => point.averageCost === null ? [] : [point.averageCost]))} tickFormatter={(value) => `R$ ${Number(value).toLocaleString("pt-BR", { maximumFractionDigits: 0 })}`} tick={{ fill: "#a98f69", fontSize: 10 }} axisLine={false} tickLine={false} width={56} />}
                 <Tooltip formatter={(value, name) => name === "Custo médio" ? formatCurrency(Number(value)) : formatPoints(Number(value))} labelFormatter={formatMonth} contentStyle={tooltipStyle} />
-                <Legend verticalAlign="top" align="right" iconType="plainline" wrapperStyle={{ color: "#d9d2c8", paddingBottom: 12 }} />
-                <Line type={balanceHistory.length === 1 ? "linear" : "monotone"} dataKey="balance" stroke="#fcd58a" strokeWidth={3.4} dot={{ r: 4, strokeWidth: 2, fill: "#050709", stroke: "#fcd58a" }} activeDot={{ r: 6 }} name="Saldo" isAnimationActive={false}>
-                  <LabelList dataKey="balance" position="top" formatter={formatChartLabel} fill="#f7f0df" fontSize={12} />
-                </Line>
+                <Legend verticalAlign="top" align="right" iconType="plainline" height={32} wrapperStyle={{ color: "#d9d2c8", fontSize: 11 }} />
+                <Line yAxisId="points" type={balanceHistory.length === 1 ? "linear" : "monotone"} dataKey="points" stroke="#fcd58a" strokeWidth={3.4} dot={{ r: balanceHistory.length === 1 ? 6 : 4, strokeWidth: 2, fill: "#050709", stroke: "#fcd58a" }} activeDot={{ r: 6 }} name="Saldo" isAnimationActive={false} />
                 {hasAverageCost(balanceHistory) && (
-                  <Line type={balanceHistory.length === 1 ? "linear" : "monotone"} dataKey="averageCostPerThousand" stroke="#8f6b36" strokeWidth={2} strokeDasharray="7 6" dot={{ r: 3, fill: "#8f6b36" }} name="Custo médio" yAxisId={0} isAnimationActive={false} />
+                  <Line yAxisId="cost" connectNulls type={balanceHistory.length === 1 ? "linear" : "monotone"} dataKey="averageCost" stroke="#b48645" strokeWidth={2} strokeDasharray="7 6" dot={{ r: 3, fill: "#b48645" }} name="Custo médio" isAnimationActive={false} />
                 )}
               </LineChart>
             </ResponsiveContainer>
           </div>
         ) : (
-          <div className="panel-state">Sem histórico de saldo suficiente para exibir gráfico.</div>
+          <div className="chart-empty-state">O histórico aparecerá após os primeiros lançamentos.</div>
         )}
       </section>
 
       <section className="dashboard-section chart-card chart-card-wide" aria-labelledby="movement-chart-title">
         <SectionHeading eyebrow={<><BarChart3 size={14} aria-hidden /> Movimentações</>} title="Movimentação Mensal" id="movement-chart-title" />
         {hasMonthlyMovements ? (
-          <div className="chart-container movement-chart-container">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={monthlyMovements} margin={movementChartMargin}>
+          <div className="chart-container movement-chart-container" role="img" aria-label={`Entradas e saídas de pontos em ${monthlyMovements.length} período(s).`}>
+            <span className="sr-only">Movimentação líquida mais recente: {formatPoints(monthlyMovements.at(-1)?.netPoints ?? 0)} pontos.</span>
+            <ResponsiveContainer width="100%" height="100%" minWidth={240} minHeight={260} debounce={80}>
+              <ComposedChart data={monthlyMovements} margin={movementChartMargin}>
                 <defs>
                   <linearGradient id="movementGoldGradient" x1="0" x2="0" y1="0" y2="1">
                     <stop offset="0%" stopColor="#fcd58a" />
@@ -103,17 +103,18 @@ export function ClientDashboardView({
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="2 6" stroke="rgba(252,213,138,.13)" vertical={false} />
-                <XAxis dataKey="month" tickFormatter={formatMonth} tick={{ fill: "#c8beb0", fontSize: 12 }} axisLine={{ stroke: "rgba(252,213,138,.18)" }} tickLine={false} />
-                <YAxis tickFormatter={(value) => formatCompactNumber(Number(value))} tick={{ fill: "#c8beb0", fontSize: 12 }} axisLine={false} tickLine={false} width={62} />
-                <Tooltip formatter={(value) => formatPoints(Number(value))} labelFormatter={formatMonth} contentStyle={tooltipStyle} />
-                <Bar dataKey="points" fill="url(#movementGoldGradient)" radius={[12, 12, 3, 3]} name="Pontos" isAnimationActive={false}>
-                  <LabelList dataKey="points" position="top" formatter={formatChartLabel} fill="#f7f0df" fontSize={12} />
-                </Bar>
-              </BarChart>
+                <XAxis dataKey="period" tickFormatter={formatMonth} tick={{ fill: "#c8beb0", fontSize: 11 }} axisLine={{ stroke: "rgba(252,213,138,.18)" }} tickLine={false} minTickGap={22} />
+                <YAxis domain={numericDomain(monthlyMovements.flatMap((point) => [point.pointsIn, point.pointsOut, point.netPoints]))} tickFormatter={(value) => formatCompactNumber(Number(value))} tick={{ fill: "#c8beb0", fontSize: 11 }} axisLine={false} tickLine={false} width={58} allowDecimals={false} />
+                <Tooltip formatter={(value, name) => [formatPoints(Number(value)), name]} labelFormatter={formatMonth} contentStyle={tooltipStyle} />
+                <Legend verticalAlign="top" align="right" height={32} wrapperStyle={{ color: "#d9d2c8", fontSize: 11 }} />
+                <Bar dataKey="pointsIn" fill="url(#movementGoldGradient)" radius={[8, 8, 2, 2]} name="Entradas" isAnimationActive={false} maxBarSize={46} />
+                <Bar dataKey="pointsOut" fill="#7f4d43" radius={[8, 8, 2, 2]} name="Saídas" isAnimationActive={false} maxBarSize={46} />
+                <Line type="monotone" dataKey="netPoints" stroke="#f4eee5" strokeWidth={2} dot={{ r: 3 }} name="Líquido" isAnimationActive={false} />
+              </ComposedChart>
             </ResponsiveContainer>
           </div>
         ) : (
-          <div className="panel-state">Sem movimentações mensais registradas.</div>
+          <div className="chart-empty-state">O histórico aparecerá após os primeiros lançamentos.</div>
         )}
       </section>
 
@@ -153,8 +154,7 @@ export function ClientDashboardView({
       )}
 
       <footer className="dashboard-footer" aria-label="Assinatura MRL Travel">
-        <span>MRL</span>
-        <strong>MRL Travel</strong>
+        <BrandLogo size="small" />
       </footer>
     </ClientDashboardShell>
   );
@@ -169,7 +169,7 @@ export function ClientDashboardSkeleton() {
           <span className="skeleton-line medium" />
           <span className="skeleton-line short" />
         </div>
-        <div className="dashboard-public-seal skeleton-panel" />
+        <BrandLogo size="medium" className="dashboard-public-brand" />
       </header>
       <section className="dashboard-kpis" aria-hidden>
         <article><span className="skeleton-dot" /><span className="skeleton-line short" /><span className="skeleton-line medium" /></article>
@@ -196,6 +196,7 @@ export function ClientDashboardErrorState() {
   return (
     <ClientDashboardShell>
       <section className="dashboard-unavailable" aria-live="polite">
+        <BrandLogo size="medium" />
         <h1>Painel indisponível</h1>
         <p>Não foi possível carregar este painel. Solicite um novo link à equipe MRL Travel.</p>
       </section>
@@ -225,27 +226,10 @@ function SummaryCard({ icon, label, value }: { icon: ReactNode; label: string; v
 }
 
 function ProgramCard({ program }: { program: PublicClientProgram }) {
-  const brand = resolveLoyaltyProgramBrand(program);
-  const [imageAvailable, setImageAvailable] = useState(Boolean(brand.assetPath));
-
-  function handleMissingAsset() {
-    setImageAvailable(false);
-    if (import.meta.env.DEV) {
-      console.warn(`Logo local não encontrado para programa: ${brand.key}`);
-    }
-  }
-
   return (
     <article className="public-program-card">
       <div className="program-logo-stage">
-        {brand.assetPath && imageAvailable ? (
-          <img src={brand.assetPath} alt={`Logo ${brand.displayName}`} loading="lazy" onError={handleMissingAsset} />
-        ) : (
-          <div className="program-logo-fallback" aria-label={`Logo indisponível para ${program.name}`}>
-            <strong>{brand.monogram}</strong>
-            <span>{brand.known ? brand.displayName : program.name}</span>
-          </div>
-        )}
+        <LoyaltyProgramLogo program={program} />
       </div>
 
       <div className="program-card-title">
@@ -283,16 +267,8 @@ function ClientDashboardShell({ children }: { children: ReactNode }) {
   );
 }
 
-function orderBalanceHistory(points: PublicClientBalanceHistoryPoint[]) {
-  return [...points].sort((a, b) => new Date(a.month).getTime() - new Date(b.month).getTime());
-}
-
-function orderMonthlyMovements(points: PublicClientMonthlyMovement[]) {
-  return [...points].sort((a, b) => new Date(a.month).getTime() - new Date(b.month).getTime());
-}
-
-function hasAverageCost(points: PublicClientBalanceHistoryPoint[]) {
-  return points.some((point) => typeof point.averageCostPerThousand === "number" && point.averageCostPerThousand > 0);
+function hasAverageCost(points: BalanceHistoryPoint[]) {
+  return points.some((point) => point.averageCost !== null);
 }
 
 function formatMonth(value: unknown) {
@@ -302,10 +278,6 @@ function formatMonth(value: unknown) {
 
 function formatCompactNumber(value: number) {
   return new Intl.NumberFormat("pt-BR", { notation: "compact", maximumFractionDigits: 1 }).format(value);
-}
-
-function formatChartLabel(value: unknown) {
-  return typeof value === "number" ? formatCompactNumber(value) : "";
 }
 
 const tooltipStyle = {

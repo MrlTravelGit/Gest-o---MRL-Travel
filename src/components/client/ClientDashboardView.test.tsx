@@ -13,7 +13,7 @@ vi.mock("recharts", () => ({
     lineChartSpy(data);
     return <div data-testid="line-chart">{children}</div>;
   },
-  BarChart: ({ children, data }: { children: ReactNode; data: unknown[] }) => {
+  ComposedChart: ({ children, data }: { children: ReactNode; data: unknown[] }) => {
     barChartSpy(data);
     return <div data-testid="bar-chart">{children}</div>;
   },
@@ -24,7 +24,6 @@ vi.mock("recharts", () => ({
   Legend: () => null,
   Line: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   Bar: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-  LabelList: () => null,
 }));
 
 const balanceHistory = [
@@ -92,14 +91,14 @@ describe("ClientDashboardView", () => {
     expect(screen.getByRole("heading", { name: /milhas por programa/i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /saldo acumulado/i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /movimentação mensal/i })).toBeInTheDocument();
-    expect(screen.getByText("MRL Travel")).toBeInTheDocument();
+    expect(screen.getAllByAltText("MRL Travel").length).toBeGreaterThanOrEqual(2);
   });
 
   it("resolve logo local para programa conhecido e usa fallback quando o asset está ausente", () => {
     render(<ClientDashboardView dashboard={dashboard} />);
 
     const atomosLogo = screen.getByAltText("Logo Átomos");
-    expect(atomosLogo).toHaveAttribute("src", "/assets/loyalty-programs/atomos.svg");
+    expect(atomosLogo).toHaveAttribute("src", "/assets/loyalty-programs/%C3%A1tomos.svg");
 
     fireEvent.error(atomosLogo);
 
@@ -121,14 +120,29 @@ describe("ClientDashboardView", () => {
     render(<ClientDashboardView dashboard={dashboard} />);
 
     expect(lineChartSpy).toHaveBeenCalledWith([
-      { month: "2026-06-01", balance: 16000, averageCostPerThousand: 17.8 },
-      { month: "2026-07-01", balance: 18500, averageCostPerThousand: 18.2 },
+      { period: "2026-06-01", points: 16000, averageCost: 17.8 },
+      { period: "2026-07-01", points: 18500, averageCost: 18.2 },
     ]);
     expect(barChartSpy).toHaveBeenCalledWith([
-      { month: "2026-06-01", points: 1000 },
-      { month: "2026-07-01", points: 2500 },
+      { period: "2026-06-01", pointsIn: 1000, pointsOut: 0, netPoints: 1000 },
+      { period: "2026-07-01", pointsIn: 2500, pointsOut: 0, netPoints: 2500 },
     ]);
     expect(balanceHistory).toEqual(originalBalance);
     expect(monthlyMovements).toEqual(originalMovements);
+  });
+
+  it("mostra empty state compacto quando não há série válida", () => {
+    render(<ClientDashboardView dashboard={{ ...dashboard, balanceHistory: [], monthlyMovements: [] }} />);
+    expect(screen.getAllByText("O histórico aparecerá após os primeiros lançamentos.")).toHaveLength(2);
+    expect(screen.queryByTestId("line-chart")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("bar-chart")).not.toBeInTheDocument();
+  });
+
+  it("renderiza um único saldo e uma única movimentação, inclusive com zero", () => {
+    render(<ClientDashboardView dashboard={{ ...dashboard, balanceHistory: [{ month: "2026-07-01", balance: 0, averageCostPerThousand: 0 }], monthlyMovements: [{ month: "2026-07-01", points: 5000 }] }} />);
+    expect(screen.getByTestId("line-chart")).toBeInTheDocument();
+    expect(screen.getByTestId("bar-chart")).toBeInTheDocument();
+    expect(lineChartSpy).toHaveBeenLastCalledWith([{ period: "2026-07-01", points: 0, averageCost: 0 }]);
+    expect(barChartSpy).toHaveBeenLastCalledWith([{ period: "2026-07-01", pointsIn: 5000, pointsOut: 0, netPoints: 5000 }]);
   });
 });

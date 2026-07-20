@@ -1,4 +1,5 @@
 import JSZip from "npm:jszip@3.10.1";
+import { z } from "npm:zod@3.25.76";
 import { requireAdmin } from "../_shared/admin-auth.ts";
 import { corsHeaders, isAllowedOrigin, jsonResponse, preflightResponse } from "../_shared/http.ts";
 import { adminClient } from "../_shared/supabase.ts";
@@ -13,6 +14,11 @@ const MAX_COMPRESSION_RATIO = Number(Deno.env.get("IMPORT_MAX_COMPRESSION_RATIO"
 class ImportError extends Error {
   constructor(public code: string, message: string, public status = 400) { super(message); }
 }
+
+const actionSchema = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("create_upload"), filename: z.string().min(1).max(255), size: z.number().int().positive().max(MAX_UPLOAD_BYTES), mimeType: z.string().max(120), checksum: z.string().regex(/^[a-f0-9]{64}$/) }).strict(),
+  z.object({ action: z.literal("analyze_batch"), batchId: z.string().uuid() }).strict(),
+]);
 
 function safeError(request: Request, requestId: string, error: unknown): Response {
   if (error instanceof Response) return new Response(JSON.stringify({ code: error.status === 401 ? "UNAUTHORIZED" : "FORBIDDEN", message: error.status === 401 ? "Não autorizado." : "Acesso não autorizado.", requestId }), { status: error.status, headers: { ...corsHeaders(request), "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
@@ -39,6 +45,11 @@ function mimeAllowed(file: File): boolean {
   if (extension === "zip") return ["application/zip", "application/x-zip-compressed", "application/octet-stream", ""].includes(file.type);
   if (extension === "csv") return ["text/csv", "application/csv", "text/plain", "application/octet-stream", ""].includes(file.type);
   return false;
+}
+
+function uploadMetadataAllowed(filename: string, mimeType: string): boolean {
+  const mock = { name: filename, type: mimeType } as File;
+  return mimeAllowed(mock);
 }
 
 async function sha256Hex(input: Uint8Array | string): Promise<string> {
@@ -106,6 +117,11 @@ async function readUpload(file: File): Promise<SourceFile[]> {
   const bytes = new Uint8Array(await file.arrayBuffer());
   if (file.name.toLowerCase().endsWith(".csv")) return [{ path: safeFilename(file.name), content: decodeUtf8(bytes) }];
   return readZip(bytes);
+}
+
+function hasValidMagic(filename: string, bytes: Uint8Array): boolean {
+  if (filename.toLowerCase().endsWith(".zip")) return bytes.length >= 4 && bytes[0] === 0x50 && bytes[1] === 0x4b && [[0x03,0x04],[0x05,0x06],[0x07,0x08]].some(([third,fourth]) => bytes[2] === third && bytes[3] === fourth);
+  return filename.toLowerCase().endsWith(".csv") && !bytes.slice(0, Math.min(bytes.length, 1024)).includes(0);
 }
 
 async function reconcileRows(admin: ReturnType<typeof adminClient>, files: AnalyzedFile[]) {
@@ -203,24 +219,53 @@ Deno.serve(async (request) => {
   if (!isAllowedOrigin(request)) return jsonResponse(request, { code: "FORBIDDEN", message: "Origem não autorizada.", requestId }, 403);
   try {
     const actor = await requireAdmin(request, ["super_admin", "manager"]);
-    const form = await request.formData();
-    const file = form.get("file");
-    if (!(file instanceof File)) throw new ImportError("UNSUPPORTED_FILE", "Selecione um arquivo ZIP ou CSV.");
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    const checksum = await sha256Hex(bytes);
+    let body: unknown;
+    try { body = await request.json(); } catch { throw new ImportError("INVALID_REQUEST", "A requisição de importação é inválida."); }
+    const parsed = actionSchema.safeParse(body);
+    if (!parsed.success) throw new ImportError("INVALID_REQUEST", "A requisição de importação é inválida.");
     const admin = adminClient();
-    const { data: duplicate } = await admin.from("import_batches").select("id,status,dry_run_summary").eq("checksum_sha256", checksum).eq("adapter_version", NOTION_ADAPTER_VERSION).in("status", ["review", "committed"]).order("created_at", { ascending: false }).limit(1).maybeSingle();
-    if (duplicate) return jsonResponse(request, { batchId: duplicate.id, status: duplicate.status, summary: duplicate.dry_run_summary, duplicate: true, requestId });
 
-    const sources = await readUpload(file);
-    const batchId = crypto.randomUUID();
-    const storagePath = `${actor.userId}/${batchId}/${safeFilename(file.name)}`;
-    const { error: batchError } = await admin.from("import_batches").insert({ id: batchId, status: "parsing", source_system: "notion", adapter_version: NOTION_ADAPTER_VERSION, original_filename: safeFilename(file.name), storage_path: storagePath, checksum_sha256: checksum, created_by: actor.userId, started_at: new Date().toISOString(), request_id: requestId });
-    if (batchError) throw batchError;
-    const { error: storageError } = await admin.storage.from("admin-imports").upload(storagePath, file, { contentType: file.type || (file.name.toLowerCase().endsWith(".zip") ? "application/zip" : "text/csv"), upsert: false });
-    if (storageError) { await admin.from("import_batches").update({ status: "failed", error_code: "UPLOAD_FAILED", finished_at: new Date().toISOString() }).eq("id", batchId); throw new ImportError("UPLOAD_FAILED", "O arquivo não pôde ser armazenado com segurança.", 500); }
+    if (parsed.data.action === "create_upload") {
+      if (!uploadMetadataAllowed(parsed.data.filename, parsed.data.mimeType)) throw new ImportError("UNSUPPORTED_FILE", "Envie um ZIP do Notion ou um CSV UTF-8.");
+      const { data: duplicate, error: duplicateError } = await admin.from("import_batches").select("id,status,dry_run_summary").eq("checksum_sha256", parsed.data.checksum).eq("adapter_version", NOTION_ADAPTER_VERSION).in("status", ["review", "committed"]).order("created_at", { ascending: false }).limit(1).maybeSingle();
+      if (duplicateError && duplicateError.code === "42P01") throw new ImportError("SCHEMA_NOT_READY", "As estruturas de importação ainda não foram publicadas.", 503);
+      if (duplicateError) throw duplicateError;
+      if (duplicate) return jsonResponse(request, { batchId: duplicate.id, status: duplicate.status, summary: duplicate.dry_run_summary, duplicate: true, requestId });
+      const batchId = crypto.randomUUID();
+      const storagePath = `${actor.userId}/${batchId}/${safeFilename(parsed.data.filename)}`;
+      const { error: batchError } = await admin.from("import_batches").insert({
+        id: batchId, status: "uploaded", source_system: "notion", adapter_version: NOTION_ADAPTER_VERSION,
+        original_filename: safeFilename(parsed.data.filename), upload_size_bytes: parsed.data.size, mime_type: parsed.data.mimeType || (parsed.data.filename.toLowerCase().endsWith(".zip") ? "application/zip" : "text/csv"),
+        storage_path: storagePath, checksum_sha256: parsed.data.checksum, created_by: actor.userId, request_id: requestId,
+      });
+      if (batchError?.code === "42P01") throw new ImportError("SCHEMA_NOT_READY", "As estruturas de importação ainda não foram publicadas.", 503);
+      if (batchError) throw batchError;
+      const { data: signed, error: signedError } = await admin.storage.from("admin-imports").createSignedUploadUrl(storagePath);
+      if (signedError || !signed) {
+        await admin.from("import_batches").update({ status: "failed", error_code: "UPLOAD_FAILED", finished_at: new Date().toISOString() }).eq("id", batchId);
+        throw new ImportError("UPLOAD_FAILED", "Não foi possível preparar o upload privado.", 500);
+      }
+      return jsonResponse(request, { batchId, status: "uploaded", path: signed.path, token: signed.token, duplicate: false, requestId });
+    }
 
+    const batchId = parsed.data.batchId;
+    const { data: batch, error: batchReadError } = await admin.from("import_batches").select("*").eq("id", batchId).maybeSingle();
+    if (batchReadError?.code === "42P01") throw new ImportError("SCHEMA_NOT_READY", "As estruturas de importação ainda não foram publicadas.", 503);
+    if (batchReadError) throw batchReadError;
+    if (!batch) throw new ImportError("BATCH_NOT_FOUND", "Lote de importação não encontrado.", 404);
+    if (batch.status === "parsing") throw new ImportError("BATCH_ALREADY_PROCESSING", "Este lote já está em análise.", 409);
+    if (["review", "committed"].includes(batch.status)) return jsonResponse(request, { batchId, status: batch.status, summary: batch.dry_run_summary, duplicate: true, requestId });
+    if (batch.status !== "uploaded") throw new ImportError("ANALYSIS_FAILED", "Este lote não está pronto para análise.", 409);
+    await admin.from("import_batches").update({ status: "parsing", started_at: new Date().toISOString(), uploaded_at: new Date().toISOString(), request_id: requestId }).eq("id", batchId).eq("status", "uploaded");
     try {
+      const { data: stored, error: downloadError } = await admin.storage.from("admin-imports").download(batch.storage_path);
+      if (downloadError || !stored) throw new ImportError("UPLOAD_FAILED", "O arquivo enviado não foi encontrado no armazenamento privado.", 404);
+      const bytes = new Uint8Array(await stored.arrayBuffer());
+      if (bytes.length !== Number(batch.upload_size_bytes) || bytes.length > MAX_UPLOAD_BYTES) throw new ImportError("FILE_TOO_LARGE", "O tamanho do arquivo não corresponde ao lote criado.", 413);
+      if (!hasValidMagic(batch.original_filename, bytes)) throw new ImportError("UNSUPPORTED_FILE", "O conteúdo do arquivo não corresponde à extensão informada.");
+      if (await sha256Hex(bytes) !== batch.checksum_sha256) throw new ImportError("UPLOAD_FAILED", "O checksum do arquivo enviado não confere.", 409);
+      const file = new File([bytes], batch.original_filename, { type: batch.mime_type });
+      const sources = await readUpload(file);
       const analyzed = analyzeNotionFiles(sources);
       const recognized = analyzed.filter((item) => item.logicalType !== "unknown" && item.logicalType !== "markdown" && !item.ignoredReason);
       if (!recognized.length) throw new ImportError("UNKNOWN_CSV_SCHEMA", "Nenhuma base conhecida foi identificada pelos cabeçalhos.");
@@ -231,7 +276,7 @@ Deno.serve(async (request) => {
       await admin.from("audit_logs").insert({ actor_user_id: actor.userId, action: "parse_import_batch", table_name: "import_batches", record_id: batchId, request_id: requestId, new_data: { adapterVersion: NOTION_ADAPTER_VERSION, canonical: summary.canonical, taskRelations: summary.taskRelations, officialBalancesCreatedByDefault: 0 } });
       return jsonResponse(request, { batchId, status: "review", summary, duplicate: false, requestId });
     } catch (error) {
-      const code = error instanceof ImportError ? error.code : "PARSE_FAILED";
+      const code = error instanceof ImportError ? error.code : "ANALYSIS_FAILED";
       await admin.from("import_batches").update({ status: "failed", error_code: code, finished_at: new Date().toISOString() }).eq("id", batchId);
       throw error;
     }

@@ -9,6 +9,7 @@ import { ExpirationLotsList, PointTransactionsHistory } from "@/components/admin
 import { ProgramAccountCard } from "@/components/admin/ProgramAccountCard";
 import { ClientTasksPanel } from "@/components/admin/ClientTasksPanel";
 import { formatCurrency, formatDate, formatPoints } from "@/lib/formatters";
+import { openClientPanel, validateClientPanelUrl } from "@/lib/client-panel-link";
 import { activateOnboardingLead, archiveClient, getAdminClientPointsDetail, getOnboardingLeadReview } from "@/services/admin-clients";
 import { getDirectAccessLink, registerDirectAccessCopy, revokeDirectAccessLink, rotateDirectAccessLink } from "@/services/direct-access";
 import type { OnboardingLeadReview } from "@/types/admin-clients";
@@ -128,7 +129,12 @@ export function AdminClientDetailPage() {
           {isLead && <div className="lead-operation-lock"><ShieldAlert size={18} /> Ative o cliente e cadastre o contrato primeiro para liberar o painel público.</div>}
           <div className="copy-box">
             <input className="copy-input" readOnly value={isLead ? "" : directLink.data?.url ?? ""} placeholder={isLead ? "Disponível após ativação" : directLink.isLoading ? "Carregando link..." : "Nenhum link recuperável disponível"} />
-            <button type="button" className="secondary-button" disabled={isLead || !directLink.data?.url} onClick={() => openClientPanel(directLink.data?.url)}>
+            <button type="button" className="secondary-button" disabled={isLead || !directLink.data?.url} onClick={() => {
+              const result = openClientPanel(directLink.data?.url);
+              if (result.opened) return;
+              setCopyMessage(result.message);
+              if (result.url) void navigator.clipboard.writeText(result.url).then(() => setCopyMessage("Pop-up bloqueado. O link foi copiado para a área de transferência.")).catch(() => undefined);
+            }}>
               <ExternalLink size={15} /> Abrir painel do cliente
             </button>
           </div>
@@ -329,20 +335,4 @@ function ActivateLeadModal({ clientName, review, busy, error, onClose, onSubmit 
       </div>
     </form>
   </div>;
-}
-
-export function validateClientPanelUrl(url?: string | null): string {
-  if (!url) throw new Error("Link indisponível.");
-  const parsed = new URL(url);
-  const allowedHost = new URL("https://gestao-mrltravel.vercel.app").hostname;
-  if (parsed.protocol !== "https:") throw new Error("Link inválido.");
-  if (parsed.hostname !== allowedHost) throw new Error("Origem não autorizada.");
-  if (!/^\/economia\/[a-f0-9]{64}$/i.test(parsed.pathname)) throw new Error("Rota do painel inválida.");
-  return parsed.toString();
-}
-
-function openClientPanel(url?: string | null) {
-  const validatedUrl = validateClientPanelUrl(url);
-  const opened = window.open(validatedUrl, "_blank", "noopener,noreferrer");
-  if (!opened) throw new Error("Pop-up bloqueado. Copie o link manualmente.");
 }

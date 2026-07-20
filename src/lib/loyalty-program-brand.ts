@@ -17,13 +17,13 @@ export const LOYALTY_PROGRAM_BRANDS = [
   {
     key: "atomos",
     displayName: "Átomos",
-    assetPath: "/assets/loyalty-programs/atomos.svg",
+    assetPath: "/assets/loyalty-programs/%C3%A1tomos.svg",
     aliases: ["atomos", "átomos", "c6 atomos", "c6 átomos", "c6-bank-atomos"],
   },
   {
     key: "azul-fidelidade",
     displayName: "Azul Fidelidade",
-    assetPath: "/assets/loyalty-programs/azul-fidelidade.svg",
+    assetPath: "/assets/loyalty-programs/azul.svg",
     aliases: ["azul", "azul fidelidade", "azul-fidelidade", "tudo azul", "tudoazul"],
   },
   {
@@ -47,7 +47,7 @@ export const LOYALTY_PROGRAM_BRANDS = [
   {
     key: "livelo",
     displayName: "Livelo",
-    assetPath: "/assets/loyalty-programs/livelo.svg",
+    assetPath: "/assets/loyalty-programs/logo-livelo.svg",
     aliases: ["livelo"],
   },
 ] as const satisfies readonly LoyaltyProgramBrand[];

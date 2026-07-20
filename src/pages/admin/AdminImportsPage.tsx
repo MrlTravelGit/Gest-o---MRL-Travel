@@ -1,10 +1,10 @@
 import { FormEvent, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, ArchiveRestore, CheckCircle2, Database, Download, FileArchive, FileWarning, Link2, RefreshCw, ShieldCheck, Upload } from "lucide-react";
+import { ArchiveRestore, CheckCircle2, Database, Download, FileArchive, FileWarning, Link2, RefreshCw, ShieldCheck, Upload, X } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { EmptyState, ErrorState, LoadingState, PageHeader } from "@/components/admin/AdminPage";
 import { getAdminFormOptions } from "@/services/admin-options";
-import { commitImportBatch, getImportBatch, listImportBatches, resolveImportRow, rollbackImportBatch, uploadImport } from "@/services/imports";
+import { commitImportBatch, getImportBatch, listImportBatches, resolveImportRow, rollbackImportBatch, uploadImport, type ImportUploadStage } from "@/services/imports";
 import type { ImportBatchDetail, ImportPreviewRow } from "@/types/imports";
 
 const entityLabels: Record<string, string> = { client: "Cliente", task: "Demanda", onboarding: "Onboarding", program: "Programa", passage: "Passagem" };
@@ -13,14 +13,18 @@ export function AdminImportsPage() {
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
+  const [fileInputKey, setFileInputKey] = useState(0);
+  const [uploadStage, setUploadStage] = useState<ImportUploadStage | null>(null);
+  const [fileError, setFileError] = useState("");
   const [onlyConflicts, setOnlyConflicts] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const batches = useQuery({ queryKey: ["import-batches"], queryFn: listImportBatches });
   const detail = useQuery({ queryKey: ["import-batch", selectedId], queryFn: () => getImportBatch(selectedId!), enabled: Boolean(selectedId) });
   const options = useQuery({ queryKey: ["admin-form-options"], queryFn: getAdminFormOptions });
   const uploadMutation = useMutation({
-    mutationFn: uploadImport,
-    onSuccess: async (result) => { setSelectedId(result.batchId); setFile(null); await queryClient.invalidateQueries({ queryKey: ["import-batches"] }); },
+    mutationFn: (selectedFile: File) => uploadImport(selectedFile, setUploadStage),
+    onSuccess: async (result) => { setSelectedId(result.batchId); setFile(null); setFileInputKey((value) => value + 1); setUploadStage(null); await queryClient.invalidateQueries({ queryKey: ["import-batches"] }); },
+    onError: () => setUploadStage(null),
   });
   const resolveMutation = useMutation({
     mutationFn: ({ rowId, resolution, targetId }: { rowId: string; resolution: string; targetId?: string }) => resolveImportRow(rowId, resolution, targetId),
@@ -37,6 +41,13 @@ export function AdminImportsPage() {
   const visibleRows = useMemo(() => detail.data?.rows.filter((row) => !onlyConflicts || row.resolutionStatus === "pending" || row.validationStatus === "invalid") ?? [], [detail.data, onlyConflicts]);
   const blocking = detail.data?.rows.filter((row) => row.resolutionStatus === "pending" || (["client", "task"].includes(row.entityType) && row.validationStatus === "invalid" && row.resolutionStatus !== "skip")).length ?? 0;
 
+  function selectFile(nextFile: File | null) {
+    setFileError("");
+    if (!nextFile) return setFile(null);
+    if (!/\.(zip|csv)$/i.test(nextFile.name)) return setFileError("Selecione um arquivo .zip ou .csv.");
+    if (nextFile.size > 15 * 1024 * 1024) return setFileError("O arquivo excede o limite de 15 MB.");
+    setFile(nextFile);
+  }
   function submit(event: FormEvent) { event.preventDefault(); if (file) uploadMutation.mutate(file); }
 
   return <AppShell title="Importações" hideHeading>
@@ -44,7 +55,7 @@ export function AdminImportsPage() {
     <section className="import-security-strip"><ShieldCheck /><div><strong>Dry-run obrigatório</strong><span>ZIP e CSV são analisados no backend, em staging privado. Nenhuma linha desta tela já foi gravada nas tabelas oficiais.</span></div></section>
     <div className="imports-layout">
       <aside className="import-batch-sidebar">
-        <form className="import-upload-card" onSubmit={submit}><FileArchive /><h2>Novo lote</h2><p>ZIP do Notion ou CSV UTF-8, até 15 MB.</p><label className="file-drop"><Upload /><span>{file?.name ?? "Selecionar arquivo"}</span><input type="file" accept=".zip,.csv,application/zip,text/csv" onChange={(event) => setFile(event.target.files?.[0] ?? null)} /></label><button className="primary-button" disabled={!file || uploadMutation.isPending}>{uploadMutation.isPending ? "Analisando..." : "Enviar e analisar"}</button>{uploadMutation.isError && <div className="form-error">{uploadMutation.error.message}</div>}{uploadMutation.data?.duplicate && <div className="form-warning">Upload idêntico detectado. Abrimos o lote existente.</div>}</form>
+        <form className="import-upload-card" onSubmit={submit}><FileArchive /><h2>Novo lote</h2><p>ZIP do Notion ou CSV UTF-8, até 15 MB.</p><label className="file-drop"><Upload /><span>{file?.name ?? "Selecionar arquivo"}</span><input key={fileInputKey} type="file" accept=".zip,.csv,application/zip,application/x-zip-compressed,text/csv,application/csv" disabled={uploadMutation.isPending} onChange={(event) => selectFile(event.target.files?.[0] ?? null)} /></label>{file && !uploadMutation.isPending && <button type="button" className="remove-upload-file" onClick={() => { setFile(null); setFileInputKey((value) => value + 1); }}><X size={14} /> Remover arquivo</button>}<button className="primary-button" disabled={!file || uploadMutation.isPending}>{uploadMutation.isPending ? uploadStageLabel(uploadStage) : "Enviar e analisar"}</button>{uploadMutation.isPending && <div className="upload-progress" role="status"><span className={`stage-${uploadStage}`} /><small>{uploadStageLabel(uploadStage)}</small></div>}{fileError && <div className="form-error">{fileError}</div>}{uploadMutation.isError && <div className="form-error">{uploadMutation.error.message}<button type="button" onClick={() => file && uploadMutation.mutate(file)}>Tentar novamente</button></div>}{uploadMutation.data?.duplicate && <div className="form-warning">Upload idêntico detectado. Abrimos o dry-run existente.</div>}</form>
         <div className="batch-history"><div className="section-heading"><h2>Lotes recentes</h2><button aria-label="Atualizar lotes" onClick={() => batches.refetch()}><RefreshCw size={15} /></button></div>{batches.isLoading && <span>Carregando...</span>}{batches.data?.map((batch) => <button key={batch.id} className={selectedId === batch.id ? "active" : ""} onClick={() => setSelectedId(batch.id)}><span className={`batch-status status-${batch.status}`}>{batch.status}</span><strong>{batch.original_filename}</strong><small>{new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(batch.created_at))}</small></button>)}</div>
       </aside>
       <main className="import-preview-area">
@@ -78,5 +89,7 @@ function ImportRow({ row, clients, busy, onResolve }: { row: ImportPreviewRow; c
 function CommitDialog({ detail, busy, onClose, onConfirm }: { detail: ImportBatchDetail; busy: boolean; onClose: () => void; onConfirm: () => void }) { const clientCreates = detail.rows.filter((row) => row.entityType === "client" && row.resolutionStatus === "create_new_lead").length; const tasks = detail.rows.filter((row) => row.entityType === "task" && ["create_new", "import_internal"].includes(row.resolutionStatus)).length; const linked = detail.rows.filter((row) => row.resolutionStatus === "link_existing").length; const skipped = detail.rows.filter((row) => ["skip", "declared_pending"].includes(row.resolutionStatus)).length; return <div className="modal-backdrop" role="dialog" aria-modal="true"><div className="confirm-modal import-confirm-modal"><button className="dialog-close" onClick={onClose}>Fechar</button><FileWarning /><h2>Confirmar importação revisada?</h2><p>Serão criados <strong>{clientCreates} leads</strong> e <strong>{tasks} demandas</strong>; {linked} registros serão ligados a existentes; {skipped} linhas ficarão ignoradas ou apenas declaradas.</p><div className="import-zero-balance"><ShieldCheck /> Nenhum saldo oficial será lançado automaticamente.</div><div className="dialog-actions"><button className="secondary-button" onClick={onClose}>Voltar à revisão</button><button className="primary-button" disabled={busy} onClick={onConfirm}>{busy ? "Importando..." : "Confirmar lote"}</button></div></div></div>; }
 
 function resolutionLabel(value: string) { return ({ pending: "Decisão necessária", create_new_lead: "Criar lead", create_new: "Criar demanda", link_existing: "Vincular existente", import_internal: "Demanda interna", declared_pending: "Declarado / pendente", skip: "Ignorar", committed: "Confirmado", rolled_back: "Desfeito" } as Record<string, string>)[value] ?? value; }
+
+function uploadStageLabel(stage: ImportUploadStage | null) { return ({ checksum: "Conferindo arquivo...", creating: "Preparando lote privado...", uploading: "Enviando ao Storage...", analyzing: "Analisando dry-run..." } as Record<string, string>)[stage ?? ""] ?? "Processando..."; }
 
 function downloadSafeIssues(detail: ImportBatchDetail) { const lines = [["entidade", "linha", "severidade", "codigo", "campo", "mensagem"], ...detail.rows.flatMap((row) => row.issues.map((issue) => [row.entityType, String(row.rowNumber), issue.severity, issue.code, issue.fieldName ?? "", issue.message]))]; const csv = lines.map((line) => line.map((value) => `"${value.replace(/"/g, '""')}"`).join(",")).join("\r\n"); const url = URL.createObjectURL(new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8" })); const anchor = document.createElement("a"); anchor.href = url; anchor.download = `erros-importacao-${detail.batch.batchId.slice(0, 8)}.csv`; anchor.click(); URL.revokeObjectURL(url); }

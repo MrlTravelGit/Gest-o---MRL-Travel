@@ -161,7 +161,7 @@ export function sanitizeMarkdown(value: string): { text: string; checklist: stri
   const text = value
     .replace(/\u0000/g, "")
     .replace(/<[^>]*>/g, "")
-    .replace(/^\s*[-*]\s+\[[ xX]\]\s+(.+)$/gm, (_line, item: string) => { checklist.push(item.trim().slice(0, 500)); return item.trim(); })
+    .replace(/^\s*[-*]\s+\[[ xX]\]\s+(.+)$/gm, (_line, item: string) => { const safeItem = item.replace(/<[^>]*>/g, "").trim().slice(0, 500); checklist.push(safeItem); return safeItem; })
     .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
     .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, "$1 ($2)")
     .replace(/^#{1,6}\s+/gm, "")
