@@ -1,4 +1,4 @@
-export const NOTION_ADAPTER_VERSION = "notion_mrl_v1";
+export const NOTION_ADAPTER_VERSION = "notion_mrl_v2";
 
 export type ImportEntity = "client" | "task" | "onboarding" | "program" | "passage";
 
@@ -8,7 +8,7 @@ export interface SourceFile {
 }
 
 export interface ImportIssue {
-  severity: "info" | "warning" | "error";
+  severity: "info" | "warning" | "error" | "fatal";
   code: string;
   fieldName?: string;
   message: string;
@@ -22,7 +22,7 @@ export interface AnalyzedRow {
   rawPayload: Record<string, string>;
   normalizedPayload: Record<string, unknown>;
   validationStatus: "valid" | "warning" | "invalid";
-  resolutionStatus: "create_new_lead" | "create_new" | "pending" | "declared_pending" | "skip";
+  resolutionStatus: "ready_create" | "ready_update" | "ready_link_existing" | "ready_unchanged" | "ready_import_internal" | "pending_decision" | "blocked_invalid" | "ignored_duplicate_view" | "ignored_by_admin" | "committed" | "failed_commit";
   issues: ImportIssue[];
 }
 
@@ -149,15 +149,22 @@ function valueOf(row: Record<string, string>, normalizedHeader: string): string 
 }
 
 export function parsePtBrDate(value: string): string | null {
-  const match = value.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2}))?/);
-  if (!match) return null;
+  const trimmed = value.trim().toLowerCase();
+  let match = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2}))?/);
+  if (!match) {
+    const months: Record<string, string> = { janeiro: "01", fevereiro: "02", marco: "03", março: "03", abril: "04", maio: "05", junho: "06", julho: "07", agosto: "08", setembro: "09", outubro: "10", novembro: "11", dezembro: "12" };
+    const named = trimmed.match(/^(\d{1,2})\s+de\s+([a-zç]+)\s+de\s+(\d{4})(?:\s+(\d{1,2}):(\d{2}))?/);
+    if (!named || !months[named[2]]) return null;
+    match = [named[0], named[1], months[named[2]], named[3], named[4] ?? "12", named[5] ?? "00"];
+  }
   const [, day, month, year, hour = "12", minute = "00"] = match;
   const date = new Date(`${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}T${hour.padStart(2, "0")}:${minute}:00-03:00`);
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
 export function parsePtBrCurrency(value: string): number | null {
-  const normalized = value.replace(/R\$|\s/g, "").replace(/\./g, "").replace(",", ".");
+  const compact = value.replace(/R\$|\s/g, "");
+  const normalized = compact.includes(",") ? compact.replace(/\./g, "").replace(",", ".") : /^-?\d+\.\d{1,2}$/.test(compact) ? compact : compact.replace(/\./g, "");
   if (!normalized || !/^-?\d+(?:\.\d{1,2})?$/.test(normalized)) return null;
   const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : null;
@@ -210,7 +217,7 @@ function indexedPage(index: Map<string, Array<{ id: string; body: string; checkl
 }
 
 function validation(issues: ImportIssue[]): "valid" | "warning" | "invalid" {
-  if (issues.some((issue) => issue.severity === "error")) return "invalid";
+  if (issues.some((issue) => issue.severity === "error" || issue.severity === "fatal")) return "invalid";
   if (issues.some((issue) => issue.severity === "warning")) return "warning";
   return "valid";
 }
@@ -228,6 +235,7 @@ function mapClient(row: Record<string, string>, rowNumber: number, index: Return
   const rawPhone = valueOf(row, "whatsapp");
   const phoneE164 = normalizePhone(rawPhone);
   const page = indexedPage(index, fullName.replace(/\//g, " "));
+  const cpfDigits = valueOf(row, "cpf").replace(/\D/g, "");
   const issues: ImportIssue[] = [];
   if (!fullName) issues.push({ severity: "error", code: "INVALID_ROW", fieldName: "Nome completo", message: "Nome obrigatório ausente." });
   if (!email && !phoneE164) issues.push({ severity: "error", code: "INVALID_ROW", fieldName: "Contato", message: "E-mail ou telefone válido é obrigatório para criar um lead." });
@@ -235,8 +243,8 @@ function mapClient(row: Record<string, string>, rowNumber: number, index: Return
   if (!page) issues.push({ severity: "warning", code: "UNRESOLVED_SOURCE_ID", fieldName: "Nome completo", message: "Page ID do cliente exige revisão." });
   return {
     rowNumber, entityType: "client", sourceExternalId: page?.id ?? null, rawPayload: row,
-    normalizedPayload: { fullName, email: email || null, phoneE164, sourceUpdatedAt: parsePtBrDate(valueOf(row, "ultima edicao")) },
-    validationStatus: validation(issues), resolutionStatus: issues.some((issue) => issue.severity === "error") ? "pending" : "create_new_lead", issues,
+    normalizedPayload: { fullName, email: email || null, phoneE164, cpfDigits: cpfDigits || null, sourceUpdatedAt: parsePtBrDate(valueOf(row, "ultima edicao")) },
+    validationStatus: validation(issues), resolutionStatus: issues.some((issue) => issue.severity === "error") ? "blocked_invalid" : "ready_create", issues,
   };
 }
 
@@ -285,25 +293,87 @@ function mapTask(row: Record<string, string>, rowNumber: number, index: ReturnTy
       dueAt: parsePtBrDate(valueOf(row, "prazo")), completedAt: parsePtBrDate(valueOf(row, "concluido em")),
       sourceCreatedAt: parsePtBrDate(valueOf(row, "criado em")), sourceUpdatedAt: parsePtBrDate(valueOf(row, "ultima edicao")), timeSpentMinutes,
     },
-    validationStatus: validation(issues), resolutionStatus: issues.some((issue) => issue.severity === "error") || !clientExternalId ? "pending" : "create_new", issues,
+    validationStatus: validation(issues), resolutionStatus: issues.some((issue) => issue.severity === "error") ? "blocked_invalid" : !clientExternalId ? "pending_decision" : "ready_create", issues,
   };
 }
 
-function mapPreviewEntity(entityType: "onboarding" | "program" | "passage", row: Record<string, string>, rowNumber: number): AnalyzedRow {
-  const issues: ImportIssue[] = [{ severity: "info", code: "DECLARED_PENDING", message: "Registro será mantido como declarado e não cria saldo ou viagem oficial automaticamente." }];
+function mapPreviewEntity(entityType: "onboarding" | "passage", row: Record<string, string>, rowNumber: number, index: ReturnType<typeof pageIndex>): AnalyzedRow {
+  const issues: ImportIssue[] = [{ severity: "info", code: "REVIEW_AVAILABLE", message: "Registro declarativo disponível para revisão; não bloqueia o lote." }];
   const clientRelation = valueOf(row, "cliente");
   if (!extractNotionPageId(clientRelation)) issues.push({ severity: "warning", code: "UNRESOLVED_RELATION", fieldName: "Cliente", message: "Relação com cliente precisa de revisão." });
   const normalized: Record<string, unknown> = { clientLabel: clientRelation.replace(/\s*\([^)]*\)\s*$/, ""), clientExternalId: extractNotionPageId(clientRelation) };
   if (entityType === "onboarding") normalized.fullName = valueOf(row, "nome completo");
-  if (entityType === "program") {
-    normalized.programName = valueOf(row, "programa");
-    const points = parsePointQuantity(valueOf(row, "saldo atual"));
-    normalized.declaredPoints = points.value;
-    if (points.ambiguous) issues.push({ severity: "error", code: "AMBIGUOUS_NUMBER", fieldName: "Saldo atual", message: "Quantidade de pontos ambígua; nenhuma movimentação será criada." });
-    normalized.declaredCostPerThousand = parsePtBrCurrency(valueOf(row, "custo milheiro"));
-  }
   if (entityType === "passage") normalized.title = valueOf(row, "nome do trecho");
-  return { rowNumber, entityType, sourceExternalId: null, rawPayload: row, normalizedPayload: normalized, validationStatus: validation(issues), resolutionStatus: "declared_pending", issues };
+  const page = indexedPage(index, String(normalized.fullName ?? normalized.title ?? ""));
+  return { rowNumber, entityType, sourceExternalId: page?.id ?? null, rawPayload: row, normalizedPayload: normalized, validationStatus: validation(issues), resolutionStatus: extractNotionPageId(clientRelation) ? "ready_unchanged" : "pending_decision", issues };
+}
+
+function mapProgram(row: Record<string, string>, rowNumber: number, index: ReturnType<typeof pageIndex>): AnalyzedRow {
+  const title = valueOf(row, "programa");
+  const programName = valueOf(row, "programas") || title.replace(/\s*-\s*.*$/, "");
+  const clientRelation = valueOf(row, "cliente");
+  const clientExternalId = extractNotionPageId(clientRelation);
+  const page = indexedPage(index, title);
+  const points = parsePointQuantity(valueOf(row, "saldo atual"));
+  const expiring = parsePointQuantity(valueOf(row, "pontos a expirar"));
+  const rawCost = valueOf(row, "custo milheiro");
+  const cost = parsePtBrCurrency(rawCost);
+  const rawExpiration = valueOf(row, "data da expiracao");
+  const expiresAt = parsePtBrDate(rawExpiration);
+  const issues: ImportIssue[] = [];
+  if (!clientExternalId) issues.push({ severity: "warning", code: "UNRESOLVED_CLIENT", fieldName: "Cliente", message: "Cliente do saldo precisa ser resolvido antes do commit." });
+  if (!programName) issues.push({ severity: "error", code: "UNRESOLVED_PROGRAM", fieldName: "Programas", message: "Programa de fidelidade não identificado." });
+  if (points.ambiguous || points.value === null) issues.push({ severity: "error", code: "AMBIGUOUS_POINTS", fieldName: "Saldo atual", message: "Quantidade de pontos ambígua; informe um inteiro antes do commit." });
+  if (rawCost && cost === null) issues.push({ severity: "warning", code: "INVALID_COST_PER_THOUSAND", fieldName: "Custo milheiro", message: "Custo do milheiro inválido; o saldo poderá ser importado sem custo." });
+  if (expiring.ambiguous) issues.push({ severity: "warning", code: "AMBIGUOUS_POINTS", fieldName: "Pontos a expirar", message: "Quantidade a expirar precisa de revisão." });
+  if (rawExpiration && !expiresAt) issues.push({ severity: "warning", code: "INVALID_EXPIRATION", fieldName: "Data da expiração", message: "Data de vencimento inválida." });
+  if (expiresAt && new Date(expiresAt).getTime() < Date.now()) issues.push({ severity: "warning", code: "EXPIRED_EXPIRATION", fieldName: "Data da expiração", message: "A data de vencimento está no passado e exige revisão." });
+  if ((expiring.value ?? 0) > (points.value ?? 0)) issues.push({ severity: "warning", code: "EXPIRATION_EXCEEDS_BALANCE", fieldName: "Pontos a expirar", message: "A quantidade a expirar excede o saldo importado." });
+  return {
+    rowNumber,
+    entityType: "program",
+    sourceExternalId: page?.id ?? null,
+    rawPayload: row,
+    normalizedPayload: {
+      title,
+      programName,
+      clientLabel: clientRelation.replace(/\s*\([^)]*\)\s*$/, ""),
+      clientExternalId,
+      importedPoints: points.value,
+      costPerThousand: cost,
+      expiringPoints: expiring.value,
+      expiresOn: expiresAt?.slice(0, 10) ?? null,
+      referenceDate: parsePtBrDate(valueOf(row, "ultima edicao"))?.slice(0, 10) ?? null,
+    },
+    validationStatus: validation(issues),
+    resolutionStatus: issues.some((issue) => issue.severity === "error") ? "blocked_invalid" : "pending_decision",
+    issues,
+  };
+}
+
+function mapPassage(row: Record<string, string>, rowNumber: number, index: ReturnType<typeof pageIndex>): AnalyzedRow {
+  const title = valueOf(row, "nome do trecho");
+  const clientRelation = valueOf(row, "cliente");
+  const programRelation = valueOf(row, "programa");
+  const clientExternalId = extractNotionPageId(clientRelation);
+  const programExternalId = extractNotionPageId(programRelation);
+  const sourceExternalId = extractNotionPageId(valueOf(row, "passagens geral")) ?? indexedPage(index, title)?.id ?? null;
+  const points = parsePointQuantity(valueOf(row, "pontos utilizados"));
+  const issuedAt = parsePtBrDate(valueOf(row, "data emissao"));
+  const issues: ImportIssue[] = [];
+  if (!clientExternalId) issues.push({ severity: "warning", code: "UNRESOLVED_CLIENT", fieldName: "Cliente", message: "Cliente da passagem precisa ser revisado." });
+  if (!programExternalId) issues.push({ severity: "warning", code: "UNRESOLVED_PROGRAM", fieldName: "Programa", message: "Programa da passagem precisa ser revisado." });
+  if (points.ambiguous || points.value === null || points.value <= 0) issues.push({ severity: "error", code: "AMBIGUOUS_POINTS", fieldName: "Pontos utilizados", message: "Quantidade de pontos da passagem é inválida ou ambígua." });
+  if (!issuedAt) issues.push({ severity: "warning", code: "INVALID_DATE", fieldName: "Data emissão", message: "Data de emissão ausente; será usada a data do lote após confirmação." });
+  return { rowNumber, entityType: "passage", sourceExternalId, rawPayload: row, normalizedPayload: {
+    title, clientLabel: clientRelation.replace(/\s*\([^)]*\)\s*$/, ""), clientExternalId, programExternalId,
+    programName: programRelation.replace(/\s*-\s*.*$/, ""), pointsUsed: points.value, issuedAt,
+    cashReferenceTotal: parsePtBrCurrency(valueOf(row, "valor companhia")) ?? 0,
+    taxesPaid: parsePtBrCurrency(valueOf(row, "valor taxa de embarque (r$)")) ?? 0,
+    additionalCashPaid: parsePtBrCurrency(valueOf(row, "valor milhas")) ?? 0,
+    costPerThousand: parsePtBrCurrency(valueOf(row, "custo milheiro")) ?? 0,
+    declaredSavings: parsePtBrCurrency(valueOf(row, "economia gerada")),
+  }, validationStatus: validation(issues), resolutionStatus: issues.some((issue) => issue.severity === "error") ? "blocked_invalid" : "pending_decision", issues };
 }
 
 export function analyzeNotionFiles(files: SourceFile[]): AnalyzedFile[] {
@@ -324,7 +394,9 @@ export function analyzeNotionFiles(files: SourceFile[]): AnalyzedFile[] {
       const rowNumber = indexValue + 2;
       if (entity === "client") return mapClient(row, rowNumber, index);
       if (entity === "task") return mapTask(row, rowNumber, index);
-      return mapPreviewEntity(entity, row, rowNumber);
+      if (entity === "program") return mapProgram(row, rowNumber, index);
+      if (entity === "passage") return mapPassage(row, rowNumber, index);
+      return mapPreviewEntity(entity, row, rowNumber, index);
     });
     return { path: file.path.normalize("NFC"), logicalType: entity, rows, rowCount: rows.length, delimiter, isCanonical, ignoredReason: null };
   });
@@ -344,7 +416,7 @@ export function summarizeAnalysis(files: AnalyzedFile[]) {
       linked: rows.filter((row) => row.entityType === "task" && Boolean(row.normalizedPayload.clientExternalId)).length,
       needsDecision: rows.filter((row) => row.entityType === "task" && !row.normalizedPayload.clientExternalId).length,
     },
-    conflicts: rows.filter((row) => row.resolutionStatus === "pending").length,
+    conflicts: rows.filter((row) => ["pending_decision", "blocked_invalid"].includes(row.resolutionStatus)).length,
     invalid: rows.filter((row) => row.validationStatus === "invalid").length,
     ignoredFilteredFiles: files.filter((file) => file.ignoredReason === "FILTERED_RELATIONAL_VIEW").length,
     officialBalancesCreatedByDefault: 0,

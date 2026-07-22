@@ -1,71 +1,70 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Plus, Search, Trash2, Users } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckSquare2, Download, Pencil, Plus, RotateCcw, Search, ShieldCheck, Trash2, UserCheck, Users } from "lucide-react";
 import { ConfirmActionDialog } from "@/components/admin/ConfirmActionDialog";
 import { StatusBadge } from "@/components/admin/AdminFields";
 import { AppShell } from "@/components/layout/AppShell";
-import { formatDate, formatPoints } from "@/lib/formatters";
-import { archiveClient, getAdminClients } from "@/services/admin-clients";
+import { formatCurrency, formatDate, formatPoints } from "@/lib/formatters";
+import { applyClientNameCleanup, archiveClient, bulkReactivateClients, getAdminClients, getClientReactivationPreview, previewClientNameCleanup, reactivateClient, revertClientNameCleanup } from "@/services/admin-clients";
 import { getAdminOverview } from "@/services/dashboard";
-import { formatCurrency } from "@/lib/formatters";
+import type { AdminClientListItem, BulkReactivationResult, ClientNameCleanupSuggestion } from "@/types/admin-clients";
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE=100;
 
-export function AdminClientsPage() {
-  const [searchInput, setSearchInput] = useState("");
-  const [search, setSearch] = useState("");
-  const [offset, setOffset] = useState(0);
-  const [status, setStatus] = useState("");
-  const permissions = useQuery({ queryKey: ["admin-overview"], queryFn: getAdminOverview });
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setSearch(searchInput.trim());
-      setOffset(0);
-    }, 350);
-    return () => window.clearTimeout(timer);
-  }, [searchInput]);
-
-  const clients = useQuery({
-    queryKey: ["admin-clients", search, status, offset],
-    queryFn: () => getAdminClients(search, status, PAGE_SIZE, offset),
-    placeholderData: keepPreviousData,
-  });
-
-  return (
-    <AppShell title="Clientes" subtitle="Saldos, clubes e vencimentos em uma visão operacional">
-      <div className="page-toolbar">
-        <Link className="secondary-button" to="/admin"><ArrowLeft size={17} /> Visão geral</Link>
-        <div className="toolbar-filters"><select aria-label="Filtrar por status" value={status} onChange={(event) => { setStatus(event.target.value); setOffset(0); }}><option value="">Todos os status</option><option value="lead">Aguardando ativação</option><option value="active">Ativos</option><option value="paused">Pausados</option><option value="ended">Arquivados</option></select><div className="search-field"><Search size={18} /><input aria-label="Pesquisar clientes" placeholder="Pesquisar por nome" value={searchInput} onChange={(event) => setSearchInput(event.target.value)} /></div>{permissions.data?.canArchive&&<Link className="primary-button" to="/admin/clientes/novo"><Plus size={17}/> Nova pessoa</Link>}</div>
-      </div>
-
-      {clients.isLoading && <div className="panel-state">Carregando clientes...</div>}
-      {clients.isError && <div className="panel-state error-state">{clients.error.message}</div>}
-      {clients.data && clients.data.items.length === 0 && (
-        <div className="empty-management-state"><Users size={34} /><h2>Nenhum cliente encontrado</h2><p>Ajuste a pesquisa ou crie um cliente na visão geral.</p></div>
-      )}
-      {clients.data && clients.data.items.length > 0 && (
-        <>
-          <div className="responsive-table clients-table"><table><thead><tr><th>Cliente</th><th>Total de pontos</th><th>Economia</th><th>Programas</th><th>Próximo vencimento</th><th>Última movimentação</th><th></th></tr></thead><tbody>
-            {clients.data.items.map((client) => <tr key={client.clientId}>
-              <td><strong>{client.fullName}</strong><small><StatusBadge status={client.status} />{client.status === "lead" ? " Recebido pelo onboarding" : ""}</small></td>
-              <td>{formatPoints(client.totalPoints)}</td>
-              <td>{formatCurrency(client.generatedSavings)}</td>
-              <td>{client.programsCount}</td>
-              <td>{client.nextExpirationDate ? <><strong>{formatDate(client.nextExpirationDate)}</strong><small>{formatPoints(client.expiringPoints)} em 90 dias</small></> : "Sem vencimento"}</td>
-              <td>{formatDate(client.lastMovementAt)}</td>
-              <td><div className="table-actions"><Link className="table-action" to={`/admin/clientes/${client.clientId}`}>Abrir <ArrowRight size={15} /></Link>{permissions.data?.canArchive&&client.status!=="ended"&&<ClientArchiveButton clientId={client.clientId} clientName={client.fullName}/>}</div></td>
-            </tr>)}
-          </tbody></table></div>
-          <div className="pagination-bar">
-            <span>{offset + 1}–{Math.min(offset + PAGE_SIZE, clients.data.total)} de {clients.data.total}</span>
-            <div><button className="secondary-button" disabled={offset === 0 || clients.isFetching} onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}>Anterior</button><button className="secondary-button" disabled={offset + PAGE_SIZE >= clients.data.total || clients.isFetching} onClick={() => setOffset(offset + PAGE_SIZE)}>Próxima</button></div>
-          </div>
-        </>
-      )}
-    </AppShell>
-  );
+export function AdminClientsPage(){
+  const [searchInput,setSearchInput]=useState("");const [search,setSearch]=useState("");const [offset,setOffset]=useState(0);const [status,setStatus]=useState("");
+  const [selected,setSelected]=useState<Set<string>>(new Set());const [batchOpen,setBatchOpen]=useState(false);const [cleanupOpen,setCleanupOpen]=useState(false);
+  const permissions=useQuery({queryKey:["admin-overview"],queryFn:getAdminOverview});
+  useEffect(()=>{const timer=window.setTimeout(()=>{setSearch(searchInput.trim());setOffset(0);setSelected(new Set());},350);return()=>window.clearTimeout(timer);},[searchInput]);
+  const clients=useQuery({queryKey:["admin-clients",search,status,offset],queryFn:()=>getAdminClients(search,status,PAGE_SIZE,offset),placeholderData:keepPreviousData});
+  const archivedVisible=useMemo(()=>clients.data?.items.filter(item=>item.status==="ended")??[],[clients.data]);
+  const allArchivedSelected=archivedVisible.length>0&&archivedVisible.every(item=>selected.has(item.clientId));
+  function toggleAll(){setSelected(current=>{const next=new Set(current);if(allArchivedSelected)archivedVisible.forEach(item=>next.delete(item.clientId));else archivedVisible.forEach(item=>next.add(item.clientId));return next;});}
+  function toggle(id:string){setSelected(current=>{const next=new Set(current);if(next.has(id))next.delete(id);else next.add(id);return next;});}
+  return <AppShell title="Clientes" subtitle="Identidade, contratos e saldos em uma visão operacional">
+    <div className="client-status-overview" aria-label="Contadores por situação">
+      <Counter label="Todos" value={clients.data?.counts.all??0} active={!status} onClick={()=>setStatus("")}/><Counter label="Ativos" value={clients.data?.counts.active??0} active={status==="active"} onClick={()=>setStatus("active")}/><Counter label="Aguardando ativação" value={clients.data?.counts.leads??0} active={status==="lead"} onClick={()=>setStatus("lead")}/><Counter label="Arquivados" value={clients.data?.counts.archived??0} active={status==="ended"} onClick={()=>setStatus("ended")}/><Counter label="Contrato pendente" value={clients.data?.counts.contractPending??0} active={status==="contract_pending"} onClick={()=>setStatus("contract_pending")}/>
+    </div>
+    <div className="page-toolbar clients-toolbar"><Link className="secondary-button" to="/admin"><ArrowLeft size={17}/> Visão geral</Link><div className="toolbar-filters"><select aria-label="Filtrar por status" value={status} onChange={e=>{setStatus(e.target.value);setOffset(0);setSelected(new Set());}}><option value="">Todos</option><option value="active">Ativos</option><option value="lead">Aguardando ativação</option><option value="ended">Arquivados</option><option value="contract_pending">Contrato pendente</option></select><div className="search-field"><Search size={18}/><input aria-label="Pesquisar clientes" placeholder="Pesquisar pelo nome" value={searchInput} onChange={e=>setSearchInput(e.target.value)}/></div>{permissions.data?.canArchive&&<><button className="secondary-button" type="button" onClick={()=>setCleanupOpen(true)}><ShieldCheck size={16}/> Revisar nomes</button><Link className="primary-button" to="/admin/clientes/novo"><Plus size={17}/> Nova pessoa</Link></>}</div></div>
+    {selected.size>0&&<div className="bulk-action-bar"><div><CheckSquare2/><strong>{selected.size} arquivado(s) selecionado(s)</strong><span>A ação preserva pontos, programas, movimentações e links.</span></div><button className="primary-button" onClick={()=>setBatchOpen(true)}><UserCheck size={16}/> Reativar selecionados</button></div>}
+    {clients.isLoading&&<div className="panel-state">Carregando clientes...</div>}{clients.isError&&<div className="panel-state error-state">{clients.error.message}</div>}
+    {clients.data&&clients.data.items.length===0&&<div className="empty-management-state"><Users size={34}/><h2>Nenhum cliente encontrado</h2><p>Ajuste os filtros ou cadastre uma nova pessoa.</p></div>}
+    {clients.data&&clients.data.items.length>0&&<><div className="responsive-table clients-table"><table><thead><tr><th className="selection-cell"><input type="checkbox" aria-label="Selecionar todos os arquivados filtrados" checked={allArchivedSelected} onChange={toggleAll} disabled={!archivedVisible.length}/></th><th>Cliente</th><th>Situação</th><th>Pontos</th><th>Programas</th><th>Contrato</th><th>Última movimentação</th><th>Ações</th></tr></thead><tbody>{clients.data.items.map(client=><ClientRow key={client.clientId} client={client} selected={selected.has(client.clientId)} onToggle={()=>toggle(client.clientId)} canManage={Boolean(permissions.data?.canArchive)}/>)}</tbody></table></div><div className="pagination-bar"><span>{offset+1}–{Math.min(offset+PAGE_SIZE,clients.data.total)} de {clients.data.total}</span><div><button className="secondary-button" disabled={offset===0||clients.isFetching} onClick={()=>setOffset(Math.max(0,offset-PAGE_SIZE))}>Anterior</button><button className="secondary-button" disabled={offset+PAGE_SIZE>=clients.data.total||clients.isFetching} onClick={()=>setOffset(offset+PAGE_SIZE)}>Próxima</button></div></div></>}
+    {batchOpen&&<BulkReactivationModal clientIds={[...selected]} onClose={()=>setBatchOpen(false)} onDone={()=>{setSelected(new Set());setBatchOpen(false);}}/>}
+    {cleanupOpen && <NameCleanupPanel onClose={() => setCleanupOpen(false)} />}
+  </AppShell>;
 }
 
-function ClientArchiveButton({clientId,clientName}:{clientId:string;clientName:string}){const qc=useQueryClient();const [confirmation,setConfirmation]=useState("");const mutation=useMutation({mutationFn:()=>archiveClient(clientId,confirmation),onSuccess:()=>{setConfirmation("");void Promise.all([qc.invalidateQueries({queryKey:["admin-clients"]}),qc.invalidateQueries({queryKey:["admin-overview"]}),qc.invalidateQueries({queryKey:["admin-form-options"]})])}});return <ConfirmActionDialog trigger={<button className="icon-danger" aria-label={`Arquivar ${clientName}`}><Trash2 size={15}/></button>} title="Arquivar cliente" description="O acesso e o contrato ativo serão encerrados. Pontos, viagens, economia, lançamentos e auditoria serão preservados." confirmation={confirmation} onConfirmationChange={setConfirmation} expected={clientName} busy={mutation.isPending} error={mutation.error?.message} onConfirm={()=>mutation.mutate()}/>}
+function Counter({label,value,active,onClick}:{label:string;value:number;active:boolean;onClick:()=>void}){return <button type="button" className={active?"active":""} onClick={onClick}><span>{label}</span><strong>{value}</strong></button>;}
+
+function ClientRow({client,selected,onToggle,canManage}:{client:AdminClientListItem;selected:boolean;onToggle:()=>void;canManage:boolean}){
+  const [reactivateOpen,setReactivateOpen]=useState(false);
+  const contractLabel=client.contractReviewStatus==="pending_review"?"Pendente de revisão":client.contract?.status==="active"?"Ativo":client.contract?.status??"Sem contrato";
+  return <tr className={client.status==="ended"?"archived-client-row":undefined}><td className="selection-cell"><input type="checkbox" aria-label={`Selecionar ${client.fullName}`} disabled={client.status!=="ended"} checked={selected} onChange={onToggle}/></td><td><strong>{client.fullName}</strong><small>{client.registrationSource}</small></td><td><StatusBadge status={client.status}/>{client.status==="lead"&&<small>Cadastro recebido pelo onboarding</small>}</td><td><strong>{formatPoints(client.totalPoints)}</strong><small>{formatCurrency(client.generatedSavings)} de economia</small></td><td>{client.programsCount}</td><td><span className={client.contractReviewStatus==="pending_review"?"contract-pending-badge":"contract-ok-badge"}>{contractLabel}</span>{client.contract?.startsOn&&<small>{formatDate(client.contract.startsOn)} — {client.contract.endsOn?formatDate(client.contract.endsOn):"indeterminado"}</small>}</td><td>{formatDate(client.lastMovementAt)}</td><td><div className="table-actions"><Link className="table-action" to={`/admin/clientes/${client.clientId}`}>Abrir <ArrowRight size={15}/></Link><Link className="table-action" to={`/admin/clientes/${client.clientId}/editar`}><Pencil size={14}/> Editar</Link>{canManage&&client.status==="ended"&&<button className="table-action reactivate-action" onClick={()=>setReactivateOpen(true)}><RotateCcw size={14}/> Reativar</button>}{canManage&&client.status!=="ended"&&<ClientArchiveButton clientId={client.clientId} clientName={client.fullName}/>}</div>{reactivateOpen&&<IndividualReactivationModal client={client} onClose={()=>setReactivateOpen(false)}/>}</td></tr>;
+}
+
+function IndividualReactivationModal({client,onClose}:{client:AdminClientListItem;onClose:()=>void}){
+  const qc=useQueryClient();const [note,setNote]=useState("");const [confirmed,setConfirmed]=useState(false);
+  const mutation=useMutation({mutationFn:()=>reactivateClient(client.clientId,note,client.rowVersion),onSuccess:async()=>{await Promise.all([qc.invalidateQueries({queryKey:["admin-clients"]}),qc.invalidateQueries({queryKey:["admin-overview"]}),qc.invalidateQueries({queryKey:["admin-client-detail",client.clientId]})]);onClose();}});
+  return <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label={`Reativar ${client.fullName}`}><form className="confirm-modal reactivation-modal" onSubmit={e=>{e.preventDefault();if(confirmed)mutation.mutate();}}><button type="button" className="dialog-close" onClick={onClose}>Fechar</button><span className="eyebrow">Reativação individual</span><h2>Reativar cliente</h2><div className="reactivation-person"><strong>{client.fullName}</strong><span>{formatPoints(client.totalPoints)} pontos · {client.programsCount} programas</span></div><div className="reactivation-facts"><Info label="Contrato" value={client.contractReviewStatus==="pending_review"?"Ficará pendente de revisão":"Será preservado"}/><Info label="Arquivado em" value={formatDate(client.archivedAt)}/><Info label="Motivo" value={client.archiveReason||"Não informado"}/></div><label>Observação da reativação<textarea value={note} onChange={e=>setNote(e.target.value)} rows={3}/></label><label className="check-field"><input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)}/> Confirmo que pontos, programas e histórico não devem ser alterados.</label>{mutation.isError&&<div className="form-error">{mutation.error.message}</div>}<div className="dialog-actions"><button type="button" className="secondary-button" onClick={onClose}>Cancelar</button><button className="primary-button" disabled={!confirmed||mutation.isPending}>{mutation.isPending?"Reativando...":"Reativar cliente"}</button></div></form></div>;
+}
+
+function BulkReactivationModal({clientIds,onClose,onDone}:{clientIds:string[];onClose:()=>void;onDone:()=>void}){
+  const qc=useQueryClient();const [note,setNote]=useState("");const [confirmed,setConfirmed]=useState(false);const [report,setReport]=useState<BulkReactivationResult|null>(null);
+  const preview=useQuery({queryKey:["client-reactivation-preview",clientIds.slice().sort().join(",")],queryFn:()=>getClientReactivationPreview(clientIds)});
+  const mutation=useMutation({mutationFn:()=>bulkReactivateClients(clientIds,note),onSuccess:async result=>{setReport(result);await Promise.all([qc.invalidateQueries({queryKey:["admin-clients"]}),qc.invalidateQueries({queryKey:["admin-overview"]})]);}});
+  function download(){if(!report)return;const blob=new Blob([JSON.stringify(report,null,2)],{type:"application/json"});const url=URL.createObjectURL(blob);const link=document.createElement("a");link.href=url;link.download=`reativacao-${report.batchId}.json`;link.click();URL.revokeObjectURL(url);}
+  return <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Reativar clientes selecionados"><form className="confirm-modal bulk-reactivation-modal" onSubmit={e=>{e.preventDefault();if(confirmed&&!report)mutation.mutate();}}><button type="button" className="dialog-close" onClick={report?onDone:onClose}>Fechar</button><span className="eyebrow">Operação auditada em lote</span><h2>{report?"Relatório da reativação":"Reativar selecionados"}</h2>{preview.isLoading&&<div className="panel-state">Calculando impacto...</div>}{preview.data&&!report&&<><div className="batch-preview-grid"><Info label="Selecionados" value={String(preview.data.summary.selected)}/><Info label="Com contrato" value={String(preview.data.summary.withContract)}/><Info label="Contrato pendente" value={String(preview.data.summary.pendingReview)}/><Info label="Pontos preservados" value={formatPoints(preview.data.summary.points)}/><Info label="Programas" value={String(preview.data.summary.programs)}/></div><label>Observação do lote<textarea rows={3} value={note} onChange={e=>setNote(e.target.value)}/></label><label className="check-field"><input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)}/> Confirmo a reativação somente dos clientes arquivados selecionados.</label></>}{report&&<><div className="batch-preview-grid"><Info label="Reativados" value={String(report.reactivated)}/><Info label="Já ativos" value={String(report.alreadyActive)}/><Info label="Bloqueados" value={String(report.blocked)}/><Info label="Falhas" value={String(report.failed)}/></div><div className="batch-report-list">{report.items.map(item=><div key={item.clientId}><StatusBadge status={item.status}/><span>{item.message??item.status}</span><small>{formatPoints(item.pointsBefore)} → {formatPoints(item.pointsAfter)} pontos</small></div>)}</div></>}{(preview.isError||mutation.isError)&&<div className="form-error">{preview.error?.message||mutation.error?.message}</div>}<div className="dialog-actions"><button type="button" className="secondary-button" onClick={report?onDone:onClose}>{report?"Concluir":"Cancelar"}</button>{report?<button type="button" className="primary-button" onClick={download}><Download size={16}/> Baixar relatório</button>:<button className="primary-button" disabled={!confirmed||mutation.isPending||!preview.data?.summary.selected}>{mutation.isPending?"Processando...":"Confirmar reativação"}</button>}</div></form></div>;
+}
+
+function NameCleanupPanel({onClose}:{onClose:()=>void}){
+  const qc=useQueryClient();const suggestions=useQuery({queryKey:["client-name-cleanup"],queryFn:previewClientNameCleanup});const [edits,setEdits]=useState<Record<string,string>>({});const [lastAction,setLastAction]=useState<{actionId:string;clientId:string;rowVersion:number}|null>(null);
+  const apply=useMutation({mutationFn:(item:ClientNameCleanupSuggestion)=>applyClientNameCleanup(item.clientId,edits[item.clientId]??item.suggestedName,item.rowVersion,"Limpeza revisada pelo administrador"),onSuccess:async(result,item)=>{if(result.actionId)setLastAction({actionId:result.actionId,clientId:item.clientId,rowVersion:result.rowVersion});await Promise.all([suggestions.refetch(),qc.invalidateQueries({queryKey:["admin-clients"]})]);}});
+  const revert=useMutation({mutationFn:()=>revertClientNameCleanup(lastAction!.actionId,lastAction!.rowVersion,"Desfeito pela prévia de limpeza"),onSuccess:async()=>{setLastAction(null);await Promise.all([suggestions.refetch(),qc.invalidateQueries({queryKey:["admin-clients"]})]);}});
+  return <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Revisar nomes suspeitos"><section className="confirm-modal name-cleanup-panel"><button type="button" className="dialog-close" onClick={onClose}>Fechar</button><span className="eyebrow">Prévia controlada</span><h2>Revisar nomes suspeitos</h2><p>Nenhuma alteração é aplicada sem confirmação individual. Termos legítimos isolados não são removidos.</p>{suggestions.isLoading&&<div className="panel-state">Procurando complementos operacionais...</div>}{suggestions.data?.length===0&&<div className="form-success">Nenhum nome potencialmente contaminado.</div>}<div className="cleanup-list">{suggestions.data?.map(item=><article key={item.clientId}><div><small>{item.origin} · <StatusBadge status={item.status}/></small><strong>{item.currentName}</strong><span>Texto identificado: “{item.removedText}”</span></div><label>Nome limpo sugerido<input value={edits[item.clientId]??item.suggestedName} onChange={e=>setEdits({...edits,[item.clientId]:e.target.value})}/></label><div className="table-actions"><button className="primary-button" type="button" disabled={apply.isPending} onClick={()=>apply.mutate(item)}>Aplicar</button><button className="secondary-button" type="button" onClick={()=>setEdits({...edits,[item.clientId]:item.currentName})}>Ignorar</button></div></article>)}</div>{lastAction&&<div className="cleanup-undo"><span>Última limpeza aplicada com auditoria.</span><button type="button" className="secondary-button" disabled={revert.isPending} onClick={()=>revert.mutate()}><RotateCcw size={15}/> Desfazer</button></div>}{(suggestions.isError||apply.isError||revert.isError)&&<div className="form-error">{suggestions.error?.message||apply.error?.message||revert.error?.message}</div>}</section></div>;
+}
+
+function ClientArchiveButton({clientId,clientName}:{clientId:string;clientName:string}){const qc=useQueryClient();const [confirmation,setConfirmation]=useState("");const mutation=useMutation({mutationFn:()=>archiveClient(clientId,confirmation),onSuccess:()=>{setConfirmation("");void Promise.all([qc.invalidateQueries({queryKey:["admin-clients"]}),qc.invalidateQueries({queryKey:["admin-overview"]}),qc.invalidateQueries({queryKey:["admin-form-options"]})]);}});return <ConfirmActionDialog trigger={<button className="table-action archive-action" aria-label={`Arquivar ${clientName}`}><Trash2 size={14}/> Arquivar</button>} title="Arquivar cliente" description="O contrato operacional será encerrado. Pontos, viagens, economia, links e auditoria serão preservados." confirmation={confirmation} onConfirmationChange={setConfirmation} expected={clientName} busy={mutation.isPending} error={mutation.error?.message} onConfirm={()=>mutation.mutate()}/>;}
+
+function Info({label,value}:{label:string;value:string}){return <div><span>{label}</span><strong>{value}</strong></div>;}

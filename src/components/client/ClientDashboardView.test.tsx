@@ -8,14 +8,13 @@ const lineChartSpy = vi.fn();
 const barChartSpy = vi.fn();
 
 vi.mock("recharts", () => ({
-  ResponsiveContainer: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  LineChart: ({ children, data }: { children: ReactNode; data: unknown[] }) => {
+  LineChart: ({ children, data, height, width }: { children: ReactNode; data: unknown[]; height: number; width: number }) => {
     lineChartSpy(data);
-    return <div data-testid="line-chart">{children}</div>;
+    return <div data-testid="line-chart" data-height={height} data-width={width}>{children}</div>;
   },
-  ComposedChart: ({ children, data }: { children: ReactNode; data: unknown[] }) => {
+  ComposedChart: ({ children, data, height, width }: { children: ReactNode; data: unknown[]; height: number; width: number }) => {
     barChartSpy(data);
-    return <div data-testid="bar-chart">{children}</div>;
+    return <div data-testid="bar-chart" data-height={height} data-width={width}>{children}</div>;
   },
   CartesianGrid: () => null,
   XAxis: () => null,
@@ -144,5 +143,13 @@ describe("ClientDashboardView", () => {
     expect(screen.getByTestId("bar-chart")).toBeInTheDocument();
     expect(lineChartSpy).toHaveBeenLastCalledWith([{ period: "2026-07-01", points: 0, averageCost: 0 }]);
     expect(barChartSpy).toHaveBeenLastCalledWith([{ period: "2026-07-01", pointsIn: 5000, pointsOut: 0, netPoints: 5000 }]);
+  });
+
+  it("fornece dimensões numéricas aos gráficos sem depender da medição interna do Recharts", () => {
+    render(<ClientDashboardView dashboard={dashboard} />);
+    expect(screen.getByTestId("line-chart")).toHaveAttribute("data-width", "640");
+    expect(screen.getByTestId("line-chart")).toHaveAttribute("data-height", "360");
+    expect(screen.getByTestId("bar-chart")).toHaveAttribute("data-width", "640");
+    expect(screen.getByTestId("bar-chart")).toHaveAttribute("data-height", "340");
   });
 });

@@ -5,9 +5,15 @@ import type {
   AddExpirationLotInput,
   AdminClientPointsDetail,
   AdminClientsResult,
+  AdminClientManagement,
+  BulkReactivationResult,
+  ClientNameCleanupSuggestion,
+  ClientReactivationPreview,
   OnboardingLeadReview,
   RecordPointEntryInput,
   RecordPointEntryResult,
+  UpdateClientContractInput,
+  UpdateClientProfileInput,
 } from "@/types/admin-clients";
 
 const SAFE_MESSAGES = [
@@ -36,6 +42,10 @@ const DOMAIN_ERRORS: Record<string, string> = {
   PLAN_REQUIRED: "Informe o plano contratado.",
   ACTIVE_CONTRACT_OVERLAP: "Já existe contrato ativo no período informado.",
   FORBIDDEN: "Seu usuário não possui permissão para esta ação.",
+  CONCURRENT_EDIT: "O cadastro mudou em outra tela. Recarregue antes de salvar.",
+  CLIENT_NOT_ARCHIVED: "Somente clientes arquivados podem ser reativados.",
+  CHANGE_REASON_REQUIRED: "Informe o motivo da alteração da vigência.",
+  CONTRACT_START_REQUIRED: "Informe a data inicial do contrato.",
 };
 
 function mutationError(error: unknown): Error {
@@ -61,13 +71,81 @@ export async function getAdminClients(search = "", status = "", limit = 20, offs
   return data as unknown as AdminClientsResult;
 }
 
-export async function archiveClient(clientId: string, confirmationName: string) {
-  const { data, error } = await supabase.rpc("archive_client", { p_client_id: clientId, p_confirmation_name: confirmationName });
+export async function archiveClient(clientId: string, confirmationName: string, reason?: string) {
+  const { data, error } = await supabase.rpc("archive_client", { p_client_id: clientId, p_confirmation_name: confirmationName, p_reason: reason || null });
   if (error || !data) {
     const raw = error?.message ?? "";
     const safe = ["Somente gestores podem arquivar clientes.", "Digite o nome completo para confirmar.", "Cliente não encontrado."].find((message) => raw.includes(message));
     throw new Error(safe ?? "O cliente não foi arquivado.");
   }
+  return data;
+}
+
+export async function getClientReactivationPreview(clientIds: string[] | null, search = ""): Promise<ClientReactivationPreview> {
+  const { data, error } = await supabase.rpc("get_client_reactivation_preview", { p_client_ids: clientIds, p_search: search });
+  if (error || !data) throw mutationError(error);
+  return data as unknown as ClientReactivationPreview;
+}
+
+export async function reactivateClient(clientId: string, note?: string, expectedVersion?: number) {
+  const { data, error } = await supabase.rpc("reactivate_client_admin", { p_client_id: clientId, p_note: note || null, p_expected_version: expectedVersion ?? null });
+  if (error || !data) throw mutationError(error);
+  return data;
+}
+
+export async function bulkReactivateClients(clientIds: string[], note?: string): Promise<BulkReactivationResult> {
+  const { data, error } = await supabase.rpc("bulk_reactivate_clients_admin", { p_client_ids: clientIds, p_note: note || null });
+  if (error || !data) throw mutationError(error);
+  return data as unknown as BulkReactivationResult;
+}
+
+export async function previewClientNameCleanup(): Promise<ClientNameCleanupSuggestion[]> {
+  const { data, error } = await supabase.rpc("preview_client_name_cleanup_admin");
+  if (error || !data) throw mutationError(error);
+  return (data as unknown as { items: ClientNameCleanupSuggestion[] }).items;
+}
+
+export async function applyClientNameCleanup(clientId: string, newName: string, expectedVersion: number, reason?: string) {
+  const { data, error } = await supabase.rpc("apply_client_name_cleanup_admin", { p_client_id: clientId, p_new_name: newName, p_reason: reason || null, p_expected_version: expectedVersion });
+  if (error || !data) throw mutationError(error);
+  return data as unknown as { actionId?: string; rowVersion: number; fullName: string; status: string };
+}
+
+export async function revertClientNameCleanup(actionId: string, expectedVersion: number, reason?: string) {
+  const { data, error } = await supabase.rpc("revert_client_name_cleanup_admin", { p_action_id: actionId, p_reason: reason || null, p_expected_version: expectedVersion });
+  if (error || !data) throw mutationError(error);
+  return data;
+}
+
+export async function getAdminClientManagement(clientId: string): Promise<AdminClientManagement> {
+  const { data, error } = await supabase.rpc("get_admin_client_management", { p_client_id: clientId });
+  if (error || !data) throw mutationError(error);
+  return data as unknown as AdminClientManagement;
+}
+
+export async function updateClientProfile(input: UpdateClientProfileInput): Promise<{ clientId: string; rowVersion: number; changedFields: string[] }> {
+  const { data, error } = await supabase.functions.invoke("admin-client-management", { body: { action: "update_profile", ...input } });
+  if (error || !data) {
+    if (error && typeof error === "object" && "context" in error) {
+      const response = (error as { context?: unknown }).context;
+      if (response instanceof Response) {
+        const payload = await response.clone().json().catch(() => null) as { error?: unknown } | null;
+        if (typeof payload?.error === "string" && payload.error.trim()) throw new Error(payload.error);
+      }
+    }
+    throw mutationError(error);
+  }
+  return data as { clientId: string; rowVersion: number; changedFields: string[] };
+}
+
+export async function updateClientContract(input: UpdateClientContractInput) {
+  const { data, error } = await supabase.rpc("update_client_contract_admin", {
+    p_client_id: input.clientId, p_contract_id: input.contractId, p_starts_on: input.startsOn, p_ends_on: input.endsOn,
+    p_plan_name: input.planName, p_contract_value: input.contractValue, p_status: input.status, p_auto_renew: input.autoRenew,
+    p_notes: input.notes, p_reason: input.reason, p_expected_client_version: input.expectedClientVersion,
+    p_expected_contract_updated_at: input.expectedContractUpdatedAt,
+  });
+  if (error || !data) throw mutationError(error);
   return data;
 }
 

@@ -6,6 +6,7 @@ import { LoadingScreen } from "@/components/routes/LoadingScreen";
 const AdminDashboardPage = lazy(() => import("@/pages/AdminDashboardPage").then((module) => ({ default: module.AdminDashboardPage })));
 const AdminClientsPage = lazy(() => import("@/pages/AdminClientsPage").then((module) => ({ default: module.AdminClientsPage })));
 const AdminClientDetailPage = lazy(() => import("@/pages/AdminClientDetailPage").then((module) => ({ default: module.AdminClientDetailPage })));
+const AdminClientEditPage = lazy(() => import("@/pages/admin/AdminClientEditPage").then((module) => ({ default: module.AdminClientEditPage })));
 const AdminCreateClientPage = lazy(() => import("@/pages/admin/AdminCreateClientPage").then((module) => ({ default: module.AdminCreateClientPage })));
 const AdminTravelEconomyPage = lazy(() => import("@/pages/admin/AdminTravelEconomyPage").then((module) => ({ default: module.AdminTravelEconomyPage })));
 const AdminPointsPage = lazy(() => import("@/pages/admin/AdminPointsPage").then((module) => ({ default: module.AdminPointsPage })));
@@ -43,6 +44,7 @@ export default function App() {
           <Route path="/admin/clientes/novo" element={<AdminCreateClientPage />} />
           <Route path="/admin/pessoas/novo" element={<AdminCreateClientPage />} />
           <Route path="/admin/clientes/:clientId" element={<AdminClientDetailPage />} />
+          <Route path="/admin/clientes/:clientId/editar" element={<AdminClientEditPage />} />
           <Route path="/admin/clientes/:clientId/painel" element={<AdminClientEconomyPreviewPage />} />
           <Route path="/admin/clientes/:clientId/economia" element={<AdminClientEconomyPreviewPage />} />
           <Route path="/admin/clubes" element={<AdminClubsPage />} />

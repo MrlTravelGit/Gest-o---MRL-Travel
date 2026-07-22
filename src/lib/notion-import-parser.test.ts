@@ -4,7 +4,7 @@ import JSZip from "jszip";
 import { describe, expect, it } from "vitest";
 import { analyzeNotionFiles, detectDelimiter, extractNotionPageId, parseCsv, parsePointQuantity, sanitizeMarkdown, summarizeAnalysis, type SourceFile } from "../../supabase/functions/_shared/notion-import";
 
-describe("notion_mrl_v1 parser", () => {
+describe("notion_mrl_v2 parser", () => {
   it("processa UTF-8-BOM, ponto e vírgula, aspas e multiline RFC 4180", () => {
     const csv = '\uFEFFTítulo;Cliente;Comentários;Concluído em;Criado em;Prazo;Responsável;Status;Tempo gasto;Tipo;Urgência;Última edição\r\n"Cotação";;"linha 1\nlinha 2";;;;;"Não iniciada";;Outros;;';
     expect(detectDelimiter(csv)).toBe(";");
@@ -38,6 +38,14 @@ describe("notion_mrl_v1 parser", () => {
     const row = 'Teste,,,,,,,"Não iniciada",,Outros,,\n';
     const result = analyzeNotionFiles([{ path: "Demandas_all.csv", content: header + row }, { path: "cliente/Demandas.csv", content: header + row }]);
     expect(result.find((file) => file.path.includes("cliente/"))?.ignoredReason).toBe("FILTERED_RELATIONAL_VIEW");
+  });
+
+  it("normaliza saldo, custo e validade de programa sem escrever no ledger", () => {
+    const clientId = "25339091399e8072a203c0cdc941e3af";
+    const csv = "Programa,Cliente,Custo milheiro,Data da expiração,Pontos a expirar,Programas,Saldo atual,Última edição\n" +
+      `Esfera - ,Cliente ${clientId}.md,25.50,7 de agosto de 2027 14:39,1.000,Esfera,38.500,20 de julho de 2026 10:00\n`;
+    const [file] = analyzeNotionFiles([{ path: "Programas_all.csv", content: csv }]);
+    expect(file.rows[0]).toMatchObject({ entityType: "program", resolutionStatus: "pending_decision", normalizedPayload: { programName: "Esfera", importedPoints: 38500, costPerThousand: 25.5, expiringPoints: 1000, expiresOn: "2027-08-07" } });
   });
 });
 

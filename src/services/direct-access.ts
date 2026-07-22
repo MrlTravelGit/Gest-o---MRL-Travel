@@ -14,11 +14,13 @@ export interface DirectAccessState {
   lastUsedAt?: string | null;
   useCount?: number;
   revokedAt?: string | null;
+  contractReviewPending?: boolean;
+  notice?: string | null;
 }
 
 const DIRECT_ACCESS_MESSAGES: Record<string, string> = {
-  CLIENT_NOT_ACTIVE: "Ative o cliente antes de gerar o link público.",
-  ACTIVE_CONTRACT_REQUIRED: "Cadastre uma vigência ativa antes de gerar o link público.",
+  CLIENT_NOT_ACTIVE: "Somente clientes ativos podem gerar o link público.",
+  ACTIVE_CONTRACT_REQUIRED: "Contrato pendente de revisão.",
   CLIENT_NOT_FOUND: "Cliente não encontrado.",
   FORBIDDEN: "Seu usuário não possui permissão para esta ação.",
   LINK_GENERATION_FAILED: "Não foi possível gerar o link agora.",

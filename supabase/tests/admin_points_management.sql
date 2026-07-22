@@ -4,7 +4,7 @@ create extension if not exists pgtap with schema extensions;
 select plan(20);
 
 insert into auth.users (
-  id, instance_id, aud, role, email, encrypted_password, confirmed_at,
+  id, instance_id, aud, role, email, encrypted_password, email_confirmed_at,
   raw_app_meta_data, raw_user_meta_data, created_at, updated_at
 ) values
   ('00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'admin-test@example.invalid', '', now(), '{}'::jsonb, '{"full_name":"Admin Teste"}'::jsonb, now(), now()),
@@ -87,7 +87,7 @@ select throws_ok(
 );
 select throws_ok(
   $$select public.get_client_dashboard((select public_id from public.clients where id = '00000000-0000-0000-0000-000000000202'))$$,
-  '42501', 'Acesso não autorizado', 'cliente A não acessa cliente B'
+  '42501', 'permission denied for function get_client_dashboard', 'cliente A não acessa cliente B'
 );
 
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000101', true);

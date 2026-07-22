@@ -1,6 +1,7 @@
 import { z } from "npm:zod@3.25.76";
 import { hashClientLinkToken, isClientLinkTokenFormat, requestFingerprintHash } from "../_shared/client-link.ts";
 import { isAllowedOrigin, jsonResponse, preflightResponse } from "../_shared/http.ts";
+import { evaluatePublicLinkAccess } from "../_shared/public-link-policy.ts";
 import { adminClient } from "../_shared/supabase.ts";
 
 const schema = z.object({
@@ -69,21 +70,14 @@ Deno.serve(async (request) => {
       return jsonResponse(request, GENERIC_ERROR, 401);
     }
 
-    const today = new Date().toISOString().slice(0, 10);
-    const [{ data: client }, { data: contract }] = await Promise.all([
-      admin.from("clients").select("id").eq("id", link.client_id).eq("status", "active").maybeSingle(),
-      admin
-        .from("management_contracts")
-        .select("id")
-        .eq("client_id", link.client_id)
-        .in("status", ["active", "paused"])
-        .lte("starts_on", today)
-        .gte("ends_on", today)
-        .limit(1)
-        .maybeSingle(),
-    ]);
+    const { data: client } = await admin
+      .from("clients")
+      .select("id, status, contract_review_status")
+      .eq("id", link.client_id)
+      .maybeSingle();
+    const accessPolicy = evaluatePublicLinkAccess(client?.status, client?.contract_review_status);
 
-    if (!client || !contract) {
+    if (!client || !accessPolicy.allowed) {
       await admin.from("client_direct_access_events").insert({ link_id: link.id, client_id: link.client_id, event_type: "inactive", fingerprint_hash: fingerprintHash });
       return jsonResponse(request, GENERIC_ERROR, 401);
     }

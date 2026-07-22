@@ -1,7 +1,7 @@
 import { FormEvent, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Navigate, useParams } from "react-router-dom";
-import { AlertTriangle, ArrowLeft, CheckCircle2, ClipboardCheck, Coins, Copy, ExternalLink, Gem, KeyRound, RotateCw, ShieldAlert, Trash2, WalletCards } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CalendarRange, CheckCircle2, ClipboardCheck, Coins, Copy, ExternalLink, Gem, KeyRound, Pencil, RotateCcw, RotateCw, ShieldAlert, Trash2, WalletCards } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { ClientPointsForm } from "@/components/admin/ClientPointsForm";
 import { ExpirationLotForm } from "@/components/admin/ExpirationLotForm";
@@ -9,8 +9,9 @@ import { ExpirationLotsList, PointTransactionsHistory } from "@/components/admin
 import { ProgramAccountCard } from "@/components/admin/ProgramAccountCard";
 import { ClientTasksPanel } from "@/components/admin/ClientTasksPanel";
 import { formatCurrency, formatDate, formatPoints } from "@/lib/formatters";
+import { leadActivationCopy } from "@/lib/client-admin";
 import { openClientPanel, validateClientPanelUrl } from "@/lib/client-panel-link";
-import { activateOnboardingLead, archiveClient, getAdminClientPointsDetail, getOnboardingLeadReview } from "@/services/admin-clients";
+import { activateOnboardingLead, archiveClient, getAdminClientManagement, getAdminClientPointsDetail, getOnboardingLeadReview, reactivateClient } from "@/services/admin-clients";
 import { getDirectAccessLink, registerDirectAccessCopy, revokeDirectAccessLink, rotateDirectAccessLink } from "@/services/direct-access";
 import type { OnboardingLeadReview } from "@/types/admin-clients";
 
@@ -19,6 +20,7 @@ export function AdminClientDetailPage() {
   const queryClient = useQueryClient();
   const [copyMessage, setCopyMessage] = useState("");
   const [activationOpen, setActivationOpen] = useState(false);
+  const [reactivationOpen, setReactivationOpen] = useState(false);
 
   const detail = useQuery({
     queryKey: ["admin-client-detail", clientId],
@@ -26,7 +28,19 @@ export function AdminClientDetailPage() {
     enabled: Boolean(clientId),
   });
   const isLead = detail.data?.client.status === "lead";
-  const canOperate = Boolean(detail.data?.canWrite && !isLead);
+  const isArchived = detail.data?.client.status === "ended";
+  const isActive = detail.data?.client.status === "active";
+  const canOperate = Boolean(detail.data?.canWrite && detail.data.client.status === "active");
+
+  const management = useQuery({
+    queryKey: ["admin-client-management", clientId],
+    queryFn: () => getAdminClientManagement(clientId!),
+    enabled: Boolean(clientId),
+  });
+  const today = new Date().toISOString().slice(0, 10);
+  const activeContract = management.data?.contract;
+  const hasActiveContract = Boolean(activeContract && activeContract.status === "active" && activeContract.startsOn <= today && (!activeContract.endsOn || activeContract.endsOn >= today));
+  const contractPending = Boolean(isActive && (management.data?.client.contractReviewStatus === "pending_review" || !hasActiveContract));
 
   const onboardingReview = useQuery({
     queryKey: ["onboarding-lead-review", clientId],
@@ -97,7 +111,11 @@ export function AdminClientDetailPage() {
     <AppShell title={detail.data?.client.fullName ?? "Gestão do cliente"} subtitle="Pontos, custo médio, clubes e vencimentos">
       <div className="page-toolbar detail-toolbar">
         <Link className="secondary-button" to="/admin/clientes"><ArrowLeft size={17} /> Clientes</Link>
-        {detail.data && <span className="status-pill">{isLead ? "Aguardando ativação" : detail.data.client.contractStatus ?? detail.data.client.status}</span>}
+        <div className="detail-toolbar-actions">
+          {detail.data&&<Link className="secondary-button" to={`/admin/clientes/${clientId}/editar`}><Pencil size={16}/> Editar cadastro</Link>}
+          {detail.data&&isArchived&&detail.data.canWrite&&<button className="primary-button" onClick={()=>setReactivationOpen(true)}><RotateCcw size={16}/> Reativar cliente</button>}
+          {detail.data && <span className="status-pill">{isLead ? "Aguardando ativação" : isArchived ? "Arquivado" : contractPending ? "Contrato pendente de revisão" : detail.data.client.contractStatus ?? detail.data.client.status}</span>}
+        </div>
       </div>
       {detail.isLoading && <div className="panel-state">Carregando gestão de pontos...</div>}
       {detail.isError && <div className="panel-state error-state">{detail.error.message}</div>}
@@ -115,6 +133,7 @@ export function AdminClientDetailPage() {
             if (confirmation) discardLead.mutate(confirmation);
           }}
         />}
+        {contractPending&&<div className="contract-review-warning contract-review-callout"><AlertTriangle size={18}/><div><strong>Contrato pendente de revisão</strong><span>O painel público de leitura continua disponível. Cadastre a vigência quando os dados jurídicos estiverem confirmados.</span></div><Link className="contract-review-action" to={`/admin/clientes/${clientId}/editar#contrato`}><CalendarRange size={15}/> Cadastrar vigência</Link></div>}
 
         <section className="detail-summary-grid">
           <Summary icon={<Coins />} label="Total de pontos" value={formatPoints(detail.data.client.totalPoints)} />
@@ -126,10 +145,10 @@ export function AdminClientDetailPage() {
 
         <section className="module-form client-economy-admin-card">
           <div className="form-title"><KeyRound /><div><h2>Painel do cliente</h2><p>Link bearer recuperável para o dashboard público completo. Tokens legados precisam ser rotacionados uma vez.</p></div></div>
-          {isLead && <div className="lead-operation-lock"><ShieldAlert size={18} /> Ative o cliente e cadastre o contrato primeiro para liberar o painel público.</div>}
+          {!isActive && <div className="lead-operation-lock"><ShieldAlert size={18} /> {isLead ? "Ative o cliente para liberar a geração do link público." : "Reative o cliente para gerar, copiar ou abrir o painel público."}</div>}
           <div className="copy-box">
-            <input className="copy-input" readOnly value={isLead ? "" : directLink.data?.url ?? ""} placeholder={isLead ? "Disponível após ativação" : directLink.isLoading ? "Carregando link..." : "Nenhum link recuperável disponível"} />
-            <button type="button" className="secondary-button" disabled={isLead || !directLink.data?.url} onClick={() => {
+            <input className="copy-input" readOnly value={isActive ? directLink.data?.url ?? "" : ""} placeholder={!isActive ? "Disponível somente para cliente ativo" : directLink.isLoading ? "Carregando link..." : "Nenhum link recuperável disponível"} />
+            <button type="button" className="secondary-button" disabled={!isActive || !directLink.data?.url} onClick={() => {
               const result = openClientPanel(directLink.data?.url);
               if (result.opened) return;
               setCopyMessage(result.message);
@@ -142,13 +161,13 @@ export function AdminClientDetailPage() {
             <Link className="secondary-button" to={`/admin/clientes/${clientId}/painel`} target="_blank" rel="noreferrer">
               <ExternalLink size={15} /> Prévia administrativa
             </Link>
-            <button type="button" className="secondary-button" disabled={isLead || !detail.data.canWrite || rotateLink.isPending} onClick={() => rotateLink.mutate()}>
+            <button type="button" className="secondary-button" disabled={!isActive || !detail.data.canWrite || rotateLink.isPending} onClick={() => rotateLink.mutate()}>
               <RotateCw size={15} /> {rotateLink.isPending ? "Gerando..." : directLink.data?.hasActiveLink ? "Rotacionar link" : "Gerar link"}
             </button>
             <button
               type="button"
               className="secondary-button"
-              disabled={isLead || !directLink.data?.url}
+              disabled={!isActive || !directLink.data?.url}
               onClick={async () => {
                 const url = validateClientPanelUrl(directLink.data?.url);
                 await navigator.clipboard.writeText(url);
@@ -170,10 +189,10 @@ export function AdminClientDetailPage() {
             </button>
           </div>
           <p className="helper-text">
-            {isLead && "Ative o cliente e cadastre o contrato primeiro."}
-            {!isLead && directLink.data?.hasActiveLink && directLink.data.recoverable && "Link ativo recuperável. Ele continuará disponível após refresh para administradores autorizados."}
-            {!isLead && directLink.data?.hasActiveLink && !directLink.data.recoverable && "Link ativo legado — é necessário rotacionar uma vez para torná-lo recuperável."}
-            {!isLead && directLink.data && !directLink.data.hasActiveLink && "Nenhum link ativo. Gere um link para disponibilizar o painel público."}
+            {!isActive && (isLead ? "Ative o cliente antes de gerar o link." : "O cliente arquivado não pode gerar ou utilizar o painel público.")}
+            {isActive && directLink.data?.hasActiveLink && directLink.data.recoverable && "Link ativo recuperável. Ele continuará disponível após refresh para administradores autorizados."}
+            {isActive && directLink.data?.hasActiveLink && !directLink.data.recoverable && "Link ativo legado — é necessário rotacionar uma vez para torná-lo recuperável."}
+            {isActive && directLink.data && !directLink.data.hasActiveLink && "Nenhum link ativo. Gere um link para disponibilizar o painel público."}
           </p>
           {copyMessage && <div className="form-success">{copyMessage}</div>}
           {directLink.isError && <div className="form-error">{directLink.error.message}</div>}
@@ -207,6 +226,17 @@ export function AdminClientDetailPage() {
           onClose={() => setActivationOpen(false)}
           onSubmit={(input) => activate.mutate(input)}
         />}
+        {reactivationOpen && (
+          <DetailReactivationDialog
+            clientId={clientId}
+            clientName={detail.data.client.fullName}
+            rowVersion={management.data?.client.rowVersion}
+            points={detail.data.client.totalPoints}
+            programs={detail.data.programs.filter((program) => program.accountId).length}
+            contractPending={contractPending}
+            onClose={() => setReactivationOpen(false)}
+          />
+        )}
       </>}
     </AppShell>
   );
@@ -218,11 +248,12 @@ function Summary({ icon, label, value }: { icon: React.ReactNode; label: string;
 
 function LeadActivationBanner({ canWrite, clientName, review, reviewLoading, reviewError, onReview, onActivate, onDiscard }: { canWrite: boolean; clientName: string; review?: OnboardingLeadReview; reviewLoading: boolean; reviewError?: string; onReview: () => void; onActivate: () => void; onDiscard: () => void }) {
   const checklist = readinessChecklist(review);
+  const copy = leadActivationCopy(clientName);
   return <section className="lead-activation-banner">
     <div className="lead-banner-copy">
       <span className="eyebrow">Cadastro recebido pelo formulário de onboarding</span>
-      <h2>{clientName} ainda aguarda revisão e ativação</h2>
-      <p>Confirme os dados recebidos, resolva possíveis duplicidades e informe a vigência do contrato para liberar lançamentos e o painel público.</p>
+      <h2>{copy.title}</h2>
+      <p>{copy.support}</p>
       {reviewLoading && <small>Carregando respostas de onboarding...</small>}
       {reviewError && <small className="field-error">{reviewError}</small>}
     </div>
@@ -236,6 +267,12 @@ function LeadActivationBanner({ canWrite, clientName, review, reviewLoading, rev
       {checklist.map((item) => <span key={item.label} className={item.ok ? "ok" : "pending"}>{item.ok ? "✓" : "•"} {item.label}</span>)}
     </div>
   </section>;
+}
+
+function DetailReactivationDialog({clientId,clientName,rowVersion,points,programs,contractPending,onClose}:{clientId:string;clientName:string;rowVersion?:number;points:number;programs:number;contractPending:boolean;onClose:()=>void}){
+  const qc=useQueryClient();const [note,setNote]=useState("");const [confirmed,setConfirmed]=useState(false);
+  const mutation=useMutation({mutationFn:()=>reactivateClient(clientId,note,rowVersion),onSuccess:async()=>{await Promise.all([qc.invalidateQueries({queryKey:["admin-client-detail",clientId]}),qc.invalidateQueries({queryKey:["admin-client-management",clientId]}),qc.invalidateQueries({queryKey:["admin-clients"]}),qc.invalidateQueries({queryKey:["admin-overview"]})]);onClose();}});
+  return <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label={`Reativar ${clientName}`}><form className="confirm-modal reactivation-modal" onSubmit={event=>{event.preventDefault();if(confirmed)mutation.mutate();}}><button type="button" className="dialog-close" onClick={onClose}>Fechar</button><span className="eyebrow">Reativação individual</span><h2>Reativar cliente</h2><div className="reactivation-person"><strong>{clientName}</strong><span>{formatPoints(points)} pontos · {programs} programas</span></div>{contractPending&&<div className="contract-review-warning">Sem vigência confiável: o cliente ficará ativo com contrato pendente de revisão.</div>}<label>Observação<textarea rows={3} value={note} onChange={event=>setNote(event.target.value)}/></label><label className="check-field"><input type="checkbox" checked={confirmed} onChange={event=>setConfirmed(event.target.checked)}/> Confirmo que saldos, links e histórico devem ser preservados.</label>{mutation.isError&&<div className="form-error">{mutation.error.message}</div>}<div className="dialog-actions"><button type="button" className="secondary-button" onClick={onClose}>Cancelar</button><button className="primary-button" disabled={!confirmed||mutation.isPending}>{mutation.isPending?"Reativando...":"Reativar cliente"}</button></div></form></div>;
 }
 
 function readinessChecklist(review?: OnboardingLeadReview) {
@@ -321,7 +358,8 @@ function ActivateLeadModal({ clientName, review, busy, error, onClose, onSubmit 
       <p>Revise os dados já recebidos e informe somente a vigência operacional. Nenhum usuário Auth será criado.</p>
       <div className="activation-summary">{summary.map((item) => <span key={item}>{item}</span>)}</div>
       <div className="form-grid">
-        <label className="field-wide">Nome e contato<input readOnly value={`${clientName} · ${review?.submission?.email ?? review?.submission?.whatsapp_e164 ?? "contato pendente"}`} /></label>
+        <label>Nome<input readOnly value={clientName} /></label>
+        <label>Contato<input readOnly value={review?.submission?.email ?? review?.submission?.whatsapp_e164 ?? ""} placeholder="Contato pendente" /></label>
         <label>Início da gestão<input type="date" value={startsOn} onChange={(event) => { setStartsOn(event.target.value); if (!endsOn || endsOn < event.target.value) setEndsOn(oneYearAfter(event.target.value)); }} required /></label>
         <label>Término da gestão<input type="date" min={startsOn} value={endsOn} onChange={(event) => setEndsOn(event.target.value)} required /></label>
         <label className="field-wide">Plano<input value={planName} onChange={(event) => setPlanName(event.target.value)} required /></label>

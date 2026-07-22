@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { BarChart3, ClipboardList, CreditCard, DatabaseZap, FileInput, FileText, Gem, History, KeyRound, ListChecks, LogOut, MapPinned, Menu, PlaneTakeoff, Send, ShieldCheck, UserPlus, Users, X } from "lucide-react";
 import { Link, NavLink } from "react-router-dom";
+import { BrandLogo } from "@/components/brand/BrandLogo";
 import { useAuth } from "@/contexts/AuthContext";
 
 const navItems = [
@@ -43,11 +44,7 @@ export function AppShell({
       <aside className={`admin-sidebar ${drawerOpen ? "open" : ""}`} aria-label="Navegação administrativa">
         <div className="sidebar-top">
           <Link className="brand-lockup" to="/admin" aria-label="MRL Travel — painel administrativo" onClick={() => setDrawerOpen(false)}>
-            <div className="brand-mark">MRL</div>
-            <div className="brand-copy">
-              <strong>MRL Travel</strong>
-              <span>Gestão de Milhas</span>
-            </div>
+            <BrandLogo size="small" className="sidebar-brand-logo" />
           </Link>
           <button className="icon-button mobile-only" onClick={() => setDrawerOpen(false)} aria-label="Fechar menu">
             <X size={18} />

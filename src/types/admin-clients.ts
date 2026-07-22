@@ -30,6 +30,11 @@ export interface AdminClientListItem {
   nextExpirationDate: string | null;
   expiringPoints: number;
   lastMovementAt: string | null;
+  archivedAt: string | null;
+  archiveReason: string | null;
+  contractReviewStatus: "pending_review" | "complete";
+  registrationSource: string;
+  rowVersion: number;
 }
 
 export interface AdminClientsResult {
@@ -37,6 +42,83 @@ export interface AdminClientsResult {
   total: number;
   limit: number;
   offset: number;
+  counts: { all: number; active: number; leads: number; archived: number; contractPending: number };
+}
+
+export interface ClientReactivationPreviewItem {
+  clientId: string;
+  fullName: string;
+  status: string;
+  archivedAt: string | null;
+  archiveReason: string | null;
+  rowVersion: number;
+  points: number;
+  programs: number;
+  hasReusableContract: boolean;
+  contractStatus: string | null;
+  contractReviewStatus: "complete" | "pending_review";
+}
+
+export interface ClientReactivationPreview {
+  items: ClientReactivationPreviewItem[];
+  summary: { selected: number; withContract: number; pendingReview: number; points: number; programs: number };
+}
+
+export interface ReactivationResultItem {
+  clientId: string;
+  status: "reactivated" | "already_active" | "blocked" | "failed";
+  message?: string;
+  pointsBefore: number;
+  pointsAfter: number;
+  programsBefore: number;
+  programsAfter: number;
+  contractAction: string | null;
+}
+
+export interface BulkReactivationResult {
+  batchId: string;
+  requested: number;
+  reactivated: number;
+  alreadyActive: number;
+  blocked: number;
+  failed: number;
+  items: ReactivationResultItem[];
+}
+
+export interface ClientNameCleanupSuggestion {
+  clientId: string;
+  currentName: string;
+  suggestedName: string;
+  removedText: string;
+  origin: string;
+  status: string;
+  rowVersion: number;
+}
+
+export interface AdminClientManagement {
+  client: {
+    clientId: string; fullName: string; displayName: string | null; documentMasked: string | null; documentKind: "cpf" | "cnpj" | null;
+    birthDate: string | null; email: string | null; phone: string | null; whatsapp: string | null; notes: string | null;
+    status: string; registrationSource: string; createdAt: string; activatedAt: string | null; archivedAt: string | null;
+    archiveReason: string | null; contractReviewStatus: "pending_review" | "complete"; rowVersion: number; legacyContactPending: boolean;
+  };
+  address: { postalCode: string; street: string; number: string; complement: string | null; neighborhood: string; city: string; state: string; countryCode: string } | null;
+  contract: { contractId: string; startsOn: string; endsOn: string | null; status: string; planName: string | null; contractValue: number | null; autoRenew: boolean; notes: string | null; updatedAt: string } | null;
+  financial: { points: number; programs: number };
+  access: { activeLinks: number; revokedLinks: number };
+  canEdit: boolean;
+}
+
+export interface UpdateClientProfileInput {
+  clientId: string; expectedVersion: number; fullName: string; displayName: string | null; documentNumber: string | null;
+  birthDate: string | null; email: string | null; phone: string | null; whatsapp: string | null; notes: string | null;
+  address: AdminClientManagement["address"];
+}
+
+export interface UpdateClientContractInput {
+  clientId: string; contractId: string | null; startsOn: string; endsOn: string | null; planName: string | null;
+  contractValue: number | null; status: string; autoRenew: boolean; notes: string | null; reason: string | null;
+  expectedClientVersion: number; expectedContractUpdatedAt: string | null;
 }
 
 export interface AdminProgramDetail {

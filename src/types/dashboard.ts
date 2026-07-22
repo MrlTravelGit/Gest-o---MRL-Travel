@@ -31,10 +31,10 @@ export interface PublicClientCardStatement {
 
 export interface PublicClientContract {
   startsOn: string;
-  endsOn: string;
+  endsOn: string | null;
   status: string;
   planName: string | null;
-  daysRemaining: number;
+  daysRemaining: number | null;
 }
 
 export interface PublicClientDashboard {

@@ -57,3 +57,6 @@ verify_jwt = true
 
 [functions.admin-imports]
 verify_jwt = true
+
+[functions.admin-client-management]
+verify_jwt = true

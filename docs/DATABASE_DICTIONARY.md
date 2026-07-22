@@ -157,3 +157,20 @@ As mutações são `security definer`, fixam `search_path`, usam `auth.uid()` e 
 O frontend não determina esses valores oficiais.
 
 O custo total e o custo médio de entradas também são recalculados no PostgreSQL com `numeric`. O patrimônio continua usando `loyalty_programs.default_value_per_thousand`, não o custo de aquisição.
+## Reconciliação de importações Notion (PATCH 019)
+
+`import_staging_rows` usa estados canônicos de resolução e registra `blocks_commit`, ação sugerida/escolhida, justificativa e erro seguro de commit. `import_balance_reconciliations` é a prévia protegida entre o snapshot legado e o ledger oficial; ela não concede leitura anônima e só é escrita pela Edge Function administrativa/service role.
+
+O commit confirmado cria ou reutiliza `program_accounts`, grava `point_transactions` com origem `notion_import`, categoria `initial_balance_import` e `operation_id` determinístico, e então cria `balance_snapshots` e, quando aplicável, `expiration_lots`. O dry-run nunca escreve nessas tabelas. Reenvios do mesmo commit são idempotentes e o rollback é lógico, por movimentos inversos auditáveis.
+
+## Recuperação de lead legado sem contato (PATCH 020)
+
+`clients.legacy_contact_pending` identifica exclusivamente leads recuperados de uma fonte legada auditada que ainda não possuem e-mail ou telefone verificável. O constraint `clients_contact_required` continua exigindo contato para todos os demais clientes. `admin_materialize_iddas_missing_legacy_client` é restrita a superadministrador, vincula o Page ID exato do staging do Notion, impede duplicidade e registra auditoria; ela não cria saldos nem ativa o cliente.
+
+## Reativação e edição administrativa (PATCH 021)
+
+`clients.status = 'ended'` continua sendo a representação canônica do cliente arquivado. A migration 023 adiciona `archived_at`, `archived_by`, `archive_reason`, `activated_at`, `registration_source`, `contract_review_status` e `row_version`, sem criar outro status ou cadastro paralelo. `management_contracts.ends_on` aceita `null` para prazo indeterminado e mantém histórico de revisão em `audit_logs`.
+
+`client_reactivation_batches` e `client_reactivation_batch_items` guardam somente o resultado operacional seguro do lote. `client_name_cleanup_actions` registra aplicação e reversão da limpeza revisada. As três tabelas têm RLS forçada e são acessadas por RPCs administrativas; não há `SELECT` ou escrita anônima.
+
+CPF/CNPJ é armazenado como ciphertext, hash e últimos quatro dígitos. A criptografia ocorre na Edge Function administrativa com secrets do backend. E-mail, telefone, WhatsApp, nascimento, observações, endereço, documento e valores do ledger são removidos do payload genérico de auditoria.

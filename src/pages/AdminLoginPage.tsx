@@ -1,6 +1,7 @@
 import { FormEvent, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { ShieldCheck } from "lucide-react";
+import { BrandLogo } from "@/components/brand/BrandLogo";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 
@@ -31,8 +32,7 @@ export function AdminLoginPage() {
     <div className="access-page admin-access-page">
       <section className="access-card">
         <div className="brand-lockup access-brand">
-          <div className="brand-mark">MRL</div>
-          <div><strong>MRL Travel</strong><span>Painel administrativo</span></div>
+          <BrandLogo size="large" className="login-brand-logo" />
         </div>
         <form onSubmit={submit} className="access-form">
           <div className="access-icon"><ShieldCheck /></div>

@@ -3,6 +3,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useFieldArray, useForm } from "react-hook-form";
 import { useParams } from "react-router-dom";
 import { AlertTriangle, CheckCircle2, CopyPlus, ShieldCheck, Trash2 } from "lucide-react";
+import { BrandLogo } from "@/components/brand/BrandLogo";
 import { maskCepInput, maskCpfInput, onboardingDefaultValues, parseMoneyInput, splitList } from "@/lib/onboarding";
 import { getPublicOnboardingMetadata, PublicOnboardingError, savePublicOnboardingDraft, submitPublicOnboarding } from "@/services/onboarding";
 import type { OnboardingPayload } from "@/types/onboarding";
@@ -286,7 +287,7 @@ function Review({ values }: { values: OnboardingPayload }) {
 }
 
 function OnboardingShell({ children }: { children: React.ReactNode }) {
-  return <main className="onboarding-page"><div className="onboarding-brand"><span>MRL</span><strong>MRL Travel</strong></div>{children}</main>;
+  return <main className="onboarding-page"><div className="onboarding-brand"><BrandLogo size="large" /></div>{children}</main>;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

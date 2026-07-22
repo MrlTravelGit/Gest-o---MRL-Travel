@@ -2,6 +2,7 @@ import { z } from "npm:zod@3.25.76";
 import { requireAdmin, adminErrorResponse } from "../_shared/admin-auth.ts";
 import { hashClientLinkToken } from "../_shared/client-link.ts";
 import { isAllowedOrigin, jsonResponse, preflightResponse } from "../_shared/http.ts";
+import { evaluatePublicLinkAccess } from "../_shared/public-link-policy.ts";
 import { adminClient } from "../_shared/supabase.ts";
 import { decryptToken, encryptToken, newToken } from "../_shared/token-vault.ts";
 
@@ -65,6 +66,34 @@ async function responseForActiveLink(clientId: string) {
   return safeLinkResponse(link, `${appUrl()}/economia/${token}`, true);
 }
 
+async function accessContextForClient(clientId: string) {
+  const admin = adminClient();
+  const { data: client, error: clientError } = await admin
+    .from("clients")
+    .select("id, status, contract_review_status")
+    .eq("id", clientId)
+    .maybeSingle();
+  if (clientError) throw clientError;
+  if (!client) return null;
+
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: activeContract, error: contractError } = await admin
+    .from("management_contracts")
+    .select("id")
+    .eq("client_id", clientId)
+    .eq("status", "active")
+    .lte("starts_on", today)
+    .or(`ends_on.is.null,ends_on.gte.${today}`)
+    .limit(1)
+    .maybeSingle();
+  if (contractError) throw contractError;
+
+  return {
+    client,
+    policy: evaluatePublicLinkAccess(client.status, client.contract_review_status, Boolean(activeContract)),
+  };
+}
+
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return preflightResponse(request);
   if (request.method !== "POST") return jsonResponse(request, { error: "Método não permitido" }, 405);
@@ -78,7 +107,13 @@ Deno.serve(async (request) => {
     const admin = adminClient();
 
     if (parsed.data.action === "get") {
-      const result = await responseForActiveLink(parsed.data.clientId);
+      const context = await accessContextForClient(parsed.data.clientId);
+      if (!context) return domainError(request, 404, "CLIENT_NOT_FOUND", "Cliente não encontrado.");
+      const result = {
+        ...await responseForActiveLink(parsed.data.clientId),
+        contractReviewPending: Boolean(context.policy.notice),
+        notice: context.policy.notice,
+      };
       if (result.hasActiveLink) {
         await admin.from("audit_logs").insert({
           actor_user_id: actor.userId,
@@ -127,27 +162,12 @@ Deno.serve(async (request) => {
       return jsonResponse(request, { hasActiveLink: false, recoverable: false, requiresRotation: false, url: null, revokedLinkId: link.id });
     }
 
-    const { data: client, error: clientError } = await admin
-      .from("clients")
-      .select("id, status")
-      .eq("id", parsed.data.clientId)
-      .maybeSingle();
-    if (clientError) throw clientError;
-    if (!client) return domainError(request, 404, "CLIENT_NOT_FOUND", "Cliente não encontrado.");
-    if (client.status !== "active") return domainError(request, 409, "CLIENT_NOT_ACTIVE", "Ative o cliente e cadastre o contrato primeiro.");
-
-    const today = new Date().toISOString().slice(0, 10);
-    const { data: contract, error: contractError } = await admin
-      .from("management_contracts")
-      .select("id")
-      .eq("client_id", parsed.data.clientId)
-      .eq("status", "active")
-      .lte("starts_on", today)
-      .gte("ends_on", today)
-      .limit(1)
-      .maybeSingle();
-    if (contractError) throw contractError;
-    if (!contract) return domainError(request, 409, "ACTIVE_CONTRACT_REQUIRED", "Cadastre uma vigência ativa antes de gerar o link.");
+    const context = await accessContextForClient(parsed.data.clientId);
+    if (!context) return domainError(request, 404, "CLIENT_NOT_FOUND", "Cliente não encontrado.");
+    const accessPolicy = context.policy;
+    if (!accessPolicy.allowed) {
+      return domainError(request, 409, accessPolicy.code ?? "CLIENT_NOT_ACTIVE", "Somente clientes ativos podem gerar o link público.");
+    }
 
     const previous = await activeLinkForClient(parsed.data.clientId);
     if (previous) {
@@ -186,7 +206,11 @@ Deno.serve(async (request) => {
       new_data: { previousLinkId: previous?.id ?? null, expiresAt: parsed.data.expiresAt ?? null },
     });
 
-    return jsonResponse(request, safeLinkResponse(inserted, `${appUrl()}/economia/${token}`, true));
+    return jsonResponse(request, {
+      ...safeLinkResponse(inserted, `${appUrl()}/economia/${token}`, true),
+      contractReviewPending: Boolean(accessPolicy.notice),
+      notice: accessPolicy.notice,
+    });
   } catch (error) {
     return adminErrorResponse(error, request, { "Cache-Control": "no-store" });
   }

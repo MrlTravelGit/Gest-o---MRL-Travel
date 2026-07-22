@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import type { ImportBatchDetail, ImportBatchListItem, ImportSummary } from "@/types/imports";
+import type { IddasBackfillPreview, ImportBatchDetail, ImportBatchListItem, ImportSummary } from "@/types/imports";
 
 const IMPORT_ERRORS: Record<string, string> = {
   IMPORT_FUNCTION_UNAVAILABLE: "O serviço de importação ainda não está disponível. Tente novamente após a publicação do backend.",
@@ -10,9 +10,19 @@ const IMPORT_ERRORS: Record<string, string> = {
   BATCH_NOT_FOUND: "O lote de importação não foi encontrado.", BATCH_ALREADY_PROCESSING: "Este lote já está sendo analisado.", INTERNAL_ERROR: "O serviço encontrou um erro interno. Use o request ID ao solicitar suporte.",
   INVALID_ENCODING: "O CSV precisa estar em UTF-8 ou UTF-8-BOM.", INVALID_ROW: "A linha possui dados inválidos.", AMBIGUOUS_CLIENT: "A correspondência de cliente precisa de revisão.",
   AMBIGUOUS_NUMBER: "Um valor numérico é ambíguo e precisa de revisão.", UNRESOLVED_RELATION: "Resolva as relações pendentes antes de confirmar.",
+  DECISION_REASON_REQUIRED: "Informe uma justificativa para alterar o saldo oficial.", FATAL_IMPORT_ISSUE: "O lote contém uma falha estrutural e não pode seguir para revisão.",
   BATCH_NOT_REVIEWED: "Resolva todos os conflitos bloqueantes antes de confirmar.", BATCH_ALREADY_COMMITTED: "Este lote já foi confirmado.",
   ROLLBACK_CONFLICT: "O lote possui edições posteriores e não pode ser desfeito integralmente.",
 };
+
+Object.assign(IMPORT_ERRORS, {
+  CONFIRMATION_REQUIRED: "Digite a chave exata do lote para confirmar a conciliação.",
+  IDDAS_SOURCE_TOTAL_MISMATCH: "O manifesto Iddas não confere com os totais oficiais e foi bloqueado.",
+  CLIENT_NOT_FOUND: "Um cliente do manifesto não foi encontrado no cadastro atual.",
+  PROGRAM_NOT_FOUND: "Um programa canônico do manifesto não foi encontrado.",
+  BALANCE_CONFLICT: "O saldo atual diverge da fonte Iddas e precisa de revisão.",
+  ROLLBACK_REASON_REQUIRED: "Informe um motivo com pelo menos oito caracteres para o estorno.",
+});
 
 function importError(error: unknown): Error {
   const raw = error instanceof Error ? error.message : typeof error === "object" && error ? JSON.stringify(error) : "";
@@ -65,8 +75,14 @@ export async function getImportBatch(batchId: string): Promise<ImportBatchDetail
   return data as unknown as ImportBatchDetail;
 }
 
-export async function resolveImportRow(rowId: string, resolution: string, targetId?: string) {
-  const { data, error } = await supabase.rpc("admin_resolve_import_row", { p_row_id: rowId, p_resolution: resolution, p_target_id: targetId || null, p_normalized_patch: {} });
+export async function resolveImportRow(rowId: string, resolution: string, targetId?: string, reason?: string) {
+  const { data, error } = await supabase.rpc("admin_resolve_import_row", { p_row_id: rowId, p_resolution: resolution, p_target_id: targetId || null, p_normalized_patch: {}, p_reason: reason || null });
+  if (error || !data) throw importError(error);
+  return data;
+}
+
+export async function bulkResolveImportRows(batchId: string, action: string, reason?: string) {
+  const { data, error } = await supabase.rpc("admin_bulk_resolve_import_rows", { p_batch_id: batchId, p_action: action, p_reason: reason || null });
   if (error || !data) throw importError(error);
   return data;
 }
@@ -81,4 +97,28 @@ export async function rollbackImportBatch(batchId: string, reason: string) {
   const { data, error } = await supabase.rpc("admin_rollback_import_batch", { p_batch_id: batchId, p_reason: reason });
   if (error || !data) throw importError(error);
   return data;
+}
+
+export async function previewIddasBalanceBackfill(): Promise<IddasBackfillPreview> {
+  const { data, error } = await supabase.rpc("admin_preview_iddas_balance_backfill");
+  if (error || !data) throw importError(error);
+  return data as unknown as IddasBackfillPreview;
+}
+
+export async function materializeMissingIddasLegacyClient(legacyPersonId: number, confirmation: string): Promise<{ clientId: string; legacyPersonId: number; fullName: string; created: boolean; status: string; contactPending: boolean }> {
+  const { data, error } = await supabase.rpc("admin_materialize_iddas_missing_legacy_client", { p_legacy_person_id: legacyPersonId, p_confirmation: confirmation });
+  if (error || !data) throw importError(error);
+  return data as unknown as { clientId: string; legacyPersonId: number; fullName: string; created: boolean; status: string; contactPending: boolean };
+}
+
+export async function commitIddasBalanceBackfill(batchId: string, confirmation: string): Promise<IddasBackfillPreview> {
+  const { data, error } = await supabase.rpc("admin_commit_iddas_balance_backfill", { p_batch_id: batchId, p_confirmation: confirmation });
+  if (error || !data) throw importError(error);
+  return data as unknown as IddasBackfillPreview;
+}
+
+export async function rollbackIddasBalanceBackfill(batchId: string, reason: string): Promise<{ batchId: string; idempotentReplay: boolean; reversedTransactions: number; failedClients: number }> {
+  const { data, error } = await supabase.rpc("admin_rollback_iddas_balance_backfill", { p_batch_id: batchId, p_reason: reason });
+  if (error || !data) throw importError(error);
+  return data as unknown as { batchId: string; idempotentReplay: boolean; reversedTransactions: number; failedClients: number };
 }

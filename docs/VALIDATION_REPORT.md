@@ -235,3 +235,62 @@ Leituras remotas não destrutivas confirmaram o estado atual:
   ausência da Edge Function remota, não de `mode: cors` no frontend;
 - o bundle publicado do importador difere do build local e não deve ser atualizado antes
   da migration e da função administrativa estarem prontas no Supabase.
+## PATCH 019 — importação, saldos e reconciliação (20/07/2026)
+
+- Adapter atualizado para `notion_mrl_v2`, com leitura das bases canônicas e descarte das visões filtradas.
+- Correspondência de clientes: Page ID, CPF com hash e pepper, e-mail e telefone; nome é apenas indício manual.
+- O dry-run não altera o ledger. O commit administrativo é atômico, idempotente, auditado e preserva RLS.
+- Programas reconciliam saldo atual/importado e exigem justificativa para ajuste ou entrada adicional.
+- Validades importadas geram lote somente quando há movimento positivo confirmado.
+- Os gráficos continuam consumindo `point_transactions` e `balance_snapshots`, sem fonte paralela.
+- Validação local obrigatória: `npm run typecheck`, `npm test`, `npm run build` e lint/reset do banco quando o Docker local estiver disponível.
+- Publicação remota não é implícita: migration e Edge Function devem ser promovidas juntas em janela autorizada.
+
+## Validação da versão 0.4.5 — PATCH 020, 21/07/2026
+
+| Verificação | Resultado real |
+| :--- | :--- |
+| Fonte autorizada | `Iddas Milhas - Saldo.html`; `dashboardv5.zip` não foi usado |
+| Causa do 12/13 inicial | Leonardo Lima existia no staging Notion, mas não havia sido materializado porque a fonte não possuía e-mail nem telefone válidos |
+| Correção aditiva | Migration `202607210022_materialize_missing_iddas_legacy_client.sql`, sem editar migration aplicada e sem fabricar contato |
+| Migration remota | Histórico local/remoto alinhado até `202607210022` no projeto `bdkazlhvnowjehdgxege` |
+| Commit remoto | Lote `iddas_html_saldos_20260721_v1` com status `committed` |
+| Totais remotos | 13/13 clientes, 44/44 contas, 3.080.020 pontos e R$ 60.189,72 |
+| Idempotência remota | 0 para inserir, 44 já conciliadas e mensagem `Reexecução comprovada: 0 novo lançamento.` |
+| Status | 12 cadastros preexistentes preservados como arquivados; Leonardo criado como lead aguardando ativação |
+| Testes frontend | 24 arquivos e 81 testes aprovados |
+| Testes SQL | 5 arquivos e 90 testes pgTAP aprovados após `db reset --local` |
+| Build | `npm run build` aprovado |
+| Produção Vercel | Deploy `dpl_5sMvzvWpM5F9LaAM88jmpjA6igev` pronto no alias oficial |
+
+Nenhum dos 13 clientes possuía link bearer ativo durante a validação. Para não alterar acessos reais apenas para teste, não foi criado um novo link; o painel administrativo, os lançamentos e os snapshots remotos foram conferidos, e a igualdade entre o payload administrativo e o público é exercitada no teste SQL do backfill.
+
+## Validação da versão 0.4.6 — PATCH 021, 21/07/2026
+
+| Verificação local | Resultado real |
+| :--- | :--- |
+| Estado inicial | versão 0.4.5; migration remota mais recente 202607210022 |
+| Schema | `client_status` usa `lead`, `active`, `paused`, `ended`; `ended` é o arquivamento existente |
+| Reset completo | migration 023 aplicada após recriar o banco local desde zero |
+| Testes SQL | 6 arquivos, 146 testes pgTAP aprovados; 56 são específicos do PATCH 021 |
+| Testes frontend | 25 arquivos e 85 testes aprovados |
+| TypeScript | aprovado |
+| Build Vite | aprovado |
+| Edge Functions | `admin-client-management` e `get-client-dashboard-by-link` aprovadas pelo Deno check |
+| Ledger | testes confirmam pontos, programas, transações e links idênticos antes/depois |
+| Idempotência | reativação repetida retorna `already_active` sem nova mutação |
+| Segurança | tabelas privadas com RLS forçada; mutações administrativas sem escrita anônima/direta |
+
+A causa do texto junto ao nome era o título do `LeadActivationBanner`, não uma regra de banco. O cabeçalho foi separado em nome, badge e texto de apoio. Casos persistidos em dados legados são tratados somente pela prévia revisável e reversível.
+
+A importação do PATCH 020 preservou o estado dos registros conciliados; ela não executou arquivamento em massa. A reativação do PATCH 021 é deliberadamente seletiva e nunca inclui leads automaticamente.
+
+### Estado remoto durante a preparação
+
+- projeto confirmado: `bdkazlhvnowjehdgxege`;
+- conta web confirmada como Owner da organização;
+- migrations local/remoto alinhadas até 202607210022; migration 023 pendente antes do deploy;
+- lint remoto aprovado, com dois avisos preexistentes fora do escopo;
+- os endpoints privilegiados de `db push`, `link`, `secrets list` e deploy de função retornaram HTTP 403 mesmo após renovar o token CLI, enquanto `projects list`, `migration list`, `functions list` e `db lint` funcionaram.
+
+O PATCH 021 só pode ser marcado como concluído quando a migration, funções e frontend estiverem publicados e os testes produtivos individual, em lote, contrato, auditoria, link, desktop e celular tiverem evidência real.

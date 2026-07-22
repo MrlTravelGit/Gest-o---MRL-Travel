@@ -4,6 +4,7 @@ import { requireAdmin } from "../_shared/admin-auth.ts";
 import { corsHeaders, isAllowedOrigin, jsonResponse, preflightResponse } from "../_shared/http.ts";
 import { adminClient } from "../_shared/supabase.ts";
 import { analyzeNotionFiles, extractNotionPageId, normalizeText, NOTION_ADAPTER_VERSION, summarizeAnalysis, type AnalyzedFile, type ImportIssue, type SourceFile } from "../_shared/notion-import.ts";
+import { isValidCpf, onlyDigits } from "../_shared/onboarding.ts";
 
 const MAX_UPLOAD_BYTES = Number(Deno.env.get("IMPORT_MAX_UPLOAD_BYTES") ?? 15 * 1024 * 1024);
 const MAX_FILES = Number(Deno.env.get("IMPORT_MAX_FILES") ?? 250);
@@ -136,6 +137,12 @@ async function reconcileRows(admin: ReturnType<typeof adminClient>, files: Analy
   const rows = files.flatMap((file) => file.rows);
   const clientRows = rows.filter((row) => row.entityType === "client");
   const taskRows = rows.filter((row) => row.entityType === "task");
+  const programRows = rows.filter((row) => row.entityType === "program");
+  const passageRows = rows.filter((row) => row.entityType === "passage");
+  for (const row of taskRows) if (!row.sourceExternalId) {
+    row.sourceExternalId = (await sha256Hex(`task:${JSON.stringify(row.normalizedPayload)}`)).slice(0, 32);
+    row.issues.push({ severity: "warning", code: "DETERMINISTIC_SOURCE_ID", message: "Page ID ausente; foi gerado um identificador determinístico para impedir duplicação." });
+  }
   const pageIds = [...new Set(rows.map((row) => row.sourceExternalId).filter(Boolean))] as string[];
   const { data: mappings } = pageIds.length
     ? await admin.from("external_source_map").select("source_page_id,entity_type,local_entity_id").eq("source_system", "notion").in("source_page_id", pageIds)
@@ -144,48 +151,108 @@ async function reconcileRows(admin: ReturnType<typeof adminClient>, files: Analy
 
   const emails = [...new Set(clientRows.map((row) => String(row.normalizedPayload.email ?? "")).filter(Boolean))];
   const phones = [...new Set(clientRows.map((row) => String(row.normalizedPayload.phoneE164 ?? "")).filter(Boolean))];
-  const candidates: Array<{ id: string; email: string | null; phone_e164: string | null }> = [];
-  if (emails.length) { const { data } = await admin.from("clients").select("id,email,phone_e164").in("email", emails); candidates.push(...(data ?? [])); }
-  if (phones.length) { const { data } = await admin.from("clients").select("id,email,phone_e164").in("phone_e164", phones); candidates.push(...(data ?? [])); }
+  const candidates: Array<{ id: string; full_name: string; email: string | null; phone_e164: string | null }> = [];
+  if (emails.length) { const { data } = await admin.from("clients").select("id,full_name,email,phone_e164").in("email", emails); candidates.push(...(data ?? [])); }
+  if (phones.length) { const { data } = await admin.from("clients").select("id,full_name,email,phone_e164").in("phone_e164", phones); candidates.push(...(data ?? [])); }
+  const mappedClientIds = [...new Set((mappings ?? []).filter((item) => item.entity_type === "client").map((item) => item.local_entity_id))];
+  if (mappedClientIds.length) { const { data } = await admin.from("clients").select("id,full_name,email,phone_e164").in("id", mappedClientIds); candidates.push(...(data ?? [])); }
+  const piiPepper = Deno.env.get("ONBOARDING_PII_HASH_PEPPER");
+  const cpfHashes = new Map<string, string>();
+  for (const row of clientRows) {
+    const cpf = onlyDigits(String(row.normalizedPayload.cpfDigits ?? ""));
+    if (cpf && piiPepper && isValidCpf(cpf)) cpfHashes.set(cpf, await sha256Hex(`${cpf}:${piiPepper}`));
+  }
+  const cpfClients = new Map<string, string>();
+  if (cpfHashes.size) {
+    const { data } = await admin.from("client_onboarding_submissions").select("cpf_hash,client_id").in("cpf_hash", [...cpfHashes.values()]);
+    for (const item of data ?? []) if (item.client_id) cpfClients.set(item.cpf_hash, item.client_id);
+  }
 
   for (const row of clientRows) {
     const mapped = row.sourceExternalId ? external.get(`client:${row.sourceExternalId}`) : null;
+    const cpf = onlyDigits(String(row.normalizedPayload.cpfDigits ?? ""));
+    const cpfTarget = cpf ? cpfClients.get(cpfHashes.get(cpf) ?? "") : null;
     const exact = [...new Map(candidates.filter((candidate) =>
       (row.normalizedPayload.email && candidate.email?.toLowerCase() === String(row.normalizedPayload.email).toLowerCase()) ||
       (row.normalizedPayload.phoneE164 && candidate.phone_e164 === row.normalizedPayload.phoneE164)
     ).map((candidate) => [candidate.id, candidate])).values()];
-    if (mapped) { row.resolutionStatus = "skip"; (row as unknown as { targetId?: string }).targetId = mapped; row.issues.push({ severity: "info", code: "UNCHANGED", message: "Page ID já está vinculado a um cliente existente." }); }
-    else if (exact.length === 1) { row.resolutionStatus = "pending"; (row as unknown as { targetId?: string }).targetId = exact[0].id; row.issues.push({ severity: "warning", code: "MATCH_REVIEW_REQUIRED", message: "Correspondência exata encontrada; confirme o vínculo sem sobrescrever o cliente." }); }
-    else if (exact.length > 1) { row.resolutionStatus = "pending"; row.validationStatus = "warning"; row.issues.push({ severity: "warning", code: "AMBIGUOUS_CLIENT", message: "Mais de um cliente corresponde aos identificadores exatos." }); }
+    const target = mapped ?? cpfTarget ?? (exact.length === 1 ? exact[0].id : null);
+    if (target) {
+      (row as unknown as { targetId?: string }).targetId = target;
+      const current = candidates.find((candidate) => candidate.id === target);
+      (row as unknown as { beforePayload?: Record<string, unknown> }).beforePayload = current ? { fullName: current.full_name, email: current.email, phoneE164: current.phone_e164 } : {};
+      const safeFill = Boolean(current && ((!current.email && row.normalizedPayload.email) || (!current.phone_e164 && row.normalizedPayload.phoneE164)));
+      const piiConflict = Boolean(current && ((current.email && row.normalizedPayload.email && current.email.toLowerCase() !== String(row.normalizedPayload.email).toLowerCase()) || (current.phone_e164 && row.normalizedPayload.phoneE164 && current.phone_e164 !== row.normalizedPayload.phoneE164)));
+      row.resolutionStatus = piiConflict ? "pending_decision" : mapped ? safeFill ? "ready_update" : "ready_unchanged" : "ready_link_existing";
+      if (piiConflict) row.issues.push({ severity: "warning", code: "PII_CONFLICT", message: "Os identificadores recebidos divergem do cadastro atual; nenhuma sobrescrita será feita sem decisão." });
+      row.issues.push({ severity: "info", code: mapped ? "SOURCE_ALREADY_LINKED" : "EXACT_CLIENT_MATCH", message: mapped ? "Page ID já vinculado; o cadastro será preservado." : "Cliente localizado por identificador exato; confirme o vínculo sem sobrescrever dados." });
+    } else if (exact.length > 1) {
+      row.resolutionStatus = "pending_decision";
+      row.issues.push({ severity: "error", code: "AMBIGUOUS_CLIENT", message: "Mais de um cliente corresponde aos identificadores exatos." });
+    } else if (!String(row.normalizedPayload.fullName ?? "").trim()) row.resolutionStatus = "blocked_invalid";
+    else row.resolutionStatus = "ready_create";
+    row.normalizedPayload.cpfHash = cpf ? cpfHashes.get(cpf) ?? null : null;
+    row.normalizedPayload.cpfLast4 = cpf ? cpf.slice(-4) : null;
+    delete row.normalizedPayload.cpfDigits;
   }
 
   const batchClientPageIds = new Set(clientRows.map((row) => row.sourceExternalId).filter(Boolean));
   for (const row of taskRows) {
-    if (row.sourceExternalId && external.has(`task:${row.sourceExternalId}`)) {
-      row.resolutionStatus = "skip";
-      row.issues.push({ severity: "info", code: "UNCHANGED", message: "A demanda já foi importada anteriormente." });
-      continue;
-    }
+    if (row.sourceExternalId && external.has(`task:${row.sourceExternalId}`)) { row.resolutionStatus = "ready_unchanged"; row.issues.push({ severity: "info", code: "UNCHANGED", message: "A demanda já foi importada anteriormente." }); continue; }
     const clientExternalId = String(row.normalizedPayload.clientExternalId ?? "");
     const mappedClient = clientExternalId ? external.get(`client:${clientExternalId}`) : null;
     if (mappedClient) (row as unknown as { targetId?: string }).targetId = mappedClient;
     if (clientExternalId && !mappedClient && !batchClientPageIds.has(clientExternalId)) {
-      row.resolutionStatus = "pending";
+      row.resolutionStatus = "pending_decision";
       row.issues.push({ severity: "error", code: "UNRESOLVED_RELATION", fieldName: "Cliente", message: "O Page ID do cliente não existe no lote nem no mapa externo." });
       row.validationStatus = "invalid";
-    }
+    } else if (row.resolutionStatus !== "blocked_invalid") row.resolutionStatus = mappedClient || batchClientPageIds.has(clientExternalId) ? "ready_create" : "ready_import_internal";
   }
 
   const { data: staffRows } = await admin.from("staff_members").select("user_id,profiles!inner(full_name)").eq("active", true);
   for (const row of taskRows) {
     const legacy = normalizeText(String(row.normalizedPayload.assignedLegacy ?? ""));
     if (!legacy) continue;
-    const matches = (staffRows ?? []).filter((item) => {
-      const profile = item.profiles as unknown as { full_name: string };
-      return normalizeText(profile.full_name) === legacy;
-    });
+    const matches = (staffRows ?? []).filter((item) => normalizeText((item.profiles as unknown as { full_name: string }).full_name) === legacy);
     if (matches.length === 1) row.normalizedPayload.assignedStaffId = matches[0].user_id;
     else row.issues.push({ severity: "warning", code: "UNRESOLVED_ASSIGNEE", fieldName: "Responsável", message: "Responsável legado precisa de mapeamento manual." });
+  }
+
+  const { data: programs } = await admin.from("loyalty_programs").select("id,slug,name,default_value_per_thousand").eq("active", true);
+  const programByKey = new Map<string, { id: string; default_value_per_thousand: number }>();
+  const aliases: Record<string, string> = { latampass: "latam_pass", latam: "latam_pass", tudoazul: "azul_fidelidade", azulfidelidade: "azul_fidelidade", azul: "azul_fidelidade", smiles: "smiles", livelo: "livelo", esfera: "esfera", atomos: "atomos", c6atomos: "atomos" };
+  for (const item of programs ?? []) { const value = { id: item.id, default_value_per_thousand: Number(item.default_value_per_thousand ?? 0) }; programByKey.set(normalizeText(item.slug), value); programByKey.set(normalizeText(item.name), value); }
+  for (const row of programRows) {
+    const clientExternalId = String(row.normalizedPayload.clientExternalId ?? "");
+    const clientId = clientExternalId ? external.get(`client:${clientExternalId}`) : null;
+    const batchClient = clientRows.find((candidate) => candidate.sourceExternalId === clientExternalId);
+    const key = normalizeText(String(row.normalizedPayload.programName ?? "")).replace(/\s/g, "");
+    const program = programByKey.get(normalizeText(aliases[key] ?? key));
+    Object.assign(row.normalizedPayload, { clientId: clientId ?? null, clientSourcePageId: clientId ? null : ((batchClient?.sourceExternalId ?? clientExternalId) || null), programId: program?.id ?? null, defaultValuePerThousand: program?.default_value_per_thousand ?? 0 });
+    if (!program) { row.resolutionStatus = "blocked_invalid"; row.issues.push({ severity: "error", code: "UNRESOLVED_PROGRAM", fieldName: "Programas", message: "O programa não existe no catálogo oficial." }); continue; }
+    if (!clientId && !batchClient) { row.resolutionStatus = "pending_decision"; row.issues.push({ severity: "error", code: "UNRESOLVED_RELATION", fieldName: "Cliente", message: "O cliente não existe no mapa externo nem neste lote." }); continue; }
+    let currentPoints = 0; let accountId: string | null = null;
+    if (clientId) {
+      const { data: account } = await admin.from("program_accounts").select("id").eq("client_id", clientId).eq("program_id", program.id).maybeSingle(); accountId = account?.id ?? null;
+      if (accountId) { const { data: snapshot } = await admin.from("balance_snapshots").select("balance").eq("account_id", accountId).order("captured_at", { ascending: false }).limit(1).maybeSingle(); currentPoints = Number(snapshot?.balance ?? 0); }
+    }
+    const importedPoints = Number(row.normalizedPayload.importedPoints ?? 0);
+    const suggestedAction = importedPoints === 0 ? "create_zero_wallet" : currentPoints === 0 ? "create_imported_initial_balance" : currentPoints === importedPoints ? "link_as_unchanged" : "keep_current";
+    Object.assign(row.normalizedPayload, { accountId, currentPoints, differencePoints: importedPoints - currentPoints, suggestedAction });
+    row.resolutionStatus = currentPoints > 0 && currentPoints !== importedPoints ? "pending_decision" : importedPoints === currentPoints ? "ready_unchanged" : "ready_create";
+    if (row.issues.some((issue) => ["EXPIRED_EXPIRATION", "EXPIRATION_EXCEEDS_BALANCE"].includes(issue.code))) row.resolutionStatus = "pending_decision";
+    if (row.resolutionStatus === "pending_decision") row.issues.push({ severity: "warning", code: "BALANCE_CONFLICT", fieldName: "Saldo atual", message: "O saldo importado difere do ledger atual e exige uma decisão com justificativa." });
+  }
+  for (const row of passageRows) {
+    const clientExternalId = String(row.normalizedPayload.clientExternalId ?? "");
+    const programExternalId = String(row.normalizedPayload.programExternalId ?? "");
+    const clientId = clientExternalId ? external.get(`client:${clientExternalId}`) : null;
+    const batchClient = clientRows.find((candidate) => candidate.sourceExternalId === clientExternalId);
+    const mappedAccount = programExternalId ? external.get(`program:${programExternalId}`) : null;
+    const batchProgram = programRows.find((candidate) => candidate.sourceExternalId === programExternalId);
+    Object.assign(row.normalizedPayload, { clientId: clientId ?? null, clientSourcePageId: clientId ? null : batchClient?.sourceExternalId ?? null, accountId: mappedAccount ?? null, programSourcePageId: mappedAccount ? null : batchProgram?.sourceExternalId ?? null });
+    if ((clientId || batchClient) && (mappedAccount || batchProgram) && row.resolutionStatus !== "blocked_invalid") row.resolutionStatus = "ready_create";
+    else if (row.resolutionStatus !== "blocked_invalid") row.resolutionStatus = "pending_decision";
   }
 }
 
@@ -206,6 +273,9 @@ async function persistAnalysis(admin: ReturnType<typeof adminClient>, batchId: s
     const payload = await Promise.all(chunk.map(async ({ file, row }) => ({
       batch_id: batchId, file_id: fileIds.get(file.path), row_number: row.rowNumber, entity_type: row.entityType, source_external_id: row.sourceExternalId,
       raw_payload: row.rawPayload, normalized_payload: row.normalizedPayload, validation_status: row.validationStatus, resolution_status: row.resolutionStatus,
+      blocks_commit: ["pending_decision", "blocked_invalid"].includes(row.resolutionStatus), suggested_action: String(row.normalizedPayload.suggestedAction ?? row.resolutionStatus),
+      chosen_action: ["pending_decision", "blocked_invalid"].includes(row.resolutionStatus) ? null : String(row.normalizedPayload.suggestedAction ?? row.resolutionStatus),
+      before_payload: (row as unknown as { beforePayload?: Record<string, unknown> }).beforePayload ?? {},
       target_id: (row as unknown as { targetId?: string }).targetId ?? null, row_hash: await sha256Hex(JSON.stringify(row.rawPayload)),
     })));
     const { data: inserted, error } = await admin.from("import_staging_rows").insert(payload).select("id,row_number,file_id");
@@ -217,6 +287,15 @@ async function persistAnalysis(admin: ReturnType<typeof adminClient>, batchId: s
       field_name: issue.fieldName ?? null, safe_message: issue.message, resolution: issue.resolution ?? {},
     })));
     if (issuePayload.length) { const { error: issueError } = await admin.from("import_row_issues").insert(issuePayload); if (issueError) throw issueError; }
+    const balancePayload = chunk.flatMap(({ file, row }) => row.entityType !== "program" ? [] : [{
+      batch_id: batchId, staging_row_id: ids.get(`${fileIds.get(file.path)}:${row.rowNumber}`)!, client_id: row.normalizedPayload.clientId || null,
+      client_source_page_id: row.normalizedPayload.clientSourcePageId || null, program_id: row.normalizedPayload.programId || null, account_id: row.normalizedPayload.accountId || null,
+      current_points: Number(row.normalizedPayload.currentPoints ?? 0), imported_points: Number(row.normalizedPayload.importedPoints ?? 0), difference_points: Number(row.normalizedPayload.differencePoints ?? 0),
+      cost_per_thousand: Number(row.normalizedPayload.costPerThousand || row.normalizedPayload.defaultValuePerThousand || 0), expiring_points: Number(row.normalizedPayload.expiringPoints ?? 0), expires_on: row.normalizedPayload.expiresOn || null,
+      reference_date: row.normalizedPayload.referenceDate || null, suggested_action: String(row.normalizedPayload.suggestedAction ?? "keep_current"),
+      chosen_action: ["pending_decision", "blocked_invalid"].includes(row.resolutionStatus) ? null : String(row.normalizedPayload.suggestedAction ?? "keep_current"),
+    }]);
+    if (balancePayload.length) { const { error: balanceError } = await admin.from("import_balance_reconciliations").insert(balancePayload); if (balanceError) throw balanceError; }
   }
 }
 
@@ -284,10 +363,13 @@ Deno.serve(async (request) => {
       const analyzed = analyzeNotionFiles(sources);
       const recognized = analyzed.filter((item) => item.logicalType !== "unknown" && item.logicalType !== "markdown" && !item.ignoredReason);
       if (!recognized.length) throw new ImportError("UNKNOWN_CSV_SCHEMA", "Nenhuma base conhecida foi identificada pelos cabeçalhos.");
+      if (analyzed.some((item) => item.rows.some((row) => row.issues.some((issue) => issue.severity === "fatal")))) throw new ImportError("FATAL_IMPORT_ISSUE", "O lote contém uma falha estrutural e não pode seguir para revisão.", 422);
       await reconcileRows(admin, analyzed);
       await persistAnalysis(admin, batchId, analyzed, sources);
       const summary = summarizeAnalysis(analyzed);
       await admin.from("import_batches").update({ status: "review", dry_run_summary: summary, finished_at: new Date().toISOString() }).eq("id", batchId);
+      const { error: summaryError } = await admin.rpc("refresh_import_batch_summary", { p_batch_id: batchId });
+      if (summaryError) throw summaryError;
       await admin.from("audit_logs").insert({ actor_user_id: actor.userId, action: "parse_import_batch", table_name: "import_batches", record_id: batchId, request_id: requestId, new_data: { adapterVersion: NOTION_ADAPTER_VERSION, canonical: summary.canonical, taskRelations: summary.taskRelations, officialBalancesCreatedByDefault: 0 } });
       await removeTemporaryUpload(admin, batch.storage_path);
       return jsonResponse(request, { batchId, status: "review", summary, duplicate: false, requestId });

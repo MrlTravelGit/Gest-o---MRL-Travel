@@ -1,5 +1,15 @@
 # Histórico de versões
 
+## 0.4.7, 21/07/2026
+
+### Corrigido
+
+1. Substituída a marca temporária do menu administrativo, login e onboarding pelo SVG oficial existente em `public/assets/brand/logo-mrl-travel.svg`.
+2. Os gráficos do cliente deixaram de depender da medição interna do `ResponsiveContainer` e agora recebem dimensões numéricas observadas diretamente no contêiner.
+3. Adicionado redimensionamento seguro para desktop e celular, inclusive quando o painel começa oculto ou muda de largura.
+4. Mantida a renderização de séries com um único lançamento, valores zerados e custos médios opcionais.
+5. Adicionado teste de regressão para garantir largura e altura válidas nos dois gráficos.
+
 ## 0.4.4, 17/07/2026
 
 ### Corrigido

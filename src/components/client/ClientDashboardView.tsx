@@ -1,6 +1,6 @@
-import type { ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { AlertTriangle, BarChart3, CalendarClock, Coins, LineChart as LineChartIcon, PiggyBank, PlaneTakeoff, WalletCards } from "lucide-react";
-import { Bar, CartesianGrid, ComposedChart, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, CartesianGrid, ComposedChart, Legend, Line, LineChart, Tooltip, XAxis, YAxis } from "recharts";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 import { LoyaltyProgramLogo } from "@/components/brand/LoyaltyProgramLogo";
 import { formatCurrency, formatDate, formatPoints } from "@/lib/formatters";
@@ -67,10 +67,10 @@ export function ClientDashboardView({
       <section className="dashboard-section chart-card chart-card-wide" aria-labelledby="balance-chart-title">
         <SectionHeading eyebrow={<><LineChartIcon size={14} aria-hidden /> Histórico</>} title="Saldo Acumulado" id="balance-chart-title" />
         {hasBalanceHistory ? (
-          <div className="chart-container balance-chart-container" role="img" aria-label={`Evolução do saldo em ${balanceHistory.length} período(s).`}>
-            <span className="sr-only">Saldo mais recente: {formatPoints(balanceHistory.at(-1)?.points ?? 0)} pontos.</span>
-            <ResponsiveContainer width="100%" height="100%" minWidth={240} minHeight={260} debounce={80}>
-              <LineChart data={balanceHistory} margin={balanceChartMargin}>
+          <MeasuredChart className="balance-chart-container" height={360} ariaLabel={`Evolução do saldo em ${balanceHistory.length} período(s).`}>
+            {(width, height) => <>
+              <span className="sr-only">Saldo mais recente: {formatPoints(balanceHistory.at(-1)?.points ?? 0)} pontos.</span>
+              <LineChart width={width} height={height} data={balanceHistory} margin={balanceChartMargin}>
                 <CartesianGrid strokeDasharray="2 6" stroke="rgba(252,213,138,.13)" vertical={false} />
                 <XAxis dataKey="period" tickFormatter={formatMonth} tick={{ fill: "#c8beb0", fontSize: 11 }} axisLine={{ stroke: "rgba(252,213,138,.18)" }} tickLine={false} minTickGap={22} />
                 <YAxis yAxisId="points" domain={numericDomain(balanceHistory.map((point) => point.points))} tickFormatter={(value) => formatCompactNumber(Number(value))} tick={{ fill: "#c8beb0", fontSize: 11 }} axisLine={false} tickLine={false} width={58} allowDecimals={false} />
@@ -82,8 +82,8 @@ export function ClientDashboardView({
                   <Line yAxisId="cost" connectNulls type={balanceHistory.length === 1 ? "linear" : "monotone"} dataKey="averageCost" stroke="#b48645" strokeWidth={2} strokeDasharray="7 6" dot={{ r: 3, fill: "#b48645" }} name="Custo médio" isAnimationActive={false} />
                 )}
               </LineChart>
-            </ResponsiveContainer>
-          </div>
+            </>}
+          </MeasuredChart>
         ) : (
           <div className="chart-empty-state">O histórico aparecerá após os primeiros lançamentos.</div>
         )}
@@ -92,10 +92,10 @@ export function ClientDashboardView({
       <section className="dashboard-section chart-card chart-card-wide" aria-labelledby="movement-chart-title">
         <SectionHeading eyebrow={<><BarChart3 size={14} aria-hidden /> Movimentações</>} title="Movimentação Mensal" id="movement-chart-title" />
         {hasMonthlyMovements ? (
-          <div className="chart-container movement-chart-container" role="img" aria-label={`Entradas e saídas de pontos em ${monthlyMovements.length} período(s).`}>
-            <span className="sr-only">Movimentação líquida mais recente: {formatPoints(monthlyMovements.at(-1)?.netPoints ?? 0)} pontos.</span>
-            <ResponsiveContainer width="100%" height="100%" minWidth={240} minHeight={260} debounce={80}>
-              <ComposedChart data={monthlyMovements} margin={movementChartMargin}>
+          <MeasuredChart className="movement-chart-container" height={340} ariaLabel={`Entradas e saídas de pontos em ${monthlyMovements.length} período(s).`}>
+            {(width, height) => <>
+              <span className="sr-only">Movimentação líquida mais recente: {formatPoints(monthlyMovements.at(-1)?.netPoints ?? 0)} pontos.</span>
+              <ComposedChart width={width} height={height} data={monthlyMovements} margin={movementChartMargin}>
                 <defs>
                   <linearGradient id="movementGoldGradient" x1="0" x2="0" y1="0" y2="1">
                     <stop offset="0%" stopColor="#fcd58a" />
@@ -111,8 +111,8 @@ export function ClientDashboardView({
                 <Bar dataKey="pointsOut" fill="#7f4d43" radius={[8, 8, 2, 2]} name="Saídas" isAnimationActive={false} maxBarSize={46} />
                 <Line type="monotone" dataKey="netPoints" stroke="#f4eee5" strokeWidth={2} dot={{ r: 3 }} name="Líquido" isAnimationActive={false} />
               </ComposedChart>
-            </ResponsiveContainer>
-          </div>
+            </>}
+          </MeasuredChart>
         ) : (
           <div className="chart-empty-state">O histórico aparecerá após os primeiros lançamentos.</div>
         )}
@@ -144,11 +144,11 @@ export function ClientDashboardView({
           </div>
           <div>
             <span>Vigência</span>
-            <strong>{formatDate(dashboard.contract.startsOn)} — {formatDate(dashboard.contract.endsOn)}</strong>
+            <strong>{formatDate(dashboard.contract.startsOn)} — {dashboard.contract.endsOn ? formatDate(dashboard.contract.endsOn) : "Prazo indeterminado"}</strong>
           </div>
           <div>
             <span>Dias restantes</span>
-            <strong>{formatPoints(dashboard.contract.daysRemaining)}</strong>
+            <strong>{dashboard.contract.daysRemaining == null ? "Sem término" : formatPoints(dashboard.contract.daysRemaining)}</strong>
           </div>
         </section>
       )}
@@ -263,6 +263,50 @@ function ClientDashboardShell({ children }: { children: ReactNode }) {
   return (
     <div className="client-dashboard-shell">
       {children}
+    </div>
+  );
+}
+
+function MeasuredChart({
+  ariaLabel,
+  children,
+  className,
+  height,
+}: {
+  ariaLabel: string;
+  children: (width: number, height: number) => ReactNode;
+  className: string;
+  height: number;
+}) {
+  const frameRef = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState({ width: 640, height });
+
+  useLayoutEffect(() => {
+    const frame = frameRef.current;
+    if (!frame) return;
+
+    const updateSize = () => {
+      const measuredWidth = Math.floor(frame.getBoundingClientRect().width || frame.clientWidth);
+      const measuredHeight = Math.floor(frame.getBoundingClientRect().height || frame.clientHeight);
+      if (measuredWidth > 0 && measuredHeight > 0) {
+        setSize({ width: Math.max(240, measuredWidth), height: Math.max(260, measuredHeight) });
+      }
+    };
+
+    updateSize();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(updateSize);
+    observer?.observe(frame);
+    window.addEventListener("resize", updateSize);
+
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", updateSize);
+    };
+  }, []);
+
+  return (
+    <div ref={frameRef} className={`chart-container ${className}`} role="img" aria-label={ariaLabel}>
+      {children(size.width, size.height)}
     </div>
   );
 }
