@@ -8,6 +8,10 @@ import { ExpirationLotForm } from "@/components/admin/ExpirationLotForm";
 import { ExpirationLotsList, PointTransactionsHistory } from "@/components/admin/PointTransactionsHistory";
 import { ProgramAccountCard } from "@/components/admin/ProgramAccountCard";
 import { ClientTasksPanel } from "@/components/admin/ClientTasksPanel";
+import { ClientSavingsPanel } from "@/components/admin/ClientSavingsPanel";
+import { ClientCardsPanel } from "@/components/admin/ClientCardsPanel";
+import { ClientTravelInterestsPanel } from "@/components/admin/ClientTravelInterestsPanel";
+import { ClientInvoicesPanel } from "@/components/admin/ClientInvoicesPanel";
 import { formatCurrency, formatDate, formatPoints } from "@/lib/formatters";
 import { leadActivationCopy } from "@/lib/client-admin";
 import { openClientPanel, validateClientPanelUrl } from "@/lib/client-panel-link";
@@ -206,9 +210,14 @@ export function AdminClientDetailPage() {
           <div className="account-cards-grid">{detail.data.programs.map((program) => <ProgramAccountCard key={program.programId} clientId={clientId} program={program} canWrite={canOperate} />)}</div>
         </section>
 
+        <ClientTravelInterestsPanel clientId={clientId} canWrite={canOperate} />
+
         {isLead && <OnboardingReviewSection review={onboardingReview.data} loading={onboardingReview.isLoading} error={onboardingReview.error?.message} />}
 
         <ClientTasksPanel clientId={clientId} clientName={detail.data.client.fullName} canWrite={Boolean(detail.data.canWrite)} />
+        <ClientSavingsPanel clientId={clientId} clientName={detail.data.client.fullName} canWrite={Boolean(detail.data.canWrite)} />
+        <ClientCardsPanel clientId={clientId} canWrite={Boolean(detail.data.canWrite)} />
+        <ClientInvoicesPanel clientId={clientId} />
 
         {isLead && <div className="lead-operation-lock forms-lock"><ShieldAlert size={18} /> Lançamentos, transferências, saídas e vencimentos oficiais ficam bloqueados até a ativação e criação do contrato.</div>}
         <div className="management-forms-grid">

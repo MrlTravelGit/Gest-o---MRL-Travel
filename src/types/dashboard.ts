@@ -29,12 +29,50 @@ export interface PublicClientCardStatement {
   divergence: number;
 }
 
+export interface PublicClientSaving {
+  id: string;
+  date: string;
+  description: string;
+  originalValue: number;
+  paidValue: number;
+  savingsValue: number;
+  travelType: "flight" | "hotel" | "other";
+  migrated: boolean;
+  cashbackPercentage: number | null;
+  cashbackAmount: number;
+  cashbackBaseType: "paid_amount" | null;
+  cashbackBaseAmount: number | null;
+  cashbackCalculationVersion: string | null;
+  hasEvidence: boolean;
+}
+
+export interface PublicClientCashback {
+  enabled: boolean;
+  availableBalance: number;
+  totalGenerated?: number;
+  totalRedeemed?: number;
+  notice: string | null;
+  summary: { generated: number; used: number; paid?: number; reversed: number; adjusted: number; available: number };
+  transactions: Array<{ id: string; type: "earning" | "redemption" | "reversal" | "adjustment"; amount: number; description: string; redemptionId: string | null; createdAt: string }>;
+}
+
 export interface PublicClientContract {
   startsOn: string;
   endsOn: string | null;
   status: string;
   planName: string | null;
   daysRemaining: number | null;
+}
+
+export interface PublicTravelInterest {
+  id: string;
+  destination: string;
+  startDate: string | null;
+  endDate: string | null;
+  status: "waiting" | "in_progress" | "completed";
+  statusLabel: string;
+  publicNote: string | null;
+  updatedAt: string;
 }
 
 export interface PublicClientDashboard {
@@ -53,7 +91,10 @@ export interface PublicClientDashboard {
   balanceHistory: PublicClientBalanceHistoryPoint[];
   monthlyMovements: PublicClientMonthlyMovement[];
   cardStatements?: PublicClientCardStatement[];
+  savingsHistory?: PublicClientSaving[];
+  cashback?: PublicClientCashback | null;
   contract?: PublicClientContract | null;
+  travelInterests?: PublicTravelInterest[];
 }
 
 export interface AdminOverview {

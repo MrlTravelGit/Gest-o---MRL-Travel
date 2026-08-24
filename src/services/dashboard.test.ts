@@ -48,4 +48,22 @@ describe("dashboard services", () => {
 
     expect(rpc).toHaveBeenCalledWith("get_admin_client_dashboard_preview", { p_client_id: "client-id" });
   });
+  it("adapta o saldo consolidado legado para availableBalance sem recalcular no cliente", async () => {
+    invoke.mockResolvedValueOnce({
+      data: {
+        ...dashboardPayload,
+        cashback: {
+          enabled: true,
+          notice: null,
+          summary: { generated: 40, used: 5.86, reversed: 0, adjusted: 0, available: 34.14 },
+          transactions: [],
+        },
+      },
+      error: null,
+    });
+
+    await expect(getPublicClientDashboardByLink("a".repeat(64))).resolves.toMatchObject({
+      cashback: { enabled: true, availableBalance: 34.14 },
+    });
+  });
 });

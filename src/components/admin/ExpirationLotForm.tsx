@@ -1,6 +1,7 @@
 import { FormEvent, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { CalendarPlus, Save } from "lucide-react";
+import { LoyaltyProgramMark } from "@/components/loyalty/LoyaltyProgramMark";
 import { addExpirationLot } from "@/services/admin-clients";
 import type { AdminProgramDetail } from "@/types/admin-clients";
 
@@ -22,6 +23,7 @@ export function ExpirationLotForm({ clientId, programs, canWrite, disabledReason
   const [expiresOn, setExpiresOn] = useState(todayInput);
   const [notes, setNotes] = useState("");
   const [message, setMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
+  const selectedProgram = programs.find((program)=>program.programId===programId);
   const mutation = useMutation({
     mutationFn: addExpirationLot,
     onSuccess: async () => {
@@ -62,7 +64,7 @@ export function ExpirationLotForm({ clientId, programs, canWrite, disabledReason
       </div>
       <form className="expiration-form" onSubmit={submit}>
         {disabledReason && <div className="lead-operation-lock full-field">{disabledReason}</div>}
-        <label>Programa<select value={programId} onChange={(event) => setProgramId(event.target.value)}><option value="">Selecione</option>{programs.map((program) => <option key={program.programId} value={program.programId}>{program.name}</option>)}</select></label>
+        <label>Programa<select value={programId} onChange={(event) => setProgramId(event.target.value)}><option value="">Selecione</option>{programs.map((program) => <option key={program.programId} value={program.programId}>{program.name}</option>)}</select>{selectedProgram&&<div className="selected-program-summary"><LoyaltyProgramMark name={selectedProgram.name} slug={selectedProgram.slug} logoUrl={selectedProgram.logoUrl} size="sm" showName/></div>}</label>
         <label>Quantidade<input inputMode="numeric" value={points} onChange={(event) => setPoints(event.target.value.replace(/\D/g, ""))} /></label>
         <label>Data de vencimento<input type="date" min={todayInput()} value={expiresOn} onChange={(event) => setExpiresOn(event.target.value)} /></label>
         <label className="full-field">Observação<textarea value={notes} onChange={(event) => setNotes(event.target.value)} /></label>

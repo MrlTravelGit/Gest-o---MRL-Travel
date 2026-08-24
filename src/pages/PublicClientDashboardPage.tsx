@@ -36,7 +36,7 @@ export function PublicClientDashboardPage() {
     <main className="client-dashboard-page">
       {dashboard.isLoading && <ClientDashboardSkeleton />}
       {(dashboard.isError || !token) && <ClientDashboardErrorState />}
-      {dashboard.data && <ClientDashboardView dashboard={dashboard.data} onRefresh={() => void dashboard.refetch()} refreshing={dashboard.isFetching} />}
+      {dashboard.data && <ClientDashboardView dashboard={dashboard.data} accessToken={token} onRefresh={() => void dashboard.refetch()} refreshing={dashboard.isFetching} />}
     </main>
   );
 }

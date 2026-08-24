@@ -30,4 +30,10 @@ describe("brand assets", () => {
     expect(screen.queryByRole("img")).not.toBeInTheDocument();
     expect(screen.getByText("PX")).toBeInTheDocument();
   });
+
+  it("não carrega logo remoto arbitrário vindo do banco", () => {
+    render(<LoyaltyProgramLogo program={{ name: "Programa Remoto", logoUrl: "https://example.invalid/logo.svg" }} />);
+    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Logo indisponível para Programa Remoto")).toBeInTheDocument();
+  });
 });

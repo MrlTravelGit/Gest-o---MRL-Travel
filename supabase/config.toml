@@ -60,3 +60,6 @@ verify_jwt = true
 
 [functions.admin-client-management]
 verify_jwt = true
+
+[functions.savings-evidence]
+verify_jwt = false

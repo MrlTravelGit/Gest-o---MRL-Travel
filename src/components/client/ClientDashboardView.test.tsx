@@ -71,6 +71,16 @@ const dashboard: PublicClientDashboard = {
   contract: { startsOn: "2026-07-01", endsOn: "2026-12-31", status: "active", planName: "Gestão MRL", daysRemaining: 120 },
 };
 
+function cashback(availableBalance: number, enabled = true): NonNullable<PublicClientDashboard["cashback"]> {
+  return {
+    enabled,
+    availableBalance,
+    notice: null,
+    summary: { generated: availableBalance, used: 0, reversed: 0, adjusted: 0, available: availableBalance },
+    transactions: [],
+  };
+}
+
 describe("ClientDashboardView", () => {
   it("renderiza a nova hierarquia pública sem hero antigo nem textos de autenticação", () => {
     render(<ClientDashboardView dashboard={dashboard} />);
@@ -103,6 +113,14 @@ describe("ClientDashboardView", () => {
 
     expect(screen.getByLabelText("Logo indisponível para Átomos")).toBeInTheDocument();
     expect(screen.getByText("ÁT")).toBeInTheDocument();
+  });
+
+  it("mostra somente o contrato público dos interesses e não renderiza observação interna", () => {
+    render(<ClientDashboardView dashboard={{ ...dashboard, travelInterests: [{ id:"interest-1", destination:"Porto de Galinhas", startDate:"2026-12-08", endDate:"2026-12-12", status:"in_progress", statusLabel:"Em andamento", publicNote:"Estamos avaliando as melhores opções.", updatedAt:"2026-08-10T12:00:00Z", internalNote:"NÃO PODE APARECER" } as never] }} />);
+    expect(screen.getByRole("heading", { name:"Meus interesses" })).toBeInTheDocument();
+    expect(screen.getByText("Porto de Galinhas")).toBeInTheDocument();
+    expect(screen.getByText("Estamos avaliando as melhores opções.")).toBeInTheDocument();
+    expect(screen.queryByText("NÃO PODE APARECER")).not.toBeInTheDocument();
   });
 
   it("programa desconhecido usa fallback elegante e não quebra", () => {
@@ -151,5 +169,67 @@ describe("ClientDashboardView", () => {
     expect(screen.getByTestId("line-chart")).toHaveAttribute("data-height", "360");
     expect(screen.getByTestId("bar-chart")).toHaveAttribute("data-width", "640");
     expect(screen.getByTestId("bar-chart")).toHaveAttribute("data-height", "340");
+  });
+
+  it("exibe somente o histórico de economias recebido no payload isolado do cliente", () => {
+    render(<ClientDashboardView dashboard={{ ...dashboard, savingsHistory: [{ id: "saving-1", date: "2025-07-18", description: "Emissão CNF - VIX", originalValue: 2723.32, paidValue: 1029.32, savingsValue: 1694, travelType: "flight", migrated: true, cashbackPercentage: null, cashbackAmount: 0, cashbackBaseType: null, cashbackBaseAmount: null, cashbackCalculationVersion: null, hasEvidence: false }] }} />);
+    expect(screen.getByRole("heading", { name: "Histórico de Economias" })).toBeInTheDocument();
+    expect(screen.getByText("Emissão CNF - VIX")).toBeInTheDocument();
+    expect(screen.getByText("Histórico migrado")).toBeInTheDocument();
+    expect(screen.getByText("R$ 1.694,00")).toBeInTheDocument();
+  });
+
+  it("apresenta cashback como percentual do valor pago, separado da economia", () => {
+    render(<ClientDashboardView dashboard={{ ...dashboard, cashback: cashback(34.14), savingsHistory: [{ id: "rafael", date: "2026-07-23", description: "Reserva Rafael Weck", originalValue: 1884.04, paidValue: 1706.90, savingsValue: 177.14, travelType: "flight", migrated: false, cashbackPercentage: 2, cashbackAmount: 34.14, cashbackBaseType: "paid_amount", cashbackBaseAmount: 1706.90, cashbackCalculationVersion: "paid_amount_v1", hasEvidence: false }] }} />);
+    expect(screen.getByText("R$ 177,14")).toBeInTheDocument();
+    expect(screen.getByText("Cashback de 2% sobre R$ 1.706,90")).toBeInTheDocument();
+    expect(screen.getAllByText("R$ 34,14").length).toBeGreaterThanOrEqual(2);
+  });
+  it("mostra a etiqueta de cashback positivo somente abaixo do valor de Economia", () => {
+    render(<ClientDashboardView dashboard={{ ...dashboard, cashback: cashback(34.14) }} />);
+
+    const badge = screen.getByLabelText("Cashback: R$ 34,14");
+    const economyCard = screen.getByText("Economia").closest("article");
+
+    expect(badge).toHaveClass("summary-cashback-badge");
+    expect(economyCard).toContainElement(badge);
+    expect(economyCard).toHaveTextContent("R$ 940,00");
+    expect(badge.previousElementSibling).toHaveTextContent("R$ 940,00");
+    expect(screen.getByLabelText("Resumo do painel").querySelectorAll(".summary-cashback-badge")).toHaveLength(1);
+  });
+
+  it("mantem a etiqueta visivel com saldo zero quando o cashback esta habilitado", () => {
+    render(<ClientDashboardView dashboard={{ ...dashboard, cashback: cashback(0) }} />);
+
+    expect(screen.getByLabelText("Cashback: R$ 0,00")).toBeInTheDocument();
+  });
+
+  it("nao reserva espaco nem exibe cashback quando esta desabilitado", () => {
+    render(<ClientDashboardView dashboard={{ ...dashboard, cashback: cashback(34.14, false) }} />);
+
+    expect(screen.queryByLabelText(/Cashback:/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Cashback MRL Travel" })).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["ausente", undefined],
+    ["nulo", null],
+  ])("nao exibe etiqueta com cashback %s e preserva os graficos", (_scenario, value) => {
+    render(<ClientDashboardView dashboard={{ ...dashboard, cashback: value }} />);
+
+    expect(screen.queryByLabelText(/Cashback:/)).not.toBeInTheDocument();
+    expect(screen.getByTestId("line-chart")).toBeInTheDocument();
+    expect(screen.getByTestId("bar-chart")).toBeInTheDocument();
+  });
+
+  it("mantem quatro KPIs e estrutura compacta compativel com 320px", () => {
+    render(<ClientDashboardView dashboard={{ ...dashboard, cashback: cashback(123456.78) }} />);
+
+    const summary = screen.getByLabelText("Resumo do painel");
+    const badge = screen.getByLabelText("Cashback: R$ 123.456,78");
+
+    expect(summary.children).toHaveLength(4);
+    expect(badge).toHaveClass("summary-cashback-badge");
+    expect(badge).toHaveTextContent("CashbackR$ 123.456,78");
   });
 });

@@ -1,7 +1,8 @@
 import { lazy, Suspense } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { AdminProtectedRoute } from "@/components/routes/AdminProtectedRoute";
 import { LoadingScreen } from "@/components/routes/LoadingScreen";
+import { RouteErrorBoundary } from "@/components/routes/RouteErrorBoundary";
 
 const AdminDashboardPage = lazy(() => import("@/pages/AdminDashboardPage").then((module) => ({ default: module.AdminDashboardPage })));
 const AdminClientsPage = lazy(() => import("@/pages/AdminClientsPage").then((module) => ({ default: module.AdminClientsPage })));
@@ -16,6 +17,7 @@ const AdminTransfersPage = lazy(() => import("@/pages/admin/AdminTransfersPage")
 const AdminManualExitsPage = lazy(() => import("@/pages/admin/AdminManualExitsPage").then((module) => ({ default: module.AdminManualExitsPage })));
 const AdminClubsPage = lazy(() => import("@/pages/admin/AdminClubsPage").then((module) => ({ default: module.AdminClubsPage })));
 const AdminInvoicesPage = lazy(() => import("@/pages/admin/AdminInvoicesPage").then((module) => ({ default: module.AdminInvoicesPage })));
+const AdminCardCatalogPage = lazy(() => import("@/pages/admin/AdminCardCatalogPage").then((module) => ({ default: module.AdminCardCatalogPage })));
 const AdminMovementsPage = lazy(() => import("@/pages/admin/AdminMovementsPage").then((module) => ({ default: module.AdminMovementsPage })));
 const AdminAccessLinksPage = lazy(() => import("@/pages/admin/AdminAccessLinksPage").then((module) => ({ default: module.AdminAccessLinksPage })));
 const AdminClientEconomyPreviewPage = lazy(() => import("@/pages/admin/AdminClientEconomyPreviewPage").then((module) => ({ default: module.AdminClientEconomyPreviewPage })));
@@ -27,9 +29,12 @@ const PublicOnboardingPage = lazy(() => import("@/pages/PublicOnboardingPage").t
 const NotFoundPage = lazy(() => import("@/pages/NotFoundPage").then((module) => ({ default: module.NotFoundPage })));
 
 export default function App() {
+  const location = useLocation();
+
   return (
-    <Suspense fallback={<LoadingScreen />}>
-      <Routes>
+    <RouteErrorBoundary key={location.pathname}>
+      <Suspense fallback={<LoadingScreen />}>
+        <Routes>
         <Route path="/" element={<Navigate to="/admin/login" replace />} />
         <Route path="/economia/:token" element={<PublicClientDashboardPage />} />
         <Route path="/entrar-na-gestao/:formKey" element={<PublicOnboardingPage />} />
@@ -49,6 +54,7 @@ export default function App() {
           <Route path="/admin/clientes/:clientId/economia" element={<AdminClientEconomyPreviewPage />} />
           <Route path="/admin/clubes" element={<AdminClubsPage />} />
           <Route path="/admin/faturas" element={<AdminInvoicesPage />} />
+          <Route path="/admin/cartoes" element={<AdminCardCatalogPage />} />
           <Route path="/admin/movimentacoes" element={<AdminMovementsPage />} />
           <Route path="/admin/auditoria" element={<AdminAccessLinksPage />} />
           <Route path="/admin/acessos" element={<AdminAccessLinksPage />} />
@@ -63,7 +69,8 @@ export default function App() {
           <Route path="/admin/importacoes" element={<AdminImportsPage />} />
         </Route>
         <Route path="*" element={<NotFoundPage />} />
-      </Routes>
-    </Suspense>
+        </Routes>
+      </Suspense>
+    </RouteErrorBoundary>
   );
 }

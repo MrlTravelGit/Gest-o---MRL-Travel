@@ -22,7 +22,7 @@ export function AdminLoginPage() {
     const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
     setSubmitting(false);
     if (signInError) {
-      setError("Credenciais inválidas");
+      setError("Tente novamente");
       return;
     }
     navigate("/admin", { replace: true });
@@ -37,7 +37,6 @@ export function AdminLoginPage() {
         <form onSubmit={submit} className="access-form">
           <div className="access-icon"><ShieldCheck /></div>
           <h1>Acesso da equipe</h1>
-          <p>Entre com e-mail e senha individuais. A autorização administrativa continua validada no backend.</p>
           <label htmlFor="adminEmail">E-mail</label>
           <input id="adminEmail" type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" required />
           <label htmlFor="adminPassword">Senha</label>

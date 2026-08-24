@@ -1,6 +1,7 @@
 import { FormEvent, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Calculator, Save } from "lucide-react";
+import { LoyaltyProgramMark } from "@/components/loyalty/LoyaltyProgramMark";
 import { formatCurrency, formatPoints } from "@/lib/formatters";
 import {
   calculateFromPerThousand,
@@ -148,6 +149,7 @@ export function ClientPointsForm({
             <option value="">Selecione</option>
             {programs.map((program) => <option key={program.programId} value={program.programId}>{program.name}</option>)}
           </select>
+          {selectedProgram&&<div className="selected-program-summary"><LoyaltyProgramMark name={selectedProgram.name} slug={selectedProgram.slug} logoUrl={selectedProgram.logoUrl} size="sm" showName/></div>}
         </label>
         <label>Saldo atual<input value={formatPoints(selectedProgram?.balance ?? 0)} readOnly /></label>
         <label>Custo médio atual<input value={formatCurrency(selectedProgram?.averageCostPerThousand ?? 0)} readOnly /></label>

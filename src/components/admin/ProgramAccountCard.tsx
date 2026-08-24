@@ -4,6 +4,7 @@ import { CheckCircle2, Clock3 } from "lucide-react";
 import { formatCurrency, formatDate, formatPoints } from "@/lib/formatters";
 import { setProgramClubStatus } from "@/services/admin-clients";
 import type { AdminProgramDetail } from "@/types/admin-clients";
+import { LoyaltyProgramMark } from "@/components/loyalty/LoyaltyProgramMark";
 
 export function ProgramAccountCard({ clientId, program, canWrite }: {
   clientId: string;
@@ -25,7 +26,7 @@ export function ProgramAccountCard({ clientId, program, canWrite }: {
     <article className="account-card">
       <div className="account-card-topline">
         <div className="program-identity">
-          {program.logoUrl ? <img src={program.logoUrl} alt="" /> : <span>{program.name.slice(0, 2).toUpperCase()}</span>}
+          <LoyaltyProgramMark name={program.name} slug={program.slug} logoUrl={program.logoUrl} size="md" />
           <div><h3>{program.name}</h3><small>{program.accountId ? "Conta vinculada" : "Ainda sem lançamentos"}</small></div>
         </div>
         <div className="balance-emphasis"><span>Saldo atual</span><strong>{formatPoints(program.balance)}</strong></div>

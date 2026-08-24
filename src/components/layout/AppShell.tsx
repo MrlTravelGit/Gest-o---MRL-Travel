@@ -8,6 +8,7 @@ const navItems = [
   { label: "Visão geral", to: "/admin", icon: BarChart3, end: true },
   { label: "Clientes", to: "/admin/clientes", icon: Users },
   { label: "Clubes", to: "/admin/clubes", icon: Gem },
+  { label: "Catálogo de cartões", to: "/admin/cartoes", icon: CreditCard },
   { label: "Faturas", to: "/admin/faturas", icon: CreditCard },
   { label: "Movimentações", to: "/admin/movimentacoes", icon: History },
   { label: "Viagens e economia", to: "/admin/viagens", icon: PlaneTakeoff },

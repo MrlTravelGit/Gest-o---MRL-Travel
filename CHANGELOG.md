@@ -1,5 +1,50 @@
 # Histórico de versões
 
+## 0.5.2, 24/07/2026
+
+### Adicionado
+
+1. Etiqueta compacta de cashback abaixo do valor do card Economia no painel publico, sem criar um quinto KPI.
+2. Exibicao condicionada exclusivamente a `cashback.enabled === true`, inclusive com saldo `R$ 0,00`.
+3. Contrato publico aditivo `cashback.availableBalance`, derivado do saldo consolidado no backend e sem calculo financeiro no navegador.
+
+### Acessibilidade e responsividade
+
+1. Nome acessivel completo no formato `Cashback: R$ 34,14`.
+2. Capsula centralizada, somente leitura e contida no card em telas pequenas.
+3. Regressoes cobertas para cashback positivo, zero, desabilitado, ausente e nulo, preservando os quatro KPIs e os graficos.
+
+## 0.5.1, 24/07/2026
+
+### Corrigido
+
+1. Cashback oficial calculado exclusivamente sobre o valor pago pelo cliente, com decimal exato e arredondamento em duas casas no backend.
+2. Operações anuladas e toda a cadeia financeira vinculada deixam de compor economias, cashback, saldo e extrato do painel público.
+3. Conciliações válidas aparecem ao cliente como um único lançamento final, enquanto créditos, estornos e ajustes técnicos permanecem no razão administrativo.
+4. Anulação transacional e idempotente, com motivo, responsável, data, grupo de operação e bloqueio quando o cashback já foi utilizado ou pago.
+5. Filtros administrativos de operações ativas, anuladas e todas, além da distinção entre utilização e pagamento de cashback.
+
+### Segurança
+
+1. Projeção pública consolidada no banco/backend, sem depender de CSS ou filtros do navegador.
+2. RLS preservada no ledger; leitura direta exige perfil autenticado e passa pela política de equipe.
+3. Remediação legada exige prévia por IDs e confirmação explícita, sem busca por descrição.
+
+## 0.5.0, 24/07/2026
+
+### Adicionado
+
+1. Catálogo versionado com 54 cartões e 102 regras oficiais para dólar, real, denominador em reais, exterior, parceiros, companhias, faixas de fatura, relacionamento, clubes, categorias, aceleradores e débito automático.
+2. Cinco produtos de clube na fonte canônica do Patch 018: Esfera Pro, Master, VIP, Exclusive e Smiles + Streaming 1.000.
+3. Associação auditável do cartão ao cliente sem dados sensíveis, cálculo segmentado no backend, memória de cálculo congelada, histórico de versões e conciliação de pontos previstos e recebidos.
+4. Painel administrativo do catálogo com filtros, alertas de revisão, fonte oficial, editor de regras, duplicação de versão e desativação sem exclusão.
+
+### Segurança
+
+1. Produtos divulgados como “até” permanecem com cálculo bloqueado até o administrador confirmar a taxa contratual real do cliente, com fonte e justificativa.
+2. RLS separa catálogo administrativo, vínculos, segmentos e aplicações de regras; `anon` não executa as RPCs administrativas.
+3. O bônus de adesão do Smiles + Streaming é separado da recorrência mensal, exige confirmação administrativa e possui unicidade por assinatura.
+
 ## 0.4.7, 21/07/2026
 
 ### Corrigido
@@ -254,3 +299,11 @@ Nenhuma migração foi criada ou alterada neste patch.
 ## 0.1.0, 15/07/2026
 
 Versão inicial da base funcional, banco PostgreSQL, RLS, Edge Functions, frontend, documentação e testes de fórmulas.
+# 0.4.8 — PATCH 024: cashback sobre o valor pago
+
+- Corrige a fórmula oficial para `valor pago × percentual / 100`, usando `numeric` e arredondamento monetário.
+- Persiste base, valor-base e versão `paid_amount_v1` no backend e no ledger.
+- Adiciona prévia e aplicação administrativa idempotente da reconciliação, com estorno/novo crédito ou ajuste auditável.
+- Bloqueia automaticamente correções negativas sem saldo e encaminha a linha para revisão.
+- Corrige criação, edição, cards, extratos e painel público para apresentar cashback sobre o valor pago.
+- Adiciona cobertura do caso Rafael Weck e preserva economias legadas sem percentual.

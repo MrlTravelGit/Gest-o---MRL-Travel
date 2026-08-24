@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { AlertTriangle, BarChart3, CalendarClock, Coins, LineChart as LineChartIcon, PiggyBank, PlaneTakeoff, WalletCards } from "lucide-react";
+import { AlertTriangle, BarChart3, CalendarClock, Coins, Eye, LineChart as LineChartIcon, MapPinned, PiggyBank, PlaneTakeoff, WalletCards } from "lucide-react";
 import { Bar, CartesianGrid, ComposedChart, Legend, Line, LineChart, Tooltip, XAxis, YAxis } from "recharts";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 import { LoyaltyProgramLogo } from "@/components/brand/LoyaltyProgramLogo";
@@ -13,9 +13,11 @@ const movementChartMargin = { top: 16, right: 10, bottom: 8, left: 0 };
 export function ClientDashboardView({
   dashboard,
   adminPreview = false,
+  accessToken,
 }: {
   dashboard: PublicClientDashboard;
   adminPreview?: boolean;
+  accessToken?: string;
   onRefresh?: () => void;
   refreshing?: boolean;
 }) {
@@ -40,7 +42,14 @@ export function ClientDashboardView({
       <section className="dashboard-kpis" aria-label="Resumo do painel">
         <SummaryCard icon={<Coins aria-hidden />} label="Saldo de Pontos/Milhas" value={formatPoints(dashboard.summary.totalPoints)} />
         <SummaryCard icon={<WalletCards aria-hidden />} label="Patrimônio" value={formatCurrency(dashboard.summary.estimatedPatrimony)} />
-        <SummaryCard icon={<PiggyBank aria-hidden />} label="Economia" value={formatCurrency(dashboard.summary.generatedSavings)} />
+        <SummaryCard
+          icon={<PiggyBank aria-hidden />}
+          label="Economia"
+          value={formatCurrency(dashboard.summary.generatedSavings)}
+          badge={dashboard.cashback?.enabled === true
+            ? { label: "Cashback", value: formatCurrency(dashboard.cashback.availableBalance) }
+            : undefined}
+        />
         <SummaryCard icon={<PlaneTakeoff aria-hidden />} label="Emissões/Economias" value={formatPoints(dashboard.summary.redemptionsCount)} />
       </section>
 
@@ -63,6 +72,13 @@ export function ClientDashboardView({
           </div>
         )}
       </section>
+
+      {dashboard.travelInterests && dashboard.travelInterests.length > 0 && (
+        <section className="dashboard-section public-interests-section" aria-labelledby="public-interests-title">
+          <SectionHeading eyebrow={<><MapPinned size={14} aria-hidden /> Planejamento</>} title="Meus interesses" id="public-interests-title" />
+          <div className="public-interest-list">{dashboard.travelInterests.map((interest) => <article key={interest.id}><div><h3>{interest.destination}</h3><span>{publicInterestPeriod(interest.startDate,interest.endDate)}</span></div><span className={`public-interest-status status-${interest.status}`}>{interest.statusLabel}</span>{interest.publicNote&&<p>{interest.publicNote}</p>}<small>Atualizado em {formatDate(interest.updatedAt)}</small></article>)}</div>
+        </section>
+      )}
 
       <section className="dashboard-section chart-card chart-card-wide" aria-labelledby="balance-chart-title">
         <SectionHeading eyebrow={<><LineChartIcon size={14} aria-hidden /> Histórico</>} title="Saldo Acumulado" id="balance-chart-title" />
@@ -133,6 +149,38 @@ export function ClientDashboardView({
               </article>
             ))}
           </div>
+        </section>
+      )}
+
+      {dashboard.savingsHistory && dashboard.savingsHistory.length > 0 && (
+        <section className="dashboard-section public-savings-section" aria-labelledby="savings-history-title">
+          <SectionHeading eyebrow={<><PiggyBank size={14} aria-hidden /> Economia comprovada</>} title="Histórico de Economias" id="savings-history-title" />
+          <div className="public-savings-list">
+            {dashboard.savingsHistory.map((saving) => (
+              <article key={saving.id}>
+                <div className="public-saving-main">
+                  <span>{formatDate(saving.date)}{saving.migrated && <em>Histórico migrado</em>}</span>
+                  <strong>{saving.description}</strong>
+                </div>
+                <dl>
+                  <div><dt>Valor original</dt><dd>{formatCurrency(saving.originalValue)}</dd></div>
+                  <div><dt>Valor pago</dt><dd>{formatCurrency(saving.paidValue)}</dd></div>
+                  <div className="public-saving-earned"><dt>Economia</dt><dd>{formatCurrency(saving.savingsValue)}</dd></div>
+                  {dashboard.cashback?.enabled === true && saving.cashbackAmount > 0 && <div className="public-saving-cashback"><dt>Cashback de {saving.cashbackPercentage}% sobre {formatCurrency(saving.cashbackBaseAmount ?? saving.paidValue)}</dt><dd>{formatCurrency(saving.cashbackAmount)}</dd></div>}
+                </dl>
+                {saving.hasEvidence && accessToken && <button className="public-evidence-button" onClick={async () => { const { getPublicSavingEvidenceUrl } = await import("@/services/travel-economy"); const view = await getPublicSavingEvidenceUrl(saving.id, accessToken); window.open(view.url, "_blank", "noopener,noreferrer"); }}><Eye size={15}/> Ver comprovante</button>}
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {dashboard.cashback?.enabled === true && (
+        <section className="dashboard-section public-cashback-section" aria-labelledby="cashback-title">
+          <SectionHeading eyebrow={<><PiggyBank size={14} aria-hidden /> Benefício financeiro</>} title="Cashback MRL Travel" id="cashback-title" />
+          {dashboard.cashback.notice && <div className="dashboard-alert"><AlertTriangle size={18}/><span>{dashboard.cashback.notice}</span></div>}
+          <div className="public-cashback-summary"><SummaryCard icon={<PiggyBank/>} label="Saldo disponível" value={formatCurrency(dashboard.cashback.summary.available)}/><SummaryCard icon={<Coins/>} label="Total gerado" value={formatCurrency(dashboard.cashback.summary.generated)}/><SummaryCard icon={<WalletCards/>} label="Utilizado ou pago" value={formatCurrency(dashboard.cashback.summary.used)}/></div>
+          <div className="public-cashback-statement">{dashboard.cashback.transactions.map((transaction) => <article key={transaction.id}><span>{formatDate(transaction.createdAt)}</span><div><strong>{transaction.description}</strong><small>{cashbackTypeLabel(transaction.type)}</small></div><b className={transaction.type === "earning" || (transaction.type === "adjustment" && transaction.amount > 0) ? "value-positive" : "value-negative"}>{transaction.type === "earning" || (transaction.type === "adjustment" && transaction.amount > 0) ? "+" : "−"}{formatCurrency(Math.abs(transaction.amount))}</b></article>)}</div>
         </section>
       )}
 
@@ -215,12 +263,28 @@ function SectionHeading({ eyebrow, title, id }: { eyebrow: ReactNode; title: str
   );
 }
 
-function SummaryCard({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
+function SummaryCard({
+  icon,
+  label,
+  value,
+  badge,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+  badge?: { label: string; value: string };
+}) {
   return (
     <article>
       <div className="summary-icon">{icon}</div>
       <span>{label}</span>
       <strong>{value}</strong>
+      {badge && (
+        <div className="summary-cashback-badge" aria-label={`${badge.label}: ${badge.value}`}>
+          <span>{badge.label}</span>
+          <strong>{badge.value}</strong>
+        </div>
+      )}
     </article>
   );
 }
@@ -258,6 +322,9 @@ function ProgramCard({ program }: { program: PublicClientProgram }) {
     </article>
   );
 }
+
+function cashbackTypeLabel(type: string) { return ({ earning: "Crédito sobre o valor pago", redemption: "Utilização ou pagamento", reversal: "Estorno", adjustment: "Ajuste administrativo" } as Record<string,string>)[type] ?? type; }
+function publicInterestPeriod(start:string|null,end:string|null){if(!start&&!end)return"Período em definição";if(start&&end)return `${formatDate(start)} — ${formatDate(end)}`;return start?`A partir de ${formatDate(start)}`:`Até ${formatDate(end)}`;}
 
 function ClientDashboardShell({ children }: { children: ReactNode }) {
   return (

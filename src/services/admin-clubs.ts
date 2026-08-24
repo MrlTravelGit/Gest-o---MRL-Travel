@@ -24,8 +24,14 @@ export async function upsertClubSubscription(input: {
   expectedCreditDay: number;
   nextCompetence: string;
   notes?: string;
+  effectivePrice?: number | null;
+  contractedOffer?: string;
+  selectedStreaming?: string;
+  joiningBonusEligible?: boolean | null;
+  eligibilityJoinedOn?: string;
+  eligibilityReason?: string;
 }) {
-  const { data, error } = await supabase.rpc("upsert_client_club_subscription", {
+  const { data, error } = await supabase.rpc("upsert_client_club_subscription_v2", {
     p_subscription_id: input.subscriptionId ?? null,
     p_client_id: input.clientId,
     p_account_id: input.accountId,
@@ -36,6 +42,14 @@ export async function upsertClubSubscription(input: {
     p_expected_credit_day: input.expectedCreditDay,
     p_next_competence: input.nextCompetence,
     p_notes: input.notes || null,
+    p_effective_price: input.effectivePrice ?? null,
+    p_contracted_offer: input.contractedOffer || null,
+    p_selected_streaming: input.selectedStreaming || null,
+    p_joining_bonus_eligible: input.joiningBonusEligible ?? null,
+    p_eligibility_confirmation: input.joiningBonusEligible ? {
+      joinedOn: input.eligibilityJoinedOn || input.startsOn,
+      confirmedByReason: input.eligibilityReason || "",
+    } : {},
   });
   if (error || !data) throw new Error(error?.message ?? "Assinatura não foi salva.");
   return data;

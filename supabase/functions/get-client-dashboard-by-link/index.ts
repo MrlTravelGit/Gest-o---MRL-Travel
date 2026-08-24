@@ -10,6 +10,22 @@ const schema = z.object({
 
 const GENERIC_ERROR = { error: "Painel indisponível." };
 
+function withPublicCashbackBalance(cashback: unknown): unknown {
+  if (!cashback || typeof cashback !== "object" || Array.isArray(cashback)) return cashback ?? null;
+
+  const value = cashback as Record<string, unknown>;
+  const summary = value.summary && typeof value.summary === "object" && !Array.isArray(value.summary)
+    ? value.summary as Record<string, unknown>
+    : {};
+
+  return {
+    ...value,
+    availableBalance: Number(summary.available ?? 0),
+    totalGenerated: Number(summary.generated ?? 0),
+    totalRedeemed: Number(summary.used ?? 0),
+  };
+}
+
 async function readJsonBody(request: Request): Promise<unknown> {
   try {
     return await request.json();
@@ -82,15 +98,25 @@ Deno.serve(async (request) => {
       return jsonResponse(request, GENERIC_ERROR, 401);
     }
 
-    const { data: dashboard, error: dashboardError } = await admin.rpc("build_public_client_dashboard_payload", { p_client_id: link.client_id });
+    const [{ data: dashboard, error: dashboardError }, { data: savingsHistory, error: savingsError }, { data: cashback, error: cashbackError }] = await Promise.all([
+      admin.rpc("build_public_client_dashboard_payload", { p_client_id: link.client_id }),
+      admin.rpc("build_public_client_savings_history", { p_client_id: link.client_id }),
+      admin.rpc("build_public_client_cashback", { p_client_id: link.client_id }),
+    ]);
     if (dashboardError || !dashboard) throw dashboardError ?? new Error("dashboard payload vazio");
+    if (savingsError) throw savingsError;
+    if (cashbackError) throw cashbackError;
 
     await Promise.all([
       admin.from("client_direct_access_links").update({ last_used_at: new Date().toISOString(), use_count: (link.use_count ?? 0) + 1 }).eq("id", link.id),
       admin.from("client_direct_access_events").insert({ link_id: link.id, client_id: link.client_id, event_type: "success", fingerprint_hash: fingerprintHash }),
     ]);
 
-    return jsonResponse(request, dashboard);
+    return jsonResponse(request, {
+      ...(dashboard as Record<string, unknown>),
+      savingsHistory: savingsHistory ?? [],
+      cashback: withPublicCashbackBalance(cashback),
+    });
   } catch (error) {
     console.error("get-client-dashboard-by-link failed", error instanceof Error ? error.message : "unknown");
     await admin.from("client_direct_access_events").insert({ event_type: "exchange_failed", fingerprint_hash: fingerprintHash });

@@ -35,6 +35,10 @@ export interface AdminClientListItem {
   contractReviewStatus: "pending_review" | "complete";
   registrationSource: string;
   rowVersion: number;
+  cashbackEnabled: boolean;
+  cashbackDefaultPercentage: number | null;
+  cashbackAvailable: number;
+  cashbackGenerated: number;
 }
 
 export interface AdminClientsResult {
@@ -42,7 +46,7 @@ export interface AdminClientsResult {
   total: number;
   limit: number;
   offset: number;
-  counts: { all: number; active: number; leads: number; archived: number; contractPending: number };
+  counts: { all: number; active: number; leads: number; archived: number; contractPending: number; cashbackEnabled: number };
 }
 
 export interface ClientReactivationPreviewItem {
