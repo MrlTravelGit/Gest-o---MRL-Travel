@@ -1,0 +1,8 @@
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+const alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+export function base32Encode(value:Buffer){let bits="";for(const byte of value)bits+=byte.toString(2).padStart(8,"0");let out="";for(let i=0;i<bits.length;i+=5)out+=alphabet[parseInt(bits.slice(i,i+5).padEnd(5,"0"),2)];return out;}
+export function base32Decode(value:string){let bits="";for(const char of value.replace(/=+$/,"")) {const index=alphabet.indexOf(char.toUpperCase());if(index<0)throw new Error("MFA invalido");bits+=index.toString(2).padStart(5,"0");}const bytes=[];for(let i=0;i+8<=bits.length;i+=8)bytes.push(parseInt(bits.slice(i,i+8),2));return Buffer.from(bytes);}
+export const createTotpSecret=()=>base32Encode(randomBytes(20));
+function code(secret:string,time:number){const counter=Buffer.alloc(8);counter.writeBigUInt64BE(BigInt(Math.floor(time/30)));const digest=createHmac("sha1",base32Decode(secret)).update(counter).digest();const offset=digest[digest.length-1]&15;return String((((digest[offset]&127)<<24)|((digest[offset+1]&255)<<16)|((digest[offset+2]&255)<<8)|(digest[offset+3]&255))%1_000_000).padStart(6,"0");}
+export function verifyTotp(secret:string,candidate:string,now=Math.floor(Date.now()/1000)){if(!/^\d{6}$/.test(candidate))return false;return [-1,0,1].some((step)=>{const expected=Buffer.from(code(secret,now+step*30));const actual=Buffer.from(candidate);return expected.length===actual.length&&timingSafeEqual(expected,actual);});}
+export const totpUri=(username:string,secret:string)=>`otpauth://totp/${encodeURIComponent(`MRL Vault:${username}`)}?secret=${secret}&issuer=${encodeURIComponent("MRL Travel")}&algorithm=SHA1&digits=6&period=30`;

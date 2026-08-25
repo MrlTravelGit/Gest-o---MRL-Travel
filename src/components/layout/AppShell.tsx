@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { BarChart3, ClipboardList, CreditCard, DatabaseZap, FileInput, FileText, Gem, History, KeyRound, ListChecks, LogOut, MapPinned, Menu, PlaneTakeoff, Send, ShieldCheck, UserPlus, Users, X } from "lucide-react";
+import { BarChart3, CalendarRange, ClipboardList, CreditCard, DatabaseZap, FileInput, FileText, Gem, History, KeyRound, ListChecks, LogOut, MapPinned, Menu, PlaneTakeoff, Send, ShieldCheck, UserPlus, Users, X } from "lucide-react";
 import { Link, NavLink } from "react-router-dom";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 import { useAuth } from "@/contexts/AuthContext";
@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 const navItems = [
   { label: "Visão geral", to: "/admin", icon: BarChart3, end: true },
   { label: "Clientes", to: "/admin/clientes", icon: Users },
+  { label: "Vigências", to: "/admin/vigencias", icon: CalendarRange },
   { label: "Clubes", to: "/admin/clubes", icon: Gem },
   { label: "Catálogo de cartões", to: "/admin/cartoes", icon: CreditCard },
   { label: "Faturas", to: "/admin/faturas", icon: CreditCard },
