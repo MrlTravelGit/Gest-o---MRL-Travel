@@ -39,6 +39,7 @@ export interface AdminClientListItem {
   cashbackDefaultPercentage: number | null;
   cashbackAvailable: number;
   cashbackGenerated: number;
+  vaultSyncStatus?: "synced" | "pending" | "failed";
 }
 
 export interface AdminClientsResult {

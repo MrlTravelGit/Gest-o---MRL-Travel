@@ -18,6 +18,7 @@ export interface ManagementTermItem {
   historicalSavings: number;
   historicalCashback: number;
   lastActivity: string | null;
+  vaultSyncStatus?: "synced" | "pending" | "failed";
 }
 
 export interface ManagementTermsResult {

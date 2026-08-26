@@ -1,11 +1,18 @@
-import { useState } from "react";
-import { ShieldCheck } from "lucide-react";
-import { openVaultClient } from "@/services/management-terms";
+import { Eye } from "lucide-react";
+import { buildVaultClientUrl } from "@/services/management-terms";
 
-export function ProtectedDataButton({ clientId, allowed, compact = false }: { clientId: string; allowed: boolean; compact?: boolean }) {
-  const [state, setState] = useState<"idle" | "checking" | "unavailable">("idle");
+export type VaultLaunchState = "synced" | "pending" | "failed";
+
+const labels: Record<VaultLaunchState, string> = {
+  synced: "Abrir dados protegidos",
+  pending: "Cadastro aguardando sincronização com a Gestão",
+  failed: "Falha de sincronização do cofre local",
+};
+
+export function ProtectedDataButton({ clientId, allowed, compact = false, state = "synced" }: { clientId: string; allowed: boolean; compact?: boolean; state?: VaultLaunchState }) {
   if (!allowed) return null;
-  return <span className="vault-launch-wrap"><button type="button" className={compact ? "table-action" : "secondary-button vault-launch-button"} disabled={state === "checking"} onClick={async () => {
-    setState("checking"); const result = await openVaultClient(clientId); setState(result.opened ? "idle" : "unavailable");
-  }}><ShieldCheck size={15} />{state === "checking" ? "Verificando cofre..." : "Abrir dados protegidos"}</button>{state === "unavailable" && <small className="vault-unavailable">Cofre local indisponível nesta rede</small>}</span>;
+  const url = buildVaultClientUrl(clientId);
+  if (!url) return null;
+  const title = labels[state];
+  return <span className="vault-launch-wrap" title={title}><a href={url} target="_blank" rel="noopener noreferrer" aria-label={title} className={`${compact ? "table-action vault-launch-icon" : "secondary-button vault-launch-button"} vault-state-${state}`}><Eye size={15} />{compact ? <span className="sr-only">{title}</span> : "Abrir dados protegidos"}</a></span>;
 }

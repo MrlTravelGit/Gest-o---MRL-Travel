@@ -119,7 +119,7 @@ export function AdminClientDetailPage() {
       <div className="page-toolbar detail-toolbar">
         <Link className="secondary-button" to="/admin/clientes"><ArrowLeft size={17} /> Clientes</Link>
         <div className="detail-toolbar-actions">
-          <ProtectedDataButton clientId={clientId} allowed={vaultAccess.data === true} />
+          <ProtectedDataButton clientId={clientId} allowed={vaultAccess.data === true} state={contractPending ? "pending" : "synced"} />
           {detail.data&&<Link className="secondary-button" to={`/admin/clientes/${clientId}/editar`}><Pencil size={16}/> Editar cadastro</Link>}
           {detail.data&&isArchived&&detail.data.canWrite&&<button className="primary-button" onClick={()=>setReactivationOpen(true)}><RotateCcw size={16}/> Reativar cliente</button>}
           {detail.data && <span className="status-pill">{isLead ? "Aguardando ativação" : isArchived ? "Arquivado" : contractPending ? "Contrato pendente de revisão" : detail.data.client.contractStatus ?? detail.data.client.status}</span>}

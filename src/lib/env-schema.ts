@@ -17,5 +17,5 @@ export const publicEnvSchema = z.object({
       "Publishable Key do Supabase não configurada",
     ),
   VITE_APP_URL: z.string().url().optional(),
-  VITE_LOCAL_VAULT_URL: z.preprocess((value) => value === "" ? undefined : value, z.string().url().refine((value) => value.startsWith("https://"), "O cofre local exige HTTPS").optional()),
+  VITE_LOCAL_VAULT_URL: z.preprocess((value) => value === "" ? undefined : value, z.string().url().refine((value) => value.startsWith("http://"), "O cofre local usa HTTP na rede privada").optional()),
 });

@@ -11,6 +11,11 @@ const validEnvironment = {
 describe("publicEnvSchema", () => {
   it("aceita a URL configurada e uma Publishable Key", () => {
     expect(publicEnvSchema.safeParse(validEnvironment).success).toBe(true);
+    expect(publicEnvSchema.safeParse({ ...validEnvironment, VITE_LOCAL_VAULT_URL: "http://192.168.0.25:7443" }).success).toBe(true);
+  });
+
+  it("rejeita HTTPS para o cofre local desta implantacao", () => {
+    expect(publicEnvSchema.safeParse({ ...validEnvironment, VITE_LOCAL_VAULT_URL: "https://192.168.0.25:7443" }).success).toBe(false);
   });
 
   it("rejeita URL fictícia", () => {
