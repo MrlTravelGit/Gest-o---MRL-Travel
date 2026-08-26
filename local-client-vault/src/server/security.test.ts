@@ -1,0 +1,18 @@
+import { randomBytes } from "node:crypto";
+import { describe,expect,it } from "vitest";
+import { decryptBytes,decryptFilePayload,encryptBytes,encryptFilePayload } from "./crypto.js";
+import { validateFile } from "./documents.js";
+import { one } from "./database.js";
+import { nextBirthday,provisionClient,safeServiceUrl } from "./vault-service.js";
+import { createVaultUser,login } from "./auth.js";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
+const root = resolve(import.meta.dirname, "../..");
+const serverSrc = readFileSync(resolve(root, "src/server/server.ts"), "utf8");
+
+describe("criptografia do cofre",()=>{it("usa nonce aleatorio e detecta adulteracao",()=>{const key=randomBytes(32),a=encryptBytes(Buffer.from("segredo"),key),b=encryptBytes(Buffer.from("segredo"),key);expect(a.n).not.toBe(b.n);expect(decryptBytes(a,key).toString()).toBe("segredo");a.c=a.c.replace(/^./,a.c[0]==="A"?"B":"A");expect(()=>decryptBytes(a,key)).toThrow();});it("separa a chave de cada arquivo",()=>{const master=randomBytes(32),a=encryptFilePayload(Buffer.from("arquivo"),master),b=encryptFilePayload(Buffer.from("arquivo"),master);expect(a.wrappedKey.c).not.toBe(b.wrappedKey.c);expect(decryptFilePayload(a.payload,a.wrappedKey,master).toString()).toBe("arquivo");});});
+describe("validação segura",()=>{it("bloqueia executável disfarçado e arquivo vazio",()=>{expect(()=>validateFile(Buffer.from("MZ-not-pdf"),"application/pdf")).toThrow("FILE_TYPE_BLOCKED");expect(()=>validateFile(Buffer.alloc(0),"text/plain")).toThrow("FILE_SIZE_INVALID");});it("aceita apenas URL web sem credencial embutida",()=>{expect(safeServiceUrl("https://www.smiles.com.br/")).toContain("https://");expect(()=>safeServiceUrl("javascript:alert(1)")).toThrow("URL_BLOCKED");expect(()=>safeServiceUrl("https://user:pass@example.com")).toThrow("URL_BLOCKED");});it("trata aniversário em 29 de fevereiro",()=>expect(nextBirthday("2000-02-29",new Date("2025-03-01T12:00:00"))).toBe("2026-02-28"));});
+describe("provisionamento local",()=>{it("é idempotente e cria exatamente cinco serviços padrão",()=>{const suffix=Math.random().toString(16).slice(2,14).padEnd(12,"0"),clientId=`10000000-0000-4000-8000-${suffix}`,eventId=`20000000-0000-4000-8000-${suffix}`,event={eventId,clientId,displayName:"Cliente de teste",contractStartDate:"2026-08-01",contractEndDate:"2027-07-31",eventType:"client_vault_create"};expect(provisionClient(event).idempotentReplay).toBe(false);expect(provisionClient(event).idempotentReplay).toBe(true);expect(one<{count:number}>("select count(*) count from vault_credentials where client_id=?",clientId)?.count).toBe(5);});});
+describe("autenticacao local",()=>{it("exige senha com pelo menos 15 caracteres",async()=>{await expect(createVaultUser("teste-curto","12345678901234","vault_operator")).rejects.toThrow("15 caracteres");});it("mantem o contrato de login somente com usuario, senha e endereco",()=>{expect(login.length).toBe(3);});});
+describe("headers de segurança do servidor",()=>{it("inclui X-Robots-Tag noindex para impedir indexação",()=>{expect(serverSrc).toContain("X-Robots-Tag");expect(serverSrc).toContain("noindex");});it("inclui X-Frame-Options DENY e CSP com frame-ancestors none",()=>{expect(serverSrc).toContain("X-Frame-Options");expect(serverSrc).toContain("DENY");expect(serverSrc).toContain("frame-ancestors 'none'");});});
