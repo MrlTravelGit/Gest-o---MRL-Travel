@@ -93,7 +93,7 @@ export async function getManagementTerms(filters: ManagementTermFilters): Promis
 
 export async function getVaultAccess(): Promise<boolean> {
   const { data, error } = await supabase.rpc("get_my_vault_access_v1");
-  if (error) return false;
+  if (error) throw new Error(error.message || "Permissão do cofre local indisponível.");
   return record(data) && data.vaultAccess === true;
 }
 

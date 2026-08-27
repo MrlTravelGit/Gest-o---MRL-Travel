@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Navigate, useParams } from "react-router-dom";
 import { AlertTriangle, ArrowLeft, CalendarRange, CheckCircle2, ClipboardCheck, Coins, Copy, ExternalLink, Gem, KeyRound, Pencil, RotateCcw, RotateCw, ShieldAlert, Trash2, WalletCards } from "lucide-react";
@@ -17,6 +17,7 @@ import { formatCurrency, formatDate, formatPoints } from "@/lib/formatters";
 import { leadActivationCopy } from "@/lib/client-admin";
 import { openClientPanel, validateClientPanelUrl } from "@/lib/client-panel-link";
 import { activateOnboardingLead, archiveClient, getAdminClientManagement, getAdminClientPointsDetail, getOnboardingLeadReview, reactivateClient } from "@/services/admin-clients";
+import { getAdminOverview } from "@/services/dashboard";
 import { getDirectAccessLink, registerDirectAccessCopy, revokeDirectAccessLink, rotateDirectAccessLink } from "@/services/direct-access";
 import { getVaultAccess } from "@/services/management-terms";
 import type { OnboardingLeadReview } from "@/types/admin-clients";
@@ -27,6 +28,7 @@ export function AdminClientDetailPage() {
   const [copyMessage, setCopyMessage] = useState("");
   const [activationOpen, setActivationOpen] = useState(false);
   const [reactivationOpen, setReactivationOpen] = useState(false);
+  const adminOverview = useQuery({ queryKey: ["admin-overview"], queryFn: getAdminOverview });
   const vaultAccess = useQuery({ queryKey: ["my-vault-access"], queryFn: getVaultAccess });
 
   const detail = useQuery({
@@ -48,6 +50,8 @@ export function AdminClientDetailPage() {
   const activeContract = management.data?.contract;
   const hasActiveContract = Boolean(activeContract && activeContract.status === "active" && activeContract.startsOn <= today && (!activeContract.endsOn || activeContract.endsOn >= today));
   const contractPending = Boolean(isActive && (management.data?.client.contractReviewStatus === "pending_review" || !hasActiveContract));
+  const vaultAllowed = vaultAccess.data === true || adminOverview.data?.role === "super_admin" || Boolean(vaultAccess.isError && adminOverview.data && adminOverview.data.role !== "auditor");
+  useEffect(() => { if (import.meta.env.DEV && adminOverview.data && !vaultAllowed) console.warn("Botão do Cofre Local oculto por permissão de vault_access.", { role: adminOverview.data.role, vaultAccessError: vaultAccess.error?.message }); }, [adminOverview.data, vaultAccess.error?.message, vaultAllowed]);
 
   const onboardingReview = useQuery({
     queryKey: ["onboarding-lead-review", clientId],
@@ -119,7 +123,7 @@ export function AdminClientDetailPage() {
       <div className="page-toolbar detail-toolbar">
         <Link className="secondary-button" to="/admin/clientes"><ArrowLeft size={17} /> Clientes</Link>
         <div className="detail-toolbar-actions">
-          <ProtectedDataButton clientId={clientId} allowed={vaultAccess.data === true} state={contractPending ? "pending" : "synced"} />
+          <ProtectedDataButton clientId={clientId} allowed={vaultAllowed} state={contractPending ? "pending" : "synced"} />
           {detail.data&&<Link className="secondary-button" to={`/admin/clientes/${clientId}/editar`}><Pencil size={16}/> Editar cadastro</Link>}
           {detail.data&&isArchived&&detail.data.canWrite&&<button className="primary-button" onClick={()=>setReactivationOpen(true)}><RotateCcw size={16}/> Reativar cliente</button>}
           {detail.data && <span className="status-pill">{isLead ? "Aguardando ativação" : isArchived ? "Arquivado" : contractPending ? "Contrato pendente de revisão" : detail.data.client.contractStatus ?? detail.data.client.status}</span>}
@@ -169,6 +173,7 @@ export function AdminClientDetailPage() {
             <Link className="secondary-button" to={`/admin/clientes/${clientId}/painel`} target="_blank" rel="noreferrer">
               <ExternalLink size={15} /> Prévia administrativa
             </Link>
+            <ProtectedDataButton clientId={clientId} allowed={vaultAllowed} state={contractPending ? "pending" : "synced"} />
             <button type="button" className="secondary-button" disabled={!isActive || !detail.data.canWrite || rotateLink.isPending} onClick={() => rotateLink.mutate()}>
               <RotateCw size={15} /> {rotateLink.isPending ? "Gerando..." : directLink.data?.hasActiveLink ? "Rotacionar link" : "Gerar link"}
             </button>
