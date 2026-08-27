@@ -83,12 +83,20 @@ describe("implantacao HTTP do cofre local", () => {
   });
 
   it("oferece atalhos elevados de inicio e parada", () => {
-    expect(startCmd).toContain("-Verb RunAs");
-    expect(startCmd).toContain("Cofre iniciado com sucesso.");
-    expect(startCmd).toContain('start "" "http://127.0.0.1:7443"');
+    expect(startCmd).toContain("D:\\Michael\\Sistema Gest");
+    expect(startCmd).toContain("local-client-vault\\INICIAR-COFRE.cmd");
+    expect(startCmd).toContain('call "%CORRECT_LAUNCHER%"');
     expect(startCmd).toContain("pause");
-    expect(stopCmd).toContain("-Verb RunAs");
-    expect(stopCmd).toContain("stop-vault.ps1\" -Force");
+    expect(stopCmd).toContain("local-client-vault\\PARAR-COFRE.cmd");
+    expect(stopCmd).toContain('call "%CORRECT_LAUNCHER%"');
+  });
+
+  it("expoe lista, sincronizacao manual e retry autenticados", () => {
+    expect(server).toContain('url.pathname==="/api/clients"');
+    expect(server).toContain('url.pathname==="/api/sync/clients/run"');
+    expect(server).toContain('/retry-sync');
+    expect(server.indexOf('SESSION_REQUIRED')).toBeLessThan(server.indexOf('url.pathname==="/api/clients"'));
+    expect(server).toContain('requireRole(session!.role,["vault_admin"])');
   });
 
   it("nao mantem TLS nas rotinas ativas", () => {

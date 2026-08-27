@@ -19,6 +19,11 @@ create table if not exists vault_clients(
  cpf_enc text,rg_enc text,birth_date_enc text,email_enc text,phone_enc text,address_enc text,private_notes_enc text,
  check(status in ('active','archived','no_term'))
 );
+create table if not exists vault_client_sync_index(
+ client_id text primary key,display_name text not null,contract_start_date text,contract_end_date text,
+ event_type text not null,sync_status text not null default 'pending',last_error text,occurred_at text not null,updated_at text not null,
+ check(sync_status in ('pending','synced','failed','archived'))
+);
 create table if not exists vault_credentials(
  id text primary key,client_id text not null references vault_clients(client_id),service_name text not null,service_url text not null,icon_key text,
  login_enc text,password_enc text,notes_enc text,status text not null default 'active',changed_at text not null,review_on text,
@@ -39,7 +44,12 @@ create table if not exists processed_outbox_events(event_id text primary key,pro
 create index if not exists vault_credentials_client_idx on vault_credentials(client_id,status,deleted_at);
 create index if not exists vault_documents_client_idx on vault_documents(client_id,document_type,expires_on,deleted_at);
 create index if not exists vault_audit_time_idx on vault_audit_events(timestamp desc);
+create index if not exists vault_client_sync_status_idx on vault_client_sync_index(sync_status,updated_at desc);
 `);
+
+const existingClientColumns = (db.prepare("pragma table_info(vault_clients)").all() as Array<{name:string}>).map((column) => column.name);
+if (!existingClientColumns.includes("marital_status_enc")) db.exec("alter table vault_clients add column marital_status_enc text");
+if (!existingClientColumns.includes("passport_enc")) db.exec("alter table vault_clients add column passport_enc text");
 
 const allowedUserColumns = ["id","username","password_hash","role","active","failed_attempts","locked_until","created_at","updated_at"];
 const existingUserColumns = (db.prepare("pragma table_info(vault_users)").all() as Array<{name:string}>).map((column) => column.name);

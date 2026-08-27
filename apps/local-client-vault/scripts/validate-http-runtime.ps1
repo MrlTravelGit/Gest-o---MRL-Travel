@@ -36,6 +36,10 @@ try {
   $session = Invoke-WebRequest -Uri "http://127.0.0.1:$Port/api/auth/session" -WebSession $vaultWebSession -UseBasicParsing
   if ($session.StatusCode -ne 200) { throw 'Sessao temporaria invalida.' }
   $sessionData = $session.Content | ConvertFrom-Json
+  $clients = Invoke-WebRequest -Uri "http://127.0.0.1:$Port/api/clients" -WebSession $vaultWebSession -UseBasicParsing
+  if ($clients.StatusCode -ne 200) { throw 'Lista local de clientes indisponivel.' }
+  $clientsData = $clients.Content | ConvertFrom-Json
+  if ($null -eq $clientsData.items -or $clientsData.total -ne 0) { throw 'Estado vazio da lista local invalido.' }
   $logout = Invoke-WebRequest -Uri "http://127.0.0.1:$Port/api/auth/logout" -Method Post -ContentType 'application/json' -Body '{}' -Headers @{'X-Vault-CSRF'=$sessionData.csrf} -WebSession $vaultWebSession -UseBasicParsing
   if ($logout.StatusCode -ne 200) { throw 'Logout temporario falhou.' }
 
@@ -49,6 +53,7 @@ try {
   Write-Output 'RUNTIME_HTTP=PASS'
   Write-Output "HEALTH_STATUS=$($health.StatusCode)"
   Write-Output 'LOGIN_SESSION_LOGOUT=PASS'
+  Write-Output 'CLIENTS_EMPTY_STATE_API=PASS'
   Write-Output 'COOKIE=HttpOnly;SameSite=Strict;Secure=false'
   Write-Output 'EXTERNAL_ORIGIN=403'
   Write-Output "TEMP_DATA_PRESERVED=$testRoot"
