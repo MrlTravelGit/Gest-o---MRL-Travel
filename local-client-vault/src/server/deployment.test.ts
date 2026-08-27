@@ -67,6 +67,20 @@ describe("implantacao HTTP local do cofre", () => {
     expect(start.indexOf("if ($newService)")).toBeLessThan(start.indexOf("ObjectName"));
   });
 
+  it("aplica ACL segura ao banco e logs antes de iniciar o servico", () => {
+    expect(start).toContain("Resolve-VaultServiceSid");
+    expect(start).toContain("Set-VaultDirectoryAcl -Paths @($dataRoot,$logRoot)");
+    expect(start.indexOf("Set-VaultDirectoryAcl")).toBeLessThan(start.indexOf("& $nssm start $serviceName"));
+  });
+
+  it("expoe lista e colecoes protegidas somente depois da sessao", () => {
+    expect(server).toContain('url.pathname==="/api/clients"');
+    expect(server).toContain('(cards|passports|visas)');
+    expect(server.indexOf("SESSION_REQUIRED")).toBeLessThan(server.indexOf('url.pathname==="/api/clients"'));
+    expect(server).toContain('input.purpose==="copy"');
+    expect(server).toContain('?"view":"download"');
+  });
+
   it("configura NSSM, health, porta pausada e firewall conforme a LAN", () => {
     expect(start).toContain("D:\\Michael\\Tools\\NSSM\\nssm.exe");
     expect(start).toContain("$env:NSSM_PATH");

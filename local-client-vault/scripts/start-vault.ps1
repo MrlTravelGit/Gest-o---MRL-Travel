@@ -12,6 +12,7 @@ $appRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $logRoot = 'C:\ProgramData\MRLTravel\Vault\logs'
 $dataRoot = 'C:\ProgramData\MRLTravel\Vault'
 $node = 'C:\Program Files\nodejs\node.exe'
+. (Join-Path $PSScriptRoot 'vault-acl.ps1')
 
 function Test-Administrator {
   $principal = [Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent())
@@ -137,6 +138,13 @@ if ($newService) {
 & $nssm set $serviceName AppStdout (Join-Path $logRoot 'stdout.log')
 & $nssm set $serviceName AppStderr (Join-Path $logRoot 'stderr.log')
 & $nssm set $serviceName AppRestartDelay 10000
+
+# Resolve todas as identidades antes de alterar qualquer ACL. A rotina conserva
+# um snapshot e restaura as permissoes anteriores se alguma concessao falhar.
+$configuredService = Get-CimInstance Win32_Service -Filter "Name='$serviceName'" -ErrorAction Stop
+$currentWindowsIdentity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+$serviceSid = Resolve-VaultServiceSid -ServiceAccount $configuredService.StartName -CurrentIdentity $currentWindowsIdentity
+Set-VaultDirectoryAcl -Paths @($dataRoot,$logRoot) -ServiceSid $serviceSid
 
 Get-NetFirewallRule -DisplayName $firewallName -ErrorAction SilentlyContinue | Remove-NetFirewallRule
 $oldRules = Get-NetFirewallRule -Direction Inbound -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like 'MRL Client Vault*' -or $_.DisplayName -eq 'MRL Client Vault, Rede Privada' }

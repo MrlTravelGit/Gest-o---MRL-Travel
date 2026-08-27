@@ -20,6 +20,11 @@ create table if not exists vault_clients(
  marital_status_enc text,passport_number_enc text,passport_country_enc text,passport_expiry_enc text,
  check(status in ('active','archived','no_term'))
 );
+create table if not exists vault_client_sync_index(
+ client_id text primary key,display_name text not null,contract_start_date text,contract_end_date text,
+ event_type text not null,sync_status text not null default 'pending',last_error text,occurred_at text not null,updated_at text not null,
+ check(sync_status in ('pending','synced','failed','archived'))
+);
 create table if not exists vault_credentials(
  id text primary key,client_id text not null references vault_clients(client_id),service_name text not null,service_url text not null,icon_key text,
  login_enc text,password_enc text,notes_enc text,status text not null default 'active',changed_at text not null,review_on text,
@@ -32,6 +37,23 @@ create table if not exists vault_documents(
  physical_name text not null unique,size_bytes integer not null,mime_type text not null,sha256 text not null,file_key_enc text not null,
  status text not null default 'active',created_by text not null,created_at text not null,deleted_at text,unique(client_id,sha256)
 );
+create table if not exists vault_cards(
+ id text primary key,client_id text not null references vault_clients(client_id),bank_enc text not null,brand text not null,
+ card_name_enc text not null,last_four text not null,earning_rate text,earning_currency text,destination_program text,
+ closing_day integer,due_day integer,notes_enc text,created_by text not null,updated_by text not null,created_at text not null,updated_at text not null,deleted_at text,
+ check(length(last_four)=4 and last_four not glob '*[^0-9]*'),check(earning_currency in ('USD','BRL') or earning_currency is null),
+ check(closing_day between 1 and 31 or closing_day is null),check(due_day between 1 and 31 or due_day is null)
+);
+create table if not exists vault_passports(
+ id text primary key,client_id text not null references vault_clients(client_id),number_enc text not null,issuer_country text,
+ issued_on text,expires_on text,nationality text,document_id text references vault_documents(id),notes_enc text,
+ created_by text not null,updated_by text not null,created_at text not null,updated_at text not null,deleted_at text
+);
+create table if not exists vault_visas(
+ id text primary key,client_id text not null references vault_clients(client_id),visa_type text,country text not null,
+ issued_on text,expires_on text,passport_id text references vault_passports(id),document_id text references vault_documents(id),notes_enc text,
+ created_by text not null,updated_by text not null,created_at text not null,updated_at text not null,deleted_at text
+);
 create table if not exists vault_audit_events(
  event_id text primary key,timestamp text not null,user_id text,action text not null,client_id text,object_type text,object_id text,
  result text not null,local_address text,justification text,metadata_json text not null default '{}'
@@ -39,6 +61,10 @@ create table if not exists vault_audit_events(
 create table if not exists processed_outbox_events(event_id text primary key,processed_at text not null);
 create index if not exists vault_credentials_client_idx on vault_credentials(client_id,status,deleted_at);
 create index if not exists vault_documents_client_idx on vault_documents(client_id,document_type,expires_on,deleted_at);
+create index if not exists vault_client_sync_status_idx on vault_client_sync_index(sync_status,updated_at desc);
+create index if not exists vault_cards_client_idx on vault_cards(client_id,deleted_at);
+create index if not exists vault_passports_client_idx on vault_passports(client_id,expires_on,deleted_at);
+create index if not exists vault_visas_client_idx on vault_visas(client_id,expires_on,deleted_at);
 create index if not exists vault_audit_time_idx on vault_audit_events(timestamp desc);
 `);
 
@@ -55,7 +81,7 @@ if (existingUserColumns.some((column) => !allowedUserColumns.includes(column))) 
 }
 
 // Migração incremental — adiciona colunas novas a bancos pré-existentes
-for (const col of ["marital_status_enc","passport_number_enc","passport_country_enc","passport_expiry_enc"]) {
+for (const col of ["marital_status_enc","passport_number_enc","passport_country_enc","passport_expiry_enc","rg_issuer_enc","nationality_enc","whatsapp_enc"]) {
   const exists = (db.prepare("pragma table_info(vault_clients)").all() as Array<{name:string}>).some((c) => c.name === col);
   if (!exists) db.exec(`alter table vault_clients add column ${col} text`);
 }
