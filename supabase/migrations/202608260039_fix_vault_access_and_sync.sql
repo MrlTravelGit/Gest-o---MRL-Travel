@@ -1,11 +1,6 @@
--- Concede acesso ao Cofre e permissão de Agente de Sincronização para todos os usuários atuais da equipe
-insert into public.staff_vault_permissions (user_id, vault_access)
-select user_id, true from public.staff_members
-on conflict (user_id) do update set vault_access = true;
-
-insert into public.vault_sync_agents (user_id, active, description)
-select user_id, true, 'Agente Local' from public.staff_members
-on conflict (user_id) do update set active = true;
+-- Migration ainda não aplicada: mantém somente a compatibilidade do service role.
+-- O acesso ao Cofre é concedido de forma restrita pela migration 040 e agentes
+-- locais continuam exigindo cadastro explícito em vault_sync_agents.
 
 -- Permite que o Service Role Key da Supabase consiga realizar a sincronização (auth.uid() is null)
 create or replace function public.claim_vault_provisioning_events_v1(p_limit integer default 50)

@@ -13,6 +13,7 @@ import { ClientCardsPanel } from "@/components/admin/ClientCardsPanel";
 import { ClientTravelInterestsPanel } from "@/components/admin/ClientTravelInterestsPanel";
 import { ClientInvoicesPanel } from "@/components/admin/ClientInvoicesPanel";
 import { ProtectedDataButton } from "@/components/admin/ProtectedDataButton";
+import { ClientExpirationAlertsPanel } from "@/components/admin/ClientExpirationAlertsPanel";
 import { formatCurrency, formatDate, formatPoints } from "@/lib/formatters";
 import { leadActivationCopy } from "@/lib/client-admin";
 import { openClientPanel, validateClientPanelUrl } from "@/lib/client-panel-link";
@@ -218,6 +219,8 @@ export function AdminClientDetailPage() {
           <div className="section-heading"><div><span className="eyebrow">Carteira do cliente</span><h2>Programas de fidelidade</h2><p>{isLead ? "Saldos declarados no onboarding aparecem abaixo como pendentes de conferência; não alteram saldos oficiais." : "Todos os programas ativos aparecem, inclusive antes do primeiro lançamento."}</p></div></div>
           <div className="account-cards-grid">{detail.data.programs.map((program) => <ProgramAccountCard key={program.programId} clientId={clientId} program={program} canWrite={canOperate} />)}</div>
         </section>
+
+        <ClientExpirationAlertsPanel clientId={clientId} />
 
         <ClientTravelInterestsPanel clientId={clientId} canWrite={canOperate} />
 

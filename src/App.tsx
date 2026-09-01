@@ -24,6 +24,7 @@ const AdminClientEconomyPreviewPage = lazy(() => import("@/pages/admin/AdminClie
 const AdminTasksPage = lazy(() => import("@/pages/admin/AdminTasksPage").then((module) => ({ default: module.AdminTasksPage })));
 const AdminImportsPage = lazy(() => import("@/pages/admin/AdminImportsPage").then((module) => ({ default: module.AdminImportsPage })));
 const AdminManagementTermsPage = lazy(() => import("@/pages/admin/AdminManagementTermsPage").then((module) => ({ default: module.AdminManagementTermsPage })));
+const AdminAlertsPage = lazy(() => import("@/pages/admin/AdminAlertsPage").then((module) => ({ default: module.AdminAlertsPage })));
 const AdminLoginPage = lazy(() => import("@/pages/AdminLoginPage").then((module) => ({ default: module.AdminLoginPage })));
 const PublicClientDashboardPage = lazy(() => import("@/pages/PublicClientDashboardPage").then((module) => ({ default: module.PublicClientDashboardPage })));
 const PublicOnboardingPage = lazy(() => import("@/pages/PublicOnboardingPage").then((module) => ({ default: module.PublicOnboardingPage })));
@@ -69,6 +70,7 @@ export default function App() {
           <Route path="/admin/demandas" element={<AdminTasksPage />} />
           <Route path="/admin/importacoes" element={<AdminImportsPage />} />
           <Route path="/admin/vigencias" element={<AdminManagementTermsPage />} />
+          <Route path="/admin/configuracoes/alertas" element={<AdminAlertsPage />} />
         </Route>
         <Route path="*" element={<NotFoundPage />} />
         </Routes>

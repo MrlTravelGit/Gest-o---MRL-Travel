@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { BarChart3, CalendarRange, ClipboardList, CreditCard, DatabaseZap, FileInput, FileText, Gem, History, KeyRound, ListChecks, LogOut, MapPinned, Menu, PlaneTakeoff, Send, ShieldCheck, UserPlus, Users, X } from "lucide-react";
+import { BarChart3, BellRing, CalendarRange, ClipboardList, CreditCard, DatabaseZap, FileInput, FileText, Gem, History, KeyRound, ListChecks, LogOut, MapPinned, Menu, PlaneTakeoff, Send, ShieldCheck, UserPlus, Users, X } from "lucide-react";
 import { Link, NavLink } from "react-router-dom";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 import { useAuth } from "@/contexts/AuthContext";
@@ -22,6 +22,7 @@ const navItems = [
   { label: "Importações", to: "/admin/importacoes", icon: FileInput },
   { label: "Cadastro", to: "/admin/pessoas/novo", icon: UserPlus },
   { label: "Acessos", to: "/admin/acessos", icon: KeyRound },
+  { label: "Configurações · Alertas", to: "/admin/configuracoes/alertas", icon: BellRing },
 ] as const;
 
 export function AppShell({

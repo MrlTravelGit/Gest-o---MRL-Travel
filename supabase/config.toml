@@ -63,3 +63,7 @@ verify_jwt = true
 
 [functions.savings-evidence]
 verify_jwt = false
+
+[functions.expiration-alerts]
+# A função valida sessão administrativa ou X-Cron-Secret internamente.
+verify_jwt = false
