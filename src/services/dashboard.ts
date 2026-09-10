@@ -9,8 +9,13 @@ export async function getPublicClientDashboardByLink(token: string): Promise<Pub
 
 export async function getAdminClientDashboardPreview(clientId: string): Promise<PublicClientDashboard> {
   const { data, error } = await supabase.rpc("get_admin_client_dashboard_preview", { p_client_id: clientId });
+  if (error?.code === "P0002" || error?.message?.includes("CLIENT_NOT_FOUND")) throw new AdminPreviewNotFoundError();
   if (error || !data) throw new Error("Prévia do painel indisponível ou acesso não autorizado");
   return normalizeDashboardCashback(data);
+}
+
+export class AdminPreviewNotFoundError extends Error {
+  constructor() { super("Cliente não encontrado"); this.name = "AdminPreviewNotFoundError"; }
 }
 
 export async function getAdminOverview(): Promise<AdminOverview> {

@@ -171,7 +171,7 @@ export function AdminClientDetailPage() {
             </button>
           </div>
           <div className="economy-admin-actions">
-            <Link className="secondary-button" to={`/admin/clientes/${clientId}/painel`} target="_blank" rel="noreferrer">
+            <Link className="secondary-button" to={`/admin/clientes/${clientId}/preview`} target="_blank" rel="noreferrer">
               <ExternalLink size={15} /> Prévia administrativa
             </Link>
             <ProtectedDataButton clientId={clientId} allowed={vaultAllowed} state={contractPending ? "pending" : "synced"} />

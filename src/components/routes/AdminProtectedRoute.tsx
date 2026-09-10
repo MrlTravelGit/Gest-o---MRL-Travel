@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Navigate, Outlet } from "react-router-dom";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { LoadingScreen } from "@/components/routes/LoadingScreen";
@@ -8,6 +8,7 @@ type AccessState = "loading" | "allowed" | "denied";
 
 export function AdminProtectedRoute() {
   const { user, loading } = useAuth();
+  const location = useLocation();
   const [access, setAccess] = useState<AccessState>("loading");
 
   useEffect(() => {
@@ -42,6 +43,10 @@ export function AdminProtectedRoute() {
   }, [user]);
 
   if (loading || access === "loading") return <LoadingScreen />;
-  if (!user || access === "denied") return <Navigate to="/admin/login" replace />;
+  if (!user) {
+    const returnTo = `${location.pathname}${location.search}${location.hash}`;
+    return <Navigate to={`/admin/login?returnTo=${encodeURIComponent(returnTo)}`} replace />;
+  }
+  if (access === "denied") return <div className="not-found"><h1>Acesso não autorizado</h1><p>Esta área é exclusiva da equipe administrativa.</p></div>;
   return <Outlet />;
 }

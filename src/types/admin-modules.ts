@@ -16,6 +16,43 @@ export interface AdminFormOptions {
   clients: AdminClientOption[];
 }
 
+export interface TransferProgram {
+  id: string;
+  slug: string;
+  name: string;
+  category: "bancos" | "programas_aereos" | "outros";
+  programType: "financial_points_program" | "loyalty_program";
+  logoUrl: string | null;
+  conversionLabel: string | null;
+  isTransferSource: boolean;
+  isTransferTarget: boolean;
+  isActive: boolean;
+}
+
+export interface BonusTransferCampaign {
+  id: string;
+  sourceProgramId: string;
+  sourceProgramName: string;
+  targetProgramId: string;
+  targetProgramName: string;
+  bonusPercentage: number;
+  startsAt: string;
+  endsAt: string;
+  minimumPoints: number | null;
+  maximumPoints: number | null;
+  rulesSummary: string;
+  officialUrl: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BonusTransferAdminData {
+  canWrite: boolean;
+  programs: TransferProgram[];
+  campaigns: BonusTransferCampaign[];
+}
+
 export interface TravelSale {
   id: string;
   clientId: string;

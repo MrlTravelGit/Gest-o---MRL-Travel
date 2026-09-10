@@ -1,5 +1,5 @@
 import { FormEvent, useState } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { ShieldCheck } from "lucide-react";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 import { useAuth } from "@/contexts/AuthContext";
@@ -8,12 +8,15 @@ import { supabase } from "@/lib/supabase";
 export function AdminLoginPage() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const requestedReturnTo = searchParams.get("returnTo");
+  const returnTo = requestedReturnTo?.startsWith("/admin/") && !requestedReturnTo.startsWith("//") ? requestedReturnTo : "/admin";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  if (!loading && user) return <Navigate to="/admin" replace />;
+  if (!loading && user) return <Navigate to={returnTo} replace />;
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -25,7 +28,7 @@ export function AdminLoginPage() {
       setError("Tente novamente");
       return;
     }
-    navigate("/admin", { replace: true });
+    navigate(returnTo, { replace: true });
   }
 
   return (
