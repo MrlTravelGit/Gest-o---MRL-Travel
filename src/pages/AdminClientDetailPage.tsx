@@ -16,6 +16,7 @@ import { ProtectedDataButton } from "@/components/admin/ProtectedDataButton";
 import { ClientExpirationAlertsPanel } from "@/components/admin/ClientExpirationAlertsPanel";
 import { formatCurrency, formatDate, formatPoints } from "@/lib/formatters";
 import { leadActivationCopy } from "@/lib/client-admin";
+import { shouldShowClientProgram } from "@/lib/client-program-wallet";
 import { openClientPanel, validateClientPanelUrl } from "@/lib/client-panel-link";
 import { activateOnboardingLead, archiveClient, getAdminClientManagement, getAdminClientPointsDetail, getOnboardingLeadReview, reactivateClient } from "@/services/admin-clients";
 import { getAdminOverview } from "@/services/dashboard";
@@ -41,6 +42,10 @@ export function AdminClientDetailPage() {
   const isArchived = detail.data?.client.status === "ended";
   const isActive = detail.data?.client.status === "active";
   const canOperate = Boolean(detail.data?.canWrite && detail.data.client.status === "active");
+  const walletPrograms = useMemo(
+    () => (detail.data?.walletPrograms ?? detail.data?.programs ?? []).filter((program) => shouldShowClientProgram(program)),
+    [detail.data?.programs, detail.data?.walletPrograms],
+  );
 
   const management = useQuery({
     queryKey: ["admin-client-management", clientId],
@@ -152,7 +157,7 @@ export function AdminClientDetailPage() {
           <Summary icon={<Coins />} label="Total de pontos" value={formatPoints(detail.data.client.totalPoints)} />
           <Summary icon={<Gem />} label="Valor estimado" value={formatCurrency(detail.data.client.estimatedValue)} />
           <Summary icon={<AlertTriangle />} label="Vencendo em 90 dias" value={formatPoints(detail.data.client.expiringPoints)} />
-          <Summary icon={<WalletCards />} label="Programas ativos" value={String(detail.data.programs.filter((program) => program.accountId).length)} />
+          <Summary icon={<WalletCards />} label="Programas ativos" value={String(walletPrograms.length)} />
         </section>
         {!detail.data.canWrite && <div className="read-only-banner"><AlertTriangle size={18} /> Perfil auditor: consultas liberadas, alterações bloqueadas.</div>}
 
@@ -216,8 +221,8 @@ export function AdminClientDetailPage() {
         </section>
 
         <section className="program-accounts-section">
-          <div className="section-heading"><div><span className="eyebrow">Carteira do cliente</span><h2>Programas de fidelidade</h2><p>{isLead ? "Saldos declarados no onboarding aparecem abaixo como pendentes de conferência; não alteram saldos oficiais." : "Todos os programas ativos aparecem, inclusive antes do primeiro lançamento."}</p></div></div>
-          <div className="account-cards-grid">{detail.data.programs.map((program) => <ProgramAccountCard key={program.programId} clientId={clientId} program={program} canWrite={canOperate} />)}</div>
+          <div className="section-heading"><div><span className="eyebrow">Carteira do cliente</span><h2>Programas de fidelidade</h2><p>{isLead ? "Saldos declarados no onboarding aparecem abaixo como pendentes de conferência; não alteram saldos oficiais." : "Somente programas com saldo, clube ou conta explicitamente vinculada."}</p></div></div>
+          {walletPrograms.length === 0 ? <div className="panel-state wallet-empty-state"><strong>Nenhum programa vinculado ainda.</strong><span>Use Lançar pontos ou ative um clube para adicionar este cliente a um programa.</span></div> : <div className="account-cards-grid">{walletPrograms.map((program) => <ProgramAccountCard key={program.programId} clientId={clientId} program={program} canWrite={canOperate} />)}</div>}
         </section>
 
         <ClientExpirationAlertsPanel clientId={clientId} />
@@ -253,7 +258,7 @@ export function AdminClientDetailPage() {
             clientName={detail.data.client.fullName}
             rowVersion={management.data?.client.rowVersion}
             points={detail.data.client.totalPoints}
-            programs={detail.data.programs.filter((program) => program.accountId).length}
+            programs={walletPrograms.length}
             contractPending={contractPending}
             onClose={() => setReactivationOpen(false)}
           />

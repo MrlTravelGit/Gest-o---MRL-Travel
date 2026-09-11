@@ -7,6 +7,12 @@ export interface PublicClientProgram {
   estimatedValue: number;
   capturedAt: string | null;
   expiringPoints: number;
+  catalogActive?: boolean;
+  hasMovements?: boolean;
+  clubActive?: boolean;
+  clubExpiresAt?: string | null;
+  linkedAccount?: boolean;
+  accountStatus?: string | null;
 }
 
 export interface PublicClientBalanceHistoryPoint {

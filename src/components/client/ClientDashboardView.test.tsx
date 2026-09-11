@@ -130,6 +130,20 @@ describe("ClientDashboardView", () => {
     expect(screen.getByText("PX")).toBeInTheDocument();
   });
 
+  it("oculta programa sem relação e mostra o estado vazio orientativo", () => {
+    const zeroBalanceProgram = { ...dashboard.programs[0], slug: "nubank-croma", name: "Nubank Croma", balance: 0, averageCostPerThousand: 0, estimatedValue: 0, capturedAt: null, expiringPoints: 0, catalogActive: true, hasMovements: false };
+    render(<ClientDashboardView dashboard={{ ...dashboard, programs: [zeroBalanceProgram] }} />);
+    expect(screen.queryByRole("heading", { name: "Nubank Croma" })).not.toBeInTheDocument();
+    expect(screen.getByText("Nenhum programa vinculado ainda.")).toBeInTheDocument();
+    expect(screen.getByText("Use Lançar pontos ou ative um clube para adicionar este cliente a um programa.")).toBeInTheDocument();
+  });
+
+  it("mantém programa com clube ativo mesmo quando o saldo está zerado", () => {
+    const clubProgram = { ...dashboard.programs[0], slug: "azul_fidelidade", name: "Azul Fidelidade", balance: 0, clubActive: true };
+    render(<ClientDashboardView dashboard={{ ...dashboard, programs: [clubProgram] }} />);
+    expect(screen.getByRole("heading", { name: "Azul Fidelidade" })).toBeInTheDocument();
+  });
+
   it("entrega os dados reais aos dois gráficos sem mutar os arrays de origem", () => {
     const originalBalance = [...balanceHistory];
     const originalMovements = [...monthlyMovements];

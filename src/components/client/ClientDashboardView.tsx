@@ -5,6 +5,7 @@ import { BrandLogo } from "@/components/brand/BrandLogo";
 import { LoyaltyProgramLogo } from "@/components/brand/LoyaltyProgramLogo";
 import { formatCurrency, formatDate, formatPoints } from "@/lib/formatters";
 import { normalizeBalanceHistory, normalizeMonthlyMovements, numericDomain, type BalanceHistoryPoint } from "@/lib/dashboard-chart-data";
+import { shouldShowClientProgram } from "@/lib/client-program-wallet";
 import type { PublicClientDashboard, PublicClientProgram } from "@/types/dashboard";
 
 const balanceChartMargin = { top: 16, right: 10, bottom: 8, left: 0 };
@@ -26,6 +27,7 @@ export function ClientDashboardView({
   const monthlyMovements = normalizeMonthlyMovements(dashboard.monthlyMovements);
   const hasBalanceHistory = balanceHistory.length > 0;
   const hasMonthlyMovements = monthlyMovements.length > 0;
+  const walletPrograms = dashboard.programs.filter((program) => shouldShowClientProgram(program));
 
   return (
     <ClientDashboardShell>
@@ -62,11 +64,11 @@ export function ClientDashboardView({
 
       <section className="dashboard-section" aria-labelledby="programs-title">
         <SectionHeading eyebrow="Carteira do cliente" title="Milhas por Programa" id="programs-title" />
-        {dashboard.programs.length === 0 ? (
-          <div className="panel-state">Nenhum programa ativo cadastrado para este cliente.</div>
+        {walletPrograms.length === 0 ? (
+          <div className="panel-state wallet-empty-state"><strong>Nenhum programa vinculado ainda.</strong><span>Use Lançar pontos ou ative um clube para adicionar este cliente a um programa.</span></div>
         ) : (
           <div className="public-program-grid">
-            {dashboard.programs.map((program) => (
+            {walletPrograms.map((program) => (
               <ProgramCard program={program} key={`${program.slug}-${program.name}`} />
             ))}
           </div>
@@ -297,8 +299,8 @@ function ProgramCard({ program }: { program: PublicClientProgram }) {
       </div>
 
       <div className="program-card-title">
-        <h3>{program.name}</h3>
-        <span>Atualizado em {formatDate(program.capturedAt)}</span>
+        <div><h3>{program.name}</h3>{program.catalogActive !== false && <small className="catalog-active-badge">Ativo no catálogo</small>}</div>
+        <span>{program.hasMovements === false ? "Sem lançamentos" : `Atualizado em ${formatDate(program.capturedAt)}`}</span>
       </div>
 
       <dl className="program-card-metrics">
@@ -316,7 +318,7 @@ function ProgramCard({ program }: { program: PublicClientProgram }) {
         </div>
         <div>
           <dt>Vencendo</dt>
-          <dd>{formatPoints(program.expiringPoints)}</dd>
+          <dd>{program.expiringPoints > 0 ? formatPoints(program.expiringPoints) : "Sem vencimento futuro"}</dd>
         </div>
       </dl>
     </article>

@@ -24,6 +24,8 @@ export interface TransferProgram {
   programType: "financial_points_program" | "loyalty_program";
   logoUrl: string | null;
   conversionLabel: string | null;
+  supportsPointsLaunch: boolean;
+  supportsBonusTransfer: boolean;
   isTransferSource: boolean;
   isTransferTarget: boolean;
   isActive: boolean;

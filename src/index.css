@@ -342,6 +342,7 @@ input[readonly] { color: #c8c1b7; background: rgba(255, 255, 255, 0.025); }
 .eyebrow { display: block; margin-bottom: 6px; color: var(--gold-dark); font-size: 10px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; }
 .program-accounts-section { margin-top: 34px; }
 .account-cards-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.wallet-empty-state strong,.wallet-empty-state span{display:block}.wallet-empty-state span{margin-top:6px;color:var(--muted)}
 .account-card { position: relative; overflow: hidden; padding: 21px; border: 1px solid rgba(189, 131, 50, 0.4); border-radius: 18px; background: linear-gradient(135deg, rgba(22, 24, 28, 0.98), rgba(10, 12, 14, 0.98)); box-shadow: inset 0 1px rgba(255, 255, 255, 0.02); }
 .account-card::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: linear-gradient(var(--gold-strong), var(--gold-dark), transparent); }
 .account-card-topline { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
@@ -789,6 +790,7 @@ input[readonly] { color: #c8c1b7; background: rgba(255, 255, 255, 0.025); }
 @media(max-width:680px){.client-interests-panel>.section-heading,.interest-card-heading,.interest-card-actions{align-items:stretch;flex-direction:column}.interest-counts{grid-template-columns:repeat(2,minmax(0,1fr))}.interest-dialog .form-grid{grid-template-columns:1fr}.public-interest-list{grid-template-columns:1fr}}
 .program-card-title { min-width:0; }
 .program-card-title h3 { margin:0 0 5px; color:#fff8ea; font-size:18px; line-height:1.2; }
+.catalog-active-badge{display:inline-flex!important;width:max-content;margin-top:5px;padding:3px 7px;border:1px solid rgba(87,190,123,.28);border-radius:999px;background:rgba(87,190,123,.09);color:#8fd5a8!important;font-size:9px!important;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
 .program-card-metrics { align-self:end; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px 12px; margin:0; padding-top:12px; border-top:1px solid rgba(255,255,255,.07); }
 .program-card-metrics div { min-width:0; }
 .program-card-metrics dt { color:#bcb2a5; font-size:11px; letter-spacing:.08em; text-transform:uppercase; }

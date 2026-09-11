@@ -27,7 +27,7 @@ export function ProgramAccountCard({ clientId, program, canWrite }: {
       <div className="account-card-topline">
         <div className="program-identity">
           <LoyaltyProgramMark name={program.name} slug={program.slug} logoUrl={program.logoUrl} size="md" />
-          <div><h3>{program.name}</h3><small>{program.accountId ? "Conta vinculada" : "Ainda sem lançamentos"}</small></div>
+          <div><h3>{program.name}</h3><small>{program.accountId ? "Conta vinculada" : "Ainda sem lançamentos"}</small><span className="catalog-active-badge">Ativo no catálogo</span></div>
         </div>
         <div className="balance-emphasis"><span>Saldo atual</span><strong>{formatPoints(program.balance)}</strong></div>
       </div>

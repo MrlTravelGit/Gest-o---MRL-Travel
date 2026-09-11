@@ -25,9 +25,9 @@ const program: AdminProgramDetail = {
   lastUpdatedAt: null,
 };
 
-function renderForm() {
+function renderForm(programs = [program]) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  return render(<QueryClientProvider client={client}><ClientPointsForm clientId="client-1" publicId="public-1" clientName="Cliente Teste" programs={[program]} canWrite /></QueryClientProvider>);
+  return render(<QueryClientProvider client={client}><ClientPointsForm clientId="client-1" publicId="public-1" clientName="Cliente Teste" programs={programs} canWrite /></QueryClientProvider>);
 }
 
 describe("ClientPointsForm", () => {
@@ -51,5 +51,12 @@ describe("ClientPointsForm", () => {
     fireEvent.submit(screen.getByRole("button", { name: "Salvar lançamento" }).closest("form")!);
     expect(screen.getByRole("alert")).toHaveTextContent("Informe uma quantidade maior que zero.");
     expect(recordPointEntry).not.toHaveBeenCalled();
+  });
+
+  it("mantém no select programas ativos ainda sem saldo ou conta", () => {
+    const unusedProgram: AdminProgramDetail = { ...program, programId: "program-2", slug: "nubank-croma", name: "Nubank Croma", accountId: null, balance: 0 };
+    renderForm([program, unusedProgram]);
+    const options = screen.getByLabelText("Programa").querySelectorAll("option");
+    expect(Array.from(options).map((option) => option.textContent)).toEqual(["Selecione", "Smiles", "Nubank Croma"]);
   });
 });

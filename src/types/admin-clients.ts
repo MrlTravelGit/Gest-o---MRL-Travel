@@ -138,6 +138,10 @@ export interface AdminProgramDetail {
   marketValuePerThousand: number;
   clubActive: boolean;
   clubUpdatedAt: string | null;
+  clubExpiresAt?: string | null;
+  linkedAccount?: boolean;
+  accountStatus?: string | null;
+  hasMovements?: boolean;
   expiringPoints: number;
   nextExpirationDate: string | null;
   lastUpdatedAt: string | null;
@@ -183,6 +187,7 @@ export interface AdminClientPointsDetail {
   };
   canWrite: boolean;
   programs: AdminProgramDetail[];
+  walletPrograms?: AdminProgramDetail[];
   transactions: AdminPointTransaction[];
   expirationLots: AdminExpirationLot[];
 }
