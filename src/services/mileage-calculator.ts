@@ -1,10 +1,89 @@
 import { supabase } from "@/lib/supabase";
-import type { MileageCalculatorAdminData } from "@/types/admin-modules";
+import type { MileageCalculatorAdminData, MileageSimulation, TransferProgram } from "@/types/admin-modules";
 
-export async function getMileageCalculatorAdmin(): Promise<MileageCalculatorAdminData> {
+const fallbackProgramDefinitions = [
+  ["livelo", "Livelo", true, true],
+  ["esfera", "Esfera", true, true],
+  ["atomos", "Átomos", true, false],
+  ["coopera", "Coopera", true, false],
+  ["nubank", "Nubank", true, false],
+  ["picpay", "PicPay", true, false],
+  ["revolut", "Revolut", true, false],
+  ["smiles", "Smiles", false, true],
+  ["azul_fidelidade", "Azul Fidelidade", false, true],
+  ["latam_pass", "LATAM Pass", false, true],
+] as const;
+
+export const mileageProgramFallback: TransferProgram[] = fallbackProgramDefinitions.map(([slug, name, isTransferSource, isTransferTarget]) => ({
+  id: `fallback-${slug}`,
+  slug,
+  name,
+  category: isTransferSource ? "bancos" : "programas_aereos",
+  programType: isTransferSource ? "financial_points_program" : "loyalty_program",
+  logoUrl: null,
+  conversionLabel: null,
+  supportsPointsLaunch: false,
+  supportsBonusTransfer: true,
+  isTransferSource,
+  isTransferTarget,
+  isActive: true,
+}));
+
+export interface MileageAuxiliaryData extends MileageCalculatorAdminData {
+  storageAvailable: boolean;
+  usingProgramFallback: boolean;
+  warnings: Array<"programs" | "clients" | "simulations">;
+}
+
+async function getPrograms(): Promise<TransferProgram[]> {
+  const { data, error } = await supabase.rpc("get_bonus_transfer_admin");
+  if (error || !data) throw error ?? new Error("Resposta vazia ao carregar programas.");
+  return (data as unknown as { programs?: TransferProgram[] }).programs ?? [];
+}
+
+async function getClients(): Promise<MileageCalculatorAdminData["clients"]> {
+  const { data, error } = await supabase.rpc("get_admin_form_options");
+  if (error || !data) throw error ?? new Error("Resposta vazia ao carregar clientes.");
+  return ((data as unknown as { clients?: Array<{ clientId: string; fullName: string }> }).clients ?? []).map(({ clientId, fullName }) => ({ clientId, fullName }));
+}
+
+async function getSimulationStorage(): Promise<{ canWrite: boolean; simulations: MileageSimulation[] }> {
   const { data, error } = await supabase.rpc("get_mileage_calculator_admin");
-  if (error || !data) throw new Error("Não foi possível carregar a calculadora de milheiro.");
-  return data as unknown as MileageCalculatorAdminData;
+  if (error || !data) throw error ?? new Error("Resposta vazia ao carregar simulações.");
+  const payload = data as unknown as { canWrite?: boolean; simulations?: MileageSimulation[] };
+  return { canWrite: Boolean(payload.canWrite), simulations: payload.simulations ?? [] };
+}
+
+export async function loadMileageCalculatorAuxiliaryData(): Promise<MileageAuxiliaryData> {
+  const [programsResult, clientsResult, simulationsResult] = await Promise.allSettled([
+    getPrograms(),
+    getClients(),
+    getSimulationStorage(),
+  ]);
+  const warnings: MileageAuxiliaryData["warnings"] = [];
+
+  if (programsResult.status === "rejected") {
+    warnings.push("programs");
+    console.error("[Calculadora de Milheiro] erro ao carregar", { source: "programas", error: programsResult.reason });
+  }
+  if (clientsResult.status === "rejected") {
+    warnings.push("clients");
+    console.error("[Calculadora de Milheiro] erro ao carregar", { source: "clientes", error: clientsResult.reason });
+  }
+  if (simulationsResult.status === "rejected") {
+    warnings.push("simulations");
+    console.error("[Calculadora de Milheiro] erro ao carregar", { source: "simulações", error: simulationsResult.reason });
+  }
+
+  return {
+    programs: programsResult.status === "fulfilled" ? programsResult.value : mileageProgramFallback,
+    clients: clientsResult.status === "fulfilled" ? clientsResult.value : [],
+    simulations: simulationsResult.status === "fulfilled" ? simulationsResult.value.simulations : [],
+    canWrite: simulationsResult.status === "fulfilled" && simulationsResult.value.canWrite,
+    storageAvailable: simulationsResult.status === "fulfilled",
+    usingProgramFallback: programsResult.status === "rejected",
+    warnings,
+  };
 }
 
 export async function saveMileageSimulation(input: {
@@ -31,6 +110,9 @@ export async function saveMileageSimulation(input: {
     p_club_active: input.clubActive,
     p_notes: input.notes || null,
   });
-  if (error || !data) throw new Error("A simulação não foi salva. Nenhum saldo foi alterado.");
+  if (error || !data) {
+    console.error("[Calculadora de Milheiro] erro ao salvar simulação", error);
+    throw new Error("A simulação não foi salva. Nenhum saldo foi alterado.");
+  }
   return data as string;
 }

@@ -24,6 +24,7 @@ const campaignSchema = z.object({ sourceProgramId: z.string().uuid(), targetProg
   .refine((v) => v.sourceProgramId !== v.targetProgramId, { path: ["targetProgramId"] }).refine((v) => v.endsAt >= v.startsAt, { path: ["endsAt"] }).refine((v) => !v.minimumPoints || /^\d+$/.test(v.minimumPoints), { path: ["minimumPoints"] }).refine((v) => !v.maximumPoints || (/^\d+$/.test(v.maximumPoints) && Number(v.maximumPoints) >= Number(v.minimumPoints || 0)), { path: ["maximumPoints"] });
 type CampaignData = z.infer<typeof campaignSchema>;
 function localDateTime(date = new Date()) { return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16); }
+function comparableProgramName(value: string) { return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR").replace(/\s+/g, " ").trim(); }
 
 function OperationForm() {
   const location = useLocation();
@@ -36,8 +37,8 @@ function OperationForm() {
     const prefill = (location.state as { mileageSimulation?: { clientId?: string; sourceProgramId: string; targetProgramId: string; sourceProgramName: string; targetProgramName: string; points: number; bonusPercent: number; costPerThousand: number; notes?: string } } | null)?.mileageSimulation;
     if (!prefill) return;
     const selectedClient = options.data.clients.find((item) => item.clientId === prefill.clientId);
-    const sourceAccount = selectedClient?.accounts.find((account) => account.programId === prefill.sourceProgramId);
-    const destinationAccount = selectedClient?.accounts.find((account) => account.programId === prefill.targetProgramId);
+    const sourceAccount = selectedClient?.accounts.find((account) => account.programId === prefill.sourceProgramId || comparableProgramName(account.programName) === comparableProgramName(prefill.sourceProgramName));
+    const destinationAccount = selectedClient?.accounts.find((account) => account.programId === prefill.targetProgramId || comparableProgramName(account.programName) === comparableProgramName(prefill.targetProgramName));
     form.reset({
       ...form.getValues(),
       clientId: prefill.clientId ?? "",
