@@ -55,6 +55,35 @@ export interface BonusTransferAdminData {
   campaigns: BonusTransferCampaign[];
 }
 
+export interface MileageSimulation {
+  id: string;
+  clientId: string | null;
+  clientName: string | null;
+  sourceProgramId: string;
+  sourceProgramName: string;
+  targetProgramId: string;
+  targetProgramName: string;
+  totalPoints: number;
+  pointsUsed: number;
+  cashAmount: number;
+  bonusPercent: number;
+  pixDiscountPercent: number | null;
+  clubActive: boolean;
+  finalCostPerThousand: number;
+  finalCostPerThousandWithPix: number | null;
+  rating: "excellent" | "good" | "attention" | "expensive";
+  notes: string | null;
+  simulatedAt: string;
+  createdByName: string | null;
+}
+
+export interface MileageCalculatorAdminData {
+  canWrite: boolean;
+  clients: Array<{ clientId: string; fullName: string }>;
+  programs: TransferProgram[];
+  simulations: MileageSimulation[];
+}
+
 export interface TravelSale {
   id: string;
   clientId: string;

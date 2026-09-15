@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { BarChart3, BellRing, CalendarRange, ClipboardList, CreditCard, DatabaseZap, FileInput, FileText, Gem, History, KeyRound, ListChecks, LogOut, MapPinned, Menu, PlaneTakeoff, Send, ShieldCheck, UserPlus, Users, X } from "lucide-react";
+import { BarChart3, BellRing, Calculator, CalendarRange, ClipboardList, CreditCard, DatabaseZap, FileInput, FileText, Gem, History, KeyRound, ListChecks, LogOut, MapPinned, Menu, PlaneTakeoff, Send, ShieldCheck, UserPlus, Users, X } from "lucide-react";
 import { Link, NavLink } from "react-router-dom";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 import { useAuth } from "@/contexts/AuthContext";
@@ -15,6 +15,7 @@ const navItems = [
   { label: "Viagens e economia", to: "/admin/viagens", icon: PlaneTakeoff },
   { label: "Pontuações", to: "/admin/pontuacoes", icon: DatabaseZap },
   { label: "Transferências", to: "/admin/transferencias", icon: Send },
+  { label: "Calculadora de Milheiro", to: "/admin/calculadora-milheiro", icon: Calculator },
   { label: "Saída manual", to: "/admin/saidas", icon: ClipboardList },
   { label: "Interesses", to: "/admin/interesses", icon: MapPinned },
   { label: "Demandas", to: "/admin/demandas", icon: ListChecks },

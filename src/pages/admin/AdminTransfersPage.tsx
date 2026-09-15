@@ -1,8 +1,9 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowDown, ArrowRight, CalendarDays, ExternalLink, Landmark, Pencil, Save, Send } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
+import { useLocation } from "react-router-dom";
 import { z } from "zod";
 import { ClientSelect, ProgramAccountSelect, StatusBadge } from "@/components/admin/AdminFields";
 import { ErrorState, LoadingState, PageHeader } from "@/components/admin/AdminPage";
@@ -25,9 +26,30 @@ type CampaignData = z.infer<typeof campaignSchema>;
 function localDateTime(date = new Date()) { return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16); }
 
 function OperationForm() {
+  const location = useLocation();
+  const prefillApplied = useRef(false);
   const qc = useQueryClient(); const options = useQuery({ queryKey: ["admin-form-options"], queryFn: getAdminFormOptions }); const [operationId, setOperationId] = useState(() => crypto.randomUUID());
   const form = useForm<TransferData>({ resolver: zodResolver(transferSchema), defaultValues: { clientId: "", transferredOn: today, sourceAccountId: "", destinationAccountId: "", sourcePoints: "", parity: "1", receivedOn: today, expiresOn: "", bonusPercentage: "0", bonusReceivedOn: "", notes: "" } });
   const values = form.watch(); const client = options.data?.clients.find((c) => c.clientId === values.clientId); const source = client?.accounts.find((a) => a.accountId === values.sourceAccountId);
+  useEffect(() => {
+    if (prefillApplied.current || !options.data) return;
+    const prefill = (location.state as { mileageSimulation?: { clientId?: string; sourceProgramId: string; targetProgramId: string; sourceProgramName: string; targetProgramName: string; points: number; bonusPercent: number; costPerThousand: number; notes?: string } } | null)?.mileageSimulation;
+    if (!prefill) return;
+    const selectedClient = options.data.clients.find((item) => item.clientId === prefill.clientId);
+    const sourceAccount = selectedClient?.accounts.find((account) => account.programId === prefill.sourceProgramId);
+    const destinationAccount = selectedClient?.accounts.find((account) => account.programId === prefill.targetProgramId);
+    form.reset({
+      ...form.getValues(),
+      clientId: prefill.clientId ?? "",
+      sourceAccountId: sourceAccount?.accountId ?? "",
+      destinationAccountId: destinationAccount?.accountId ?? "",
+      sourcePoints: formatPoints(prefill.points),
+      bonusPercentage: String(prefill.bonusPercent).replace(".", ","),
+      bonusReceivedOn: prefill.bonusPercent > 0 ? today : "",
+      notes: [`Simulação: ${prefill.sourceProgramName} → ${prefill.targetProgramName}. Custo calculado: ${new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(prefill.costPerThousand)} por milheiro.`, prefill.notes].filter(Boolean).join("\n"),
+    });
+    prefillApplied.current = true;
+  }, [form, location.state, options.data]);
   const calc = useMemo(() => { try { return calculateTransfer(parsePointsPtBr(values.sourcePoints), parseDecimalPtBr(values.parity), parseDecimalPtBr(values.bonusPercentage)); } catch { return { destinationBase: 0, bonusPoints: 0, destinationTotal: 0 }; } }, [values.sourcePoints, values.parity, values.bonusPercentage]);
   const mutation = useMutation({ mutationFn: confirmTransfer, onSuccess: () => { setOperationId(crypto.randomUUID()); form.reset({ ...form.getValues(), sourcePoints: "", notes: "" }); void Promise.all([qc.invalidateQueries({ queryKey: ["admin-form-options"] }), qc.invalidateQueries({ queryKey: ["admin-overview"] }), qc.invalidateQueries({ queryKey: ["points-ranking"] })]); } });
   const submit = form.handleSubmit((v) => mutation.mutate({ clientId: v.clientId, transferredOn: v.transferredOn, sourceAccountId: v.sourceAccountId, destinationAccountId: v.destinationAccountId, sourcePoints: parsePointsPtBr(v.sourcePoints), parity: parseDecimalPtBr(v.parity), receivedOn: v.receivedOn, expiresOn: v.expiresOn || undefined, bonusPercentage: parseDecimalPtBr(v.bonusPercentage), bonusReceivedOn: v.bonusReceivedOn || undefined, notes: v.notes || undefined, operationId }));
