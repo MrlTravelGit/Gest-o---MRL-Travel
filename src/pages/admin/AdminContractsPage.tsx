@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/admin/AdminPage";
 import { ClientContractsPanel } from "@/components/admin/ClientContractsPanel";
 import { parseDecimalPtBr, parseMoneyPtBr } from "@/lib/admin-inputs";
 import { calculateInstallment, formatContractCurrency, validateContractDraft } from "@/lib/contracts/contractFormat";
-import { downloadContractBlob } from "@/lib/contracts/downloadContract";
+import { openContractDownload } from "@/lib/contracts/downloadContract";
 import { getAdminClientManagement } from "@/services/admin-clients";
 import { getAdminFormOptions } from "@/services/admin-options";
 import { createClientContract } from "@/services/contracts";
@@ -102,9 +102,9 @@ export function AdminContractsPage() {
 
   const generate = useMutation({
     mutationFn: () => createClientContract(draft),
-    onSuccess: async ({ contract, blob, warning }) => {
-      downloadContractBlob(blob, (contract.contractNumber ?? "contrato-mrl") + ".pdf");
-      setFeedback(warning ?? "Contrato gerado, salvo e enviado para download.");
+    onSuccess: async ({ signedUrl }) => {
+      openContractDownload(signedUrl);
+      setFeedback("Contrato gerado com sucesso.");
       await queryClient.invalidateQueries({ queryKey: ["client-contracts"] });
     },
   });
@@ -173,7 +173,7 @@ export function AdminContractsPage() {
             <div><dt>Cashback</dt><dd>{includeCashback ? cashbackPercent + "%" : "Não incluído"}</dd></div>
             <div><dt>Garantia</dt><dd>{includeRoiGuarantee ? "Incluída" : "Não incluída"}</dd></div>
           </dl>
-          <footer><Download /><span>O PDF é baixado imediatamente, mesmo se o upload privado falhar.</span></footer>
+          <footer><Download /><span>O PDF é gerado no servidor, salvo no histórico privado e liberado por link temporário.</span></footer>
         </aside>
       </div>
       {feedback && <div className="contract-toast" role="status">{feedback}<button type="button" onClick={() => setFeedback("")}>Fechar</button></div>}

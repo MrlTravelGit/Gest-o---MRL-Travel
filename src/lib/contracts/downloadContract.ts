@@ -1,10 +1,9 @@
-export function downloadContractBlob(blob: Blob, fileName: string): void {
-  const url = URL.createObjectURL(blob);
+export function openContractDownload(url: string): void {
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = fileName;
+  anchor.target = "_blank";
+  anchor.rel = "noopener noreferrer";
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
 }

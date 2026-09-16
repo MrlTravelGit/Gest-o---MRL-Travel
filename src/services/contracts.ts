@@ -66,50 +66,26 @@ export async function listClientContracts(input: { clientId?: string; filter?: C
   return ((data ?? []) as ContractRow[]).map(mapContract);
 }
 
-export async function createClientContract(draft: ContractDraft): Promise<{ contract: ClientContract; blob: Blob; warning: string | null }> {
+export async function createClientContract(draft: ContractDraft): Promise<{ contractId: string; pdfPath: string; signedUrl: string }> {
   const validation = validateContractDraft(draft);
   if (validation) throw new Error(validation);
-  const contractNumber = "MRL-" + draft.contractDate.replaceAll("-", "") + "-" + crypto.randomUUID().slice(0, 8).toUpperCase();
-  const { data, error } = await supabase.from("client_contracts").insert({
-    client_id: draft.clientId,
-    contract_number: contractNumber,
-    client_name: draft.clientName.trim(),
-    cpf: draft.cpf.trim() || null,
-    rg: draft.rg.trim() || null,
-    email: draft.email.trim() || null,
-    marital_status: draft.maritalStatus.trim() || null,
-    profession: draft.profession.trim() || null,
-    full_address: draft.fullAddress.trim() || null,
-    contract_value: draft.contractValue,
-    installments: draft.installments,
-    installment_value: draft.installmentValue,
-    signature_city: draft.signatureCity.trim() || "POMPÉU",
-    contract_date: draft.contractDate,
-    include_cashback: draft.includeCashback,
-    cashback_percent: draft.cashbackPercent,
-    include_roi_guarantee: draft.includeRoiGuarantee,
-  }).select("*").single();
-  if (error || !data) throw new Error("Não foi possível salvar o contrato antes de gerar o PDF.");
-
-  const contract = mapContract(data as ContractRow);
-  const { generateContractPdf } = await import("@/lib/contracts/generateContractPdf");
-  const blob = await generateContractPdf(draft, contractNumber);
-  const objectPath = draft.clientId + "/" + contract.id + ".pdf";
-  const upload = await supabase.storage.from("contracts").upload(objectPath, blob, {
-    contentType: "application/pdf",
-    upsert: true,
+  const { data, error } = await supabase.functions.invoke<{ contract_id: string; pdf_path: string; signed_url: string }>("generate-client-contract", {
+    body: {
+      client_id: draft.clientId,
+      contract_data: {
+        nome: draft.clientName.trim(), cpf: draft.cpf.trim(), rg: draft.rg.trim(), email: draft.email.trim(),
+        estado_civil: draft.maritalStatus.trim(), profissao: draft.profession.trim(), endereco: draft.fullAddress.trim(),
+        valor_total: draft.contractValue, num_parcelas: draft.installments, valor_parcela: draft.installmentValue,
+        data: draft.contractDate, cidade: draft.signatureCity.trim() || "POMPÉU", incluir_cashback: draft.includeCashback,
+        pct_cashback: draft.cashbackPercent, incluir_reembolso: draft.includeRoiGuarantee,
+      },
+    },
   });
-  if (upload.error) {
-    console.error("[Contratos] PDF gerado, mas o upload falhou", upload.error);
-    return { contract, blob, warning: "PDF gerado e baixado localmente, mas não foi salvo no armazenamento." };
+  if (error || !data?.signed_url) {
+    console.error("[Contratos] geração no servidor falhou", error);
+    throw new Error("Não foi possível gerar o contrato no servidor.");
   }
-
-  const updated = await supabase.from("client_contracts").update({ pdf_path: objectPath }).eq("id", contract.id).select("*").single();
-  if (updated.error || !updated.data) {
-    console.error("[Contratos] upload concluído, mas o caminho não foi atualizado", updated.error);
-    return { contract, blob, warning: "PDF salvo, mas o histórico ainda não recebeu o vínculo de download." };
-  }
-  return { contract: mapContract(updated.data as ContractRow), blob, warning: null };
+  return { contractId: data.contract_id, pdfPath: data.pdf_path, signedUrl: data.signed_url };
 }
 
 export async function archiveClientContract(contractId: string): Promise<void> {
@@ -120,11 +96,9 @@ export async function archiveClientContract(contractId: string): Promise<void> {
   if (error) throw new Error("Não foi possível arquivar o contrato.");
 }
 
-export async function downloadStoredContract(contract: ClientContract): Promise<Blob> {
+export async function downloadStoredContract(contract: ClientContract): Promise<string> {
   if (!contract.pdfPath) throw new Error("Este contrato não possui PDF salvo.");
-  const signed = await supabase.storage.from("contracts").createSignedUrl(contract.pdfPath, 120);
+  const signed = await supabase.storage.from("contracts").createSignedUrl(contract.pdfPath, 120, { download: (contract.contractNumber ?? "contrato-mrl") + ".pdf" });
   if (signed.error || !signed.data?.signedUrl) throw new Error("Não foi possível autorizar o download do PDF.");
-  const response = await fetch(signed.data.signedUrl);
-  if (!response.ok) throw new Error("Não foi possível baixar o PDF salvo.");
-  return response.blob();
+  return signed.data.signedUrl;
 }

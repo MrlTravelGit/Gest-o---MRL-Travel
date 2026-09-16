@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Archive, Download, FileText, Plus } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { downloadContractBlob } from "@/lib/contracts/downloadContract";
+import { openContractDownload } from "@/lib/contracts/downloadContract";
 import { formatCurrency, formatDate } from "@/lib/formatters";
 import { archiveClientContract, downloadStoredContract, listClientContracts } from "@/services/contracts";
 import type { ClientContract, ContractFilter } from "@/types/contracts";
@@ -25,8 +25,8 @@ export function ClientContractsPanel({ clientId, canWrite = true, compact = fals
 
   const download = async (contract: ClientContract) => {
     try {
-      const blob = await downloadStoredContract(contract);
-      downloadContractBlob(blob, (contract.contractNumber ?? "contrato-mrl") + ".pdf");
+      const signedUrl = await downloadStoredContract(contract);
+      openContractDownload(signedUrl);
       setMessage("Download iniciado.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Não foi possível baixar o contrato.");
