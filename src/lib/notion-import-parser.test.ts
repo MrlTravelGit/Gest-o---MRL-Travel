@@ -51,7 +51,8 @@ describe("notion_mrl_v2 parser", () => {
 
 const realZipPath = process.env.MRL_NOTION_ZIP ?? String.raw`C:\Users\GESTAO\Desktop\f3152da7-5364-4a91-8b55-e65986ddebbf_ExportBlock-b919e00c-95ea-48a6-ac8b-41a28215e846.zip`.replaceAll("\\\\", "\\");
 const extractedDir = process.env.MRL_NOTION_EXTRACTED_DIR ?? String.raw`C:\Users\GESTAO\AppData\Local\Temp\mrl_patch016_d420eabbd1c24b39a7f220505887f7c4\inner`.replaceAll("\\\\", "\\");
-const realZipTest = existsSync(realZipPath) || existsSync(extractedDir) ? it : it.skip;
+const hasExtractedFixture = existsSync(extractedDir) && readExtractedTextFiles(extractedDir).length > 0;
+const realZipTest = existsSync(realZipPath) || hasExtractedFixture ? it : it.skip;
 
 describe("ZIP real do Notion", () => {
   realZipTest("produz as contagens canônicas e conflitos de referência", async () => {

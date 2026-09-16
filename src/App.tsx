@@ -15,6 +15,7 @@ const AdminFormsPage = lazy(() => import("@/pages/admin/AdminFormsPage").then((m
 const AdminInterestsPage = lazy(() => import("@/pages/admin/AdminInterestsPage").then((module) => ({ default: module.AdminInterestsPage })));
 const AdminTransfersPage = lazy(() => import("@/pages/admin/AdminTransfersPage").then((module) => ({ default: module.AdminTransfersPage })));
 const AdminMileageCalculatorPage = lazy(() => import("@/pages/admin/AdminMileageCalculatorPage").then((module) => ({ default: module.AdminMileageCalculatorPage })));
+const AdminContractsPage = lazy(() => import("@/pages/admin/AdminContractsPage").then((module) => ({ default: module.AdminContractsPage })));
 const AdminManualExitsPage = lazy(() => import("@/pages/admin/AdminManualExitsPage").then((module) => ({ default: module.AdminManualExitsPage })));
 const AdminClubsPage = lazy(() => import("@/pages/admin/AdminClubsPage").then((module) => ({ default: module.AdminClubsPage })));
 const AdminInvoicesPage = lazy(() => import("@/pages/admin/AdminInvoicesPage").then((module) => ({ default: module.AdminInvoicesPage })));
@@ -69,6 +70,7 @@ export default function App() {
           <Route path="/admin/interesses" element={<AdminInterestsPage />} />
           <Route path="/admin/transferencias" element={<AdminTransfersPage />} />
           <Route path="/admin/calculadora-milheiro" element={<AdminMileageCalculatorPage />} />
+          <Route path="/admin/contratos" element={<AdminContractsPage />} />
           <Route path="/admin/saidas" element={<AdminManualExitsPage />} />
           <Route path="/admin/demandas" element={<AdminTasksPage />} />
           <Route path="/admin/importacoes" element={<AdminImportsPage />} />

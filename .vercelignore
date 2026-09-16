@@ -2,3 +2,4 @@ apps/local-client-vault/
 vault-data/
 vault-backups/
 *.vault-backup
+Gerador de Contratos/

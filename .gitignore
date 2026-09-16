@@ -13,3 +13,4 @@ vitest.config.js
 vitest.config.d.ts
 .DS_Store
 supabase/.temp/
+Gerador de Contratos/

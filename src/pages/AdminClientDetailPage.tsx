@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Navigate, useParams } from "react-router-dom";
-import { AlertTriangle, ArrowLeft, CalendarRange, CheckCircle2, ClipboardCheck, Coins, Copy, ExternalLink, Gem, KeyRound, Pencil, RotateCcw, RotateCw, ShieldAlert, Trash2, WalletCards } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CalendarRange, CheckCircle2, ClipboardCheck, Coins, Copy, ExternalLink, FileText, Gem, KeyRound, Pencil, RotateCcw, RotateCw, ShieldAlert, Trash2, WalletCards } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { ClientPointsForm } from "@/components/admin/ClientPointsForm";
 import { ExpirationLotForm } from "@/components/admin/ExpirationLotForm";
@@ -14,6 +14,7 @@ import { ClientTravelInterestsPanel } from "@/components/admin/ClientTravelInter
 import { ClientInvoicesPanel } from "@/components/admin/ClientInvoicesPanel";
 import { ProtectedDataButton } from "@/components/admin/ProtectedDataButton";
 import { ClientExpirationAlertsPanel } from "@/components/admin/ClientExpirationAlertsPanel";
+import { ClientContractsPanel } from "@/components/admin/ClientContractsPanel";
 import { formatCurrency, formatDate, formatPoints } from "@/lib/formatters";
 import { leadActivationCopy } from "@/lib/client-admin";
 import { shouldShowClientProgram } from "@/lib/client-program-wallet";
@@ -130,6 +131,7 @@ export function AdminClientDetailPage() {
         <Link className="secondary-button" to="/admin/clientes"><ArrowLeft size={17} /> Clientes</Link>
         <div className="detail-toolbar-actions">
           <ProtectedDataButton clientId={clientId} allowed={vaultAllowed} state={contractPending ? "pending" : "synced"} />
+          {detail.data&&<Link className="primary-button" to={"/admin/contratos?clientId=" + clientId}><FileText size={16}/> Gerar contrato</Link>}
           {detail.data&&<Link className="secondary-button" to={`/admin/clientes/${clientId}/editar`}><Pencil size={16}/> Editar cadastro</Link>}
           {detail.data&&isArchived&&detail.data.canWrite&&<button className="primary-button" onClick={()=>setReactivationOpen(true)}><RotateCcw size={16}/> Reativar cliente</button>}
           {detail.data && <span className="status-pill">{isLead ? "Aguardando ativação" : isArchived ? "Arquivado" : contractPending ? "Contrato pendente de revisão" : detail.data.client.contractStatus ?? detail.data.client.status}</span>}
@@ -233,6 +235,7 @@ export function AdminClientDetailPage() {
 
         <ClientTasksPanel clientId={clientId} clientName={detail.data.client.fullName} canWrite={Boolean(detail.data.canWrite)} />
         <ClientSavingsPanel clientId={clientId} clientName={detail.data.client.fullName} canWrite={Boolean(detail.data.canWrite)} />
+        <ClientContractsPanel clientId={clientId} canWrite={Boolean(detail.data.canWrite)} compact />
         <ClientCardsPanel clientId={clientId} canWrite={Boolean(detail.data.canWrite)} />
         <ClientInvoicesPanel clientId={clientId} />
 

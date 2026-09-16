@@ -16,6 +16,7 @@ const navItems = [
   { label: "Pontuações", to: "/admin/pontuacoes", icon: DatabaseZap },
   { label: "Transferências", to: "/admin/transferencias", icon: Send },
   { label: "Calculadora de Milheiro", to: "/admin/calculadora-milheiro", icon: Calculator },
+  { label: "Contratos", to: "/admin/contratos", icon: FileText },
   { label: "Saída manual", to: "/admin/saidas", icon: ClipboardList },
   { label: "Interesses", to: "/admin/interesses", icon: MapPinned },
   { label: "Demandas", to: "/admin/demandas", icon: ListChecks },
