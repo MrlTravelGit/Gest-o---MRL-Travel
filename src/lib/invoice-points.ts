@@ -42,6 +42,10 @@ export interface InvoicePointsResult {
 
 const round2 = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
 
+export function isSuspiciousExchangeRate(exchangeRate: number | null | undefined): boolean {
+  return exchangeRate != null && Number.isFinite(exchangeRate) && (exchangeRate < 3 || exchangeRate > 10);
+}
+
 export function calculateInvoicePoints(input: CalculateInvoicePointsInput): InvoicePointsResult {
   const total = Number(input.invoiceTotal);
   const rule = input.cardRule;
@@ -67,9 +71,9 @@ export function calculateInvoicePoints(input: CalculateInvoicePointsInput): Invo
   const estimatedPoints = rawPoints == null ? null : Math.round(rawPoints);
   const parsedMileValue = input.programMileValue == null ? null : Number(input.programMileValue);
   const mileValue = parsedMileValue != null && Number.isFinite(parsedMileValue) && parsedMileValue > 0 ? parsedMileValue : null;
-  const estimatedPointsValue = estimatedPoints == null || mileValue == null || !Number.isFinite(mileValue)
+  const estimatedPointsValue = rawPoints == null || mileValue == null || !Number.isFinite(mileValue)
     ? null
-    : round2((estimatedPoints / 1000) * mileValue);
+    : round2((rawPoints / 1000) * mileValue);
   const actual = input.actualReceivedPoints == null ? null : Number(input.actualReceivedPoints);
   const pointsDifference = estimatedPoints == null || actual == null || !Number.isFinite(actual)
     ? null

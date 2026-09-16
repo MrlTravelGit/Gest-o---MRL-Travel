@@ -170,7 +170,7 @@ export function ClientDashboardView({
             {dashboard.cardStatements.slice(0, 6).map((statement, index) => (
               <article key={`${statement.month}-${statement.cardName}-${index}`}>
                 <CalendarClock aria-hidden />
-                <div className="statement-public-main"><span>{formatMonth(statement.month)} · {statement.institutionName || "Instituição não informada"}</span><strong>{statement.cardName}</strong><small>{formatCurrency(statement.totalSpend)}{statement.exchangeRate ? ` · cotação ${formatCurrency(statement.exchangeRate)}` : ""}</small></div>
+                <div className="statement-public-main"><span>{formatMonth(statement.month)} · {statement.institutionName || "Instituição não informada"}</span><strong>{statement.cardName}</strong><small>{formatCurrency(statement.totalSpend)}{statement.programName ? ` · ${statement.programName}` : ""}</small></div>
                 <dl><div><dt>Estimados</dt><dd>{statement.estimatedPoints == null ? "—" : formatPoints(statement.estimatedPoints)}</dd></div><div><dt>Valor aproximado</dt><dd>{statement.estimatedPointsValue == null ? "Não configurado" : formatCurrency(statement.estimatedPointsValue)}</dd></div><div><dt>Recebidos</dt><dd>{statement.receivedPoints == null ? "A confirmar" : formatPoints(statement.receivedPoints)}</dd></div></dl>
                 <span className={`invoice-public-status status-${statement.status}`}>{statement.status === "missing_fx" ? "Sem cotação" : statement.status === "divergent" ? "Divergente" : statement.status === "received" ? "Recebido" : "Previsto"}</span>
               </article>

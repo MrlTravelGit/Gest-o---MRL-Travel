@@ -31,6 +31,7 @@ export interface PublicClientCardStatement {
   totalSpend: number;
   cardName: string;
   institutionName: string | null;
+  programName?: string | null;
   exchangeRate: number | null;
   estimatedPoints: number | null;
   estimatedPointsValue: number | null;

@@ -1,11 +1,25 @@
 import { describe, expect, it } from "vitest";
-import { calculateInvoicePoints } from "./invoice-points";
+import { calculateInvoicePoints, isSuspiciousExchangeRate } from "./invoice-points";
 
 describe("calculateInvoicePoints", () => {
   it("calcula cartão por dólar e salva o snapshot esperado", () => {
     const result = calculateInvoicePoints({ invoiceTotal: 2000, exchangeRate: 5.5, cardRule: { cardName: "Sicoob Black ou Infinite", earningType: "usd", pointsPerUsd: 2 }, programName: "Livelo", programMileValue: 35 });
     expect(result).toMatchObject({ convertedUsd: 363.64, estimatedPoints: 727, estimatedPointsValue: 25.45 });
     expect(result.calculationSnapshot).toEqual({ card_name: "Sicoob Black ou Infinite", earning_type: "usd", points_per_usd: 2, points_per_brl: null, invoice_total: 2000, exchange_rate: 5.5, converted_usd: 363.64, estimated_points: 727, program_name: "Livelo", mile_value: 35, estimated_points_value: 25.45 });
+  });
+
+  it("calcula o exemplo de R$ 20 mil com cotação de R$ 5,50", () => {
+    expect(calculateInvoicePoints({ invoiceTotal: 20_000, exchangeRate: 5.5, cardRule: { cardName: "Sicoob Black ou Infinite", earningType: "usd", pointsPerUsd: 2 }, programName: "Livelo", programMileValue: 35 })).toMatchObject({
+      convertedUsd: 3636.36,
+      estimatedPoints: 7273,
+      estimatedPointsValue: 254.55,
+    });
+  });
+
+  it("sinaliza apenas cotações fora da faixa operacional", () => {
+    expect(isSuspiciousExchangeRate(2.99)).toBe(true);
+    expect(isSuspiciousExchangeRate(5.5)).toBe(false);
+    expect(isSuspiciousExchangeRate(10.01)).toBe(true);
   });
 
   it("calcula cartão por real", () => {
