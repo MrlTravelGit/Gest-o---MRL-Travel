@@ -164,16 +164,15 @@ export function ClientDashboardView({
 
       {dashboard.cardStatements && dashboard.cardStatements.length > 0 && (
         <section className="dashboard-section statement-section" aria-labelledby="cards-title">
-          <SectionHeading eyebrow="Cartões" title="Faturas e Pontos Esperados" id="cards-title" />
+          <SectionHeading eyebrow="Previsão financeira" title="Faturas e pontos previstos" id="cards-title" />
+          {dashboard.invoiceSummary && <div className="invoice-public-summary"><article><span>Faturas em {dashboard.invoiceSummary.year}</span><strong>{formatPoints(dashboard.invoiceSummary.invoiceCount)}</strong></article><article><span>Total faturado</span><strong>{formatCurrency(dashboard.invoiceSummary.totalInvoiced)}</strong></article><article><span>Pontos estimados</span><strong>{formatPoints(dashboard.invoiceSummary.estimatedPoints)}</strong></article><article><span>Valor aproximado</span><strong>{formatCurrency(dashboard.invoiceSummary.estimatedPointsValue)}</strong></article><article><span>Pontos recebidos</span><strong>{formatPoints(dashboard.invoiceSummary.receivedPoints)}</strong></article><article><span>Diferença acumulada</span><strong>{formatPoints(dashboard.invoiceSummary.accumulatedDifference)}</strong></article></div>}
           <div className="statement-list">
-            {dashboard.cardStatements.slice(-6).map((statement) => (
-              <article key={statement.month}>
+            {dashboard.cardStatements.slice(0, 6).map((statement, index) => (
+              <article key={`${statement.month}-${statement.cardName}-${index}`}>
                 <CalendarClock aria-hidden />
-                <div>
-                  <span>{formatMonth(statement.month)}</span>
-                  <strong>{formatCurrency(statement.eligibleSpend)}</strong>
-                </div>
-                <p>{formatPoints(statement.expectedPoints)} esperados · {formatPoints(statement.receivedPoints)} recebidos</p>
+                <div className="statement-public-main"><span>{formatMonth(statement.month)} · {statement.institutionName || "Instituição não informada"}</span><strong>{statement.cardName}</strong><small>{formatCurrency(statement.totalSpend)}{statement.exchangeRate ? ` · cotação ${formatCurrency(statement.exchangeRate)}` : ""}</small></div>
+                <dl><div><dt>Estimados</dt><dd>{statement.estimatedPoints == null ? "—" : formatPoints(statement.estimatedPoints)}</dd></div><div><dt>Valor aproximado</dt><dd>{statement.estimatedPointsValue == null ? "Não configurado" : formatCurrency(statement.estimatedPointsValue)}</dd></div><div><dt>Recebidos</dt><dd>{statement.receivedPoints == null ? "A confirmar" : formatPoints(statement.receivedPoints)}</dd></div></dl>
+                <span className={`invoice-public-status status-${statement.status}`}>{statement.status === "missing_fx" ? "Sem cotação" : statement.status === "divergent" ? "Divergente" : statement.status === "received" ? "Recebido" : "Previsto"}</span>
               </article>
             ))}
           </div>

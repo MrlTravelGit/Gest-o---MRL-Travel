@@ -353,12 +353,20 @@ export interface CardStatementOption {
   cardSlug?: string | null;
   calculationReady?: boolean;
   requiresReview?: boolean;
+  earningType?: "usd" | "brl" | "fixed" | "custom";
+  pointsPerUsd?: number | null;
+  pointsPerBrl?: number | null;
+  ruleDescription?: string | null;
+  loyaltyProgramId?: string | null;
+  programName?: string | null;
+  mileValue?: number | null;
 }
 
 export interface CardStatementOptions {
   clients: Array<{ clientId: string; fullName: string }>;
   institutions: Array<{ institutionId: string; name: string; logoUrl: string | null }>;
   cards: CardStatementOption[];
+  programs: Array<{ programId: string; name: string; mileValue: number | null }>;
 }
 
 export interface CardStatement {
@@ -382,9 +390,9 @@ export interface CardStatement {
   fxSource: string | null;
   expectedPoints: number | null;
   predictedPoints: number | null;
-  receivedPoints: number;
+    receivedPoints: number | null;
   difference: number | null;
-  predictionStatus: "pending_card" | "pending_breakdown" | "calculated" | "outdated" | "confirmed" | "not_applicable";
+    predictionStatus: "pending_card" | "pending_breakdown" | "missing_fx" | "calculated" | "outdated" | "confirmed" | "divergent" | "not_applicable";
   status: string;
   notes: string | null;
   ruleSnapshot: Record<string, unknown>;
@@ -394,7 +402,14 @@ export interface CardStatement {
   calculationRuleId?: string | null;
   linkStatus?: "pending" | "linked";
   cardSlug?: string | null;
-  catalogVersion?: number | null;
+    catalogVersion?: number | null;
+    loyaltyProgramId?: string | null;
+    programName?: string | null;
+    mileValue?: number | null;
+    estimatedPointsValue?: number | null;
+    actualPointsConfirmed?: boolean;
+    partnerType?: string | null;
+    partnerName?: string | null;
 }
 
 export type CardRuleUnit = "points_per_usd" | "points_per_brl" | "one_point_per_brl_amount";

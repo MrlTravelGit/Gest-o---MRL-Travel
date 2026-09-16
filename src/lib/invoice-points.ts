@@ -65,7 +65,8 @@ export function calculateInvoicePoints(input: CalculateInvoicePointsInput): Invo
   }
 
   const estimatedPoints = rawPoints == null ? null : Math.round(rawPoints);
-  const mileValue = input.programMileValue == null ? null : Number(input.programMileValue);
+  const parsedMileValue = input.programMileValue == null ? null : Number(input.programMileValue);
+  const mileValue = parsedMileValue != null && Number.isFinite(parsedMileValue) && parsedMileValue > 0 ? parsedMileValue : null;
   const estimatedPointsValue = estimatedPoints == null || mileValue == null || !Number.isFinite(mileValue)
     ? null
     : round2((estimatedPoints / 1000) * mileValue);

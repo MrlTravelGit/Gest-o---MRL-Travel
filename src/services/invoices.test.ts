@@ -8,11 +8,11 @@ import { normalizeCardStatementOptions, normalizeCardStatements } from "./invoic
 
 describe("normalização das respostas de faturas", () => {
   it("aceita o contrato esperado das opções", () => {
-    expect(normalizeCardStatementOptions({ clients: [], institutions: [], cards: [] })).toEqual({ clients: [], institutions: [], cards: [] });
+    expect(normalizeCardStatementOptions({ clients: [], institutions: [], cards: [], programs: [] })).toEqual({ clients: [], institutions: [], cards: [], programs: [] });
   });
 
   it("normaliza listas ausentes antes que a tela execute map ou find", () => {
-    expect(normalizeCardStatementOptions({ clients: null })).toEqual({ clients: [], institutions: [], cards: [] });
+    expect(normalizeCardStatementOptions({ clients: null })).toEqual({ clients: [], institutions: [], cards: [], programs: [] });
   });
 
   it("aceita uma lista vazia e completa os metadados ausentes", () => {

@@ -29,10 +29,24 @@ export interface PublicClientMonthlyMovement {
 export interface PublicClientCardStatement {
   month: string;
   totalSpend: number;
-  eligibleSpend: number;
-  expectedPoints: number;
+  cardName: string;
+  institutionName: string | null;
+  exchangeRate: number | null;
+  estimatedPoints: number | null;
+  estimatedPointsValue: number | null;
+  receivedPoints: number | null;
+  difference: number | null;
+  status: "predicted" | "received" | "divergent" | "missing_fx";
+}
+
+export interface PublicClientInvoiceSummary {
+  year: number;
+  invoiceCount: number;
+  totalInvoiced: number;
+  estimatedPoints: number;
+  estimatedPointsValue: number;
   receivedPoints: number;
-  divergence: number;
+  accumulatedDifference: number;
 }
 
 export interface PublicClientSaving {
@@ -99,6 +113,7 @@ export interface PublicClientDashboard {
   balanceHistory: PublicClientBalanceHistoryPoint[];
   monthlyMovements: PublicClientMonthlyMovement[];
   cardStatements?: PublicClientCardStatement[];
+  invoiceSummary?: PublicClientInvoiceSummary;
   savingsHistory?: PublicClientSaving[];
   cashback?: PublicClientCashback | null;
   contract?: PublicClientContract | null;
