@@ -1,11 +1,13 @@
-import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AlertTriangle, BarChart3, CalendarClock, Coins, Eye, LineChart as LineChartIcon, MapPinned, PiggyBank, PlaneTakeoff, WalletCards } from "lucide-react";
 import { Bar, CartesianGrid, ComposedChart, Legend, Line, LineChart, Tooltip, XAxis, YAxis } from "recharts";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 import { LoyaltyProgramLogo } from "@/components/brand/LoyaltyProgramLogo";
+import { SavingsDateFilter } from "@/components/shared/SavingsDateFilter";
 import { formatCurrency, formatDate, formatPoints } from "@/lib/formatters";
 import { normalizeBalanceHistory, normalizeMonthlyMovements, numericDomain, type BalanceHistoryPoint } from "@/lib/dashboard-chart-data";
 import { shouldShowClientProgram } from "@/lib/client-program-wallet";
+import { calculateSavingsSummary, isWithinSavingsDateRange } from "@/lib/savings-date-filter";
 import type { PublicClientDashboard, PublicClientProgram } from "@/types/dashboard";
 
 const balanceChartMargin = { top: 16, right: 10, bottom: 8, left: 0 };
@@ -28,6 +30,30 @@ export function ClientDashboardView({
   const hasBalanceHistory = balanceHistory.length > 0;
   const hasMonthlyMovements = monthlyMovements.length > 0;
   const walletPrograms = dashboard.programs.filter((program) => shouldShowClientProgram(program));
+  const [savingsStartDate, setSavingsStartDate] = useState("");
+  const [savingsEndDate, setSavingsEndDate] = useState("");
+  const hasSavingsHistory = Array.isArray(dashboard.savingsHistory);
+  const savingsPeriodActive = Boolean(savingsStartDate || savingsEndDate);
+  const dateFilteredSavings = useMemo(() => (dashboard.savingsHistory ?? [])
+    .filter((saving) => isWithinSavingsDateRange(saving, savingsStartDate, savingsEndDate)), [dashboard.savingsHistory, savingsStartDate, savingsEndDate]);
+  const dateFilteredCashbackTransactions = useMemo(() => (dashboard.cashback?.transactions ?? [])
+    .filter((transaction) => isWithinSavingsDateRange(transaction, savingsStartDate, savingsEndDate)), [dashboard.cashback?.transactions, savingsStartDate, savingsEndDate]);
+  const savingsPeriodSummary = useMemo(() => calculateSavingsSummary(
+    dateFilteredSavings,
+    dashboard.cashback?.transactions ?? [],
+    savingsStartDate,
+    savingsEndDate,
+  ), [dateFilteredSavings, dashboard.cashback?.transactions, savingsStartDate, savingsEndDate]);
+  const displayedSavingsTotal = hasSavingsHistory ? savingsPeriodSummary.totalSaved : dashboard.summary.generatedSavings;
+  const displayedSavingsCount = hasSavingsHistory ? dateFilteredSavings.length : dashboard.summary.redemptionsCount;
+  const displayedCashbackBalance = hasSavingsHistory ? savingsPeriodSummary.availableBalance : dashboard.cashback?.availableBalance ?? 0;
+  const displayedCashbackSummary = hasSavingsHistory ? savingsPeriodSummary : {
+    totalSaved: dashboard.summary.generatedSavings,
+    cashbackGenerated: dashboard.cashback?.summary.generated ?? 0,
+    availableBalance: dashboard.cashback?.summary.available ?? 0,
+    usedAmount: dashboard.cashback?.summary.used ?? 0,
+    paidAmount: dashboard.cashback?.summary.paid ?? 0,
+  };
 
   return (
     <ClientDashboardShell>
@@ -47,12 +73,12 @@ export function ClientDashboardView({
         <SummaryCard
           icon={<PiggyBank aria-hidden />}
           label="Economia"
-          value={formatCurrency(dashboard.summary.generatedSavings)}
+          value={formatCurrency(displayedSavingsTotal)}
           badge={dashboard.cashback?.enabled === true
-            ? { label: "Cashback", value: formatCurrency(dashboard.cashback.availableBalance) }
+            ? { label: "Cashback", value: formatCurrency(displayedCashbackBalance) }
             : undefined}
         />
-        <SummaryCard icon={<PlaneTakeoff aria-hidden />} label="Emissões/Economias" value={formatPoints(dashboard.summary.redemptionsCount)} />
+        <SummaryCard icon={<PlaneTakeoff aria-hidden />} label="Emissões/Economias" value={formatPoints(displayedSavingsCount)} />
       </section>
 
       {dashboard.summary.expiringIn90Days > 0 && (
@@ -154,11 +180,12 @@ export function ClientDashboardView({
         </section>
       )}
 
-      {dashboard.savingsHistory && dashboard.savingsHistory.length > 0 && (
+      {hasSavingsHistory && ((dashboard.savingsHistory?.length ?? 0) > 0 || savingsPeriodActive) && (
         <section className="dashboard-section public-savings-section" aria-labelledby="savings-history-title">
           <SectionHeading eyebrow={<><PiggyBank size={14} aria-hidden /> Economia comprovada</>} title="Histórico de Economias" id="savings-history-title" />
-          <div className="public-savings-list">
-            {dashboard.savingsHistory.map((saving) => (
+          <SavingsDateFilter startDate={savingsStartDate} endDate={savingsEndDate} onStartDateChange={setSavingsStartDate} onEndDateChange={setSavingsEndDate} idPrefix="public-savings"/>
+          {dateFilteredSavings.length === 0 ? <div className="panel-state">Nenhuma economia encontrada neste período.</div> : <div className="public-savings-list">
+            {dateFilteredSavings.map((saving) => (
               <article key={saving.id}>
                 <div className="public-saving-main">
                   <span>{formatDate(saving.date)}{saving.migrated && <em>Histórico migrado</em>}</span>
@@ -173,7 +200,7 @@ export function ClientDashboardView({
                 {saving.hasEvidence && accessToken && <button className="public-evidence-button" onClick={async () => { const { getPublicSavingEvidenceUrl } = await import("@/services/travel-economy"); const view = await getPublicSavingEvidenceUrl(saving.id, accessToken); window.open(view.url, "_blank", "noopener,noreferrer"); }}><Eye size={15}/> Ver comprovante</button>}
               </article>
             ))}
-          </div>
+          </div>}
         </section>
       )}
 
@@ -181,8 +208,8 @@ export function ClientDashboardView({
         <section className="dashboard-section public-cashback-section" aria-labelledby="cashback-title">
           <SectionHeading eyebrow={<><PiggyBank size={14} aria-hidden /> Benefício financeiro</>} title="Cashback MRL Travel" id="cashback-title" />
           {dashboard.cashback.notice && <div className="dashboard-alert"><AlertTriangle size={18}/><span>{dashboard.cashback.notice}</span></div>}
-          <div className="public-cashback-summary"><SummaryCard icon={<PiggyBank/>} label="Saldo disponível" value={formatCurrency(dashboard.cashback.summary.available)}/><SummaryCard icon={<Coins/>} label="Total gerado" value={formatCurrency(dashboard.cashback.summary.generated)}/><SummaryCard icon={<WalletCards/>} label="Utilizado ou pago" value={formatCurrency(dashboard.cashback.summary.used)}/></div>
-          <div className="public-cashback-statement">{dashboard.cashback.transactions.map((transaction) => <article key={transaction.id}><span>{formatDate(transaction.createdAt)}</span><div><strong>{transaction.description}</strong><small>{cashbackTypeLabel(transaction.type)}</small></div><b className={transaction.type === "earning" || (transaction.type === "adjustment" && transaction.amount > 0) ? "value-positive" : "value-negative"}>{transaction.type === "earning" || (transaction.type === "adjustment" && transaction.amount > 0) ? "+" : "−"}{formatCurrency(Math.abs(transaction.amount))}</b></article>)}</div>
+          <div className="public-cashback-summary"><SummaryCard icon={<PiggyBank/>} label="Saldo disponível" value={formatCurrency(displayedCashbackSummary.availableBalance)}/><SummaryCard icon={<Coins/>} label="Total gerado" value={formatCurrency(displayedCashbackSummary.cashbackGenerated)}/><SummaryCard icon={<WalletCards/>} label="Utilizado / pago" value={`${formatCurrency(displayedCashbackSummary.usedAmount)} / ${formatCurrency(displayedCashbackSummary.paidAmount)}`}/></div>
+          <div className="public-cashback-statement">{dateFilteredCashbackTransactions.map((transaction) => <article key={transaction.id}><span>{formatDate(transaction.createdAt)}</span><div><strong>{transaction.description}</strong><small>{cashbackTypeLabel(transaction.type)}</small></div><b className={transaction.type === "earning" || (transaction.type === "adjustment" && transaction.amount > 0) ? "value-positive" : "value-negative"}>{transaction.type === "earning" || (transaction.type === "adjustment" && transaction.amount > 0) ? "+" : "−"}{formatCurrency(Math.abs(transaction.amount))}</b></article>)}</div>
         </section>
       )}
 

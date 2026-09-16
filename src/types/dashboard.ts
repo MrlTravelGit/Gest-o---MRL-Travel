@@ -61,7 +61,7 @@ export interface PublicClientCashback {
   totalRedeemed?: number;
   notice: string | null;
   summary: { generated: number; used: number; paid?: number; reversed: number; adjusted: number; available: number };
-  transactions: Array<{ id: string; type: "earning" | "redemption" | "reversal" | "adjustment"; amount: number; description: string; redemptionId: string | null; createdAt: string }>;
+  transactions: Array<{ id: string; type: "earning" | "redemption" | "reversal" | "adjustment"; amount: number; description: string; redemptionId: string | null; redemptionMode?: "usage" | "payment" | null; createdAt: string }>;
 }
 
 export interface PublicClientContract {

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { ClientDashboardView } from "./ClientDashboardView";
@@ -190,14 +190,35 @@ describe("ClientDashboardView", () => {
     expect(screen.getByRole("heading", { name: "Histórico de Economias" })).toBeInTheDocument();
     expect(screen.getByText("Emissão CNF - VIX")).toBeInTheDocument();
     expect(screen.getByText("Histórico migrado")).toBeInTheDocument();
-    expect(screen.getByText("R$ 1.694,00")).toBeInTheDocument();
+    expect(screen.getAllByText("R$ 1.694,00").length).toBeGreaterThanOrEqual(1);
   });
 
   it("apresenta cashback como percentual do valor pago, separado da economia", () => {
     render(<ClientDashboardView dashboard={{ ...dashboard, cashback: cashback(34.14), savingsHistory: [{ id: "rafael", date: "2026-07-23", description: "Reserva Rafael Weck", originalValue: 1884.04, paidValue: 1706.90, savingsValue: 177.14, travelType: "flight", migrated: false, cashbackPercentage: 2, cashbackAmount: 34.14, cashbackBaseType: "paid_amount", cashbackBaseAmount: 1706.90, cashbackCalculationVersion: "paid_amount_v1", hasEvidence: false }] }} />);
-    expect(screen.getByText("R$ 177,14")).toBeInTheDocument();
+    expect(screen.getAllByText("R$ 177,14").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Cashback de 2% sobre R$ 1.706,90")).toBeInTheDocument();
     expect(screen.getAllByText("R$ 34,14").length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("filtra economias e totalizadores públicos por período inclusivo e permite limpar", () => {
+    const first = { id: "saving-2025", date: "2025-07-07", description: "Economia de 2025", originalValue: 1200, paidValue: 200, savingsValue: 1000, travelType: "flight" as const, migrated: false, cashbackPercentage: 10, cashbackAmount: 20, cashbackBaseType: "paid_amount" as const, cashbackBaseAmount: 200, cashbackCalculationVersion: "paid_amount_v1", hasEvidence: false };
+    const second = { ...first, id: "saving-2026", date: "2026-09-11", description: "Economia de 2026", savingsValue: 500, cashbackAmount: 10 };
+    render(<ClientDashboardView dashboard={{ ...dashboard, savingsHistory: [first, second], cashback: { ...cashback(30), transactions: [] } }} />);
+
+    expect(screen.getByText("Economia de 2025")).toBeInTheDocument();
+    expect(screen.getByText("Economia de 2026")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("De"), { target: { value: "2025-07-07" } });
+    fireEvent.change(screen.getByLabelText("Até"), { target: { value: "2026-09-10" } });
+
+    expect(screen.getByText("Economia de 2025")).toBeInTheDocument();
+    expect(screen.queryByText("Economia de 2026")).not.toBeInTheDocument();
+    expect(screen.getByText("Período filtrado: 07/07/2025 até 10/09/2026")).toBeInTheDocument();
+    const summary = screen.getByLabelText("Resumo do painel");
+    expect(within(summary).getByText("Economia").closest("article")).toHaveTextContent("R$ 1.000,00");
+
+    fireEvent.click(screen.getByRole("button", { name: "Limpar período" }));
+    expect(screen.getByText("Economia de 2026")).toBeInTheDocument();
+    expect(within(summary).getByText("Economia").closest("article")).toHaveTextContent("R$ 1.500,00");
   });
   it("mostra a etiqueta de cashback positivo somente abaixo do valor de Economia", () => {
     render(<ClientDashboardView dashboard={{ ...dashboard, cashback: cashback(34.14) }} />);
