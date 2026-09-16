@@ -99,6 +99,8 @@ export interface TravelSale {
   pointsUsed: number | null;
   sourceSystem: string | null;
   sourceBatchKey: string | null;
+  sourceExternalKey?: string | null;
+  matchKey?: string | null;
   migrated: boolean;
   updatedAt: string;
   cashbackPercentage: number | null;
@@ -128,6 +130,7 @@ export interface TravelSalesResult {
   pendingReconciliation: number;
   canWrite: boolean;
   selectedClientCashback: { enabled: boolean; defaultPercentage: number | null; summary: CashbackSummary } | null;
+  hiddenKeys?: string[];
 }
 
 export interface CashbackSummary { generated: number; used: number; paid: number; reversed: number; adjusted: number; available: number }

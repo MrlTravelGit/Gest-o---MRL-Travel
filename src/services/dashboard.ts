@@ -28,7 +28,7 @@ function normalizeDashboardCashback(payload: unknown): PublicClientDashboard {
   const dashboard = payload as PublicClientDashboard;
   const rawSavings = Array.isArray(dashboard.savingsHistory) ? dashboard.savingsHistory : [];
   const visibleSavings = rawSavings.filter((saving) =>
-    saving.deletedAt == null && !["deleted", "removed", "archived"].includes(String(saving.status ?? "").toLowerCase()),
+    saving.deletedAt == null && !["deleted", "removed", "archived", "hidden", "voided", "cancelled"].includes(String(saving.status ?? "").toLowerCase()),
   );
   const leakedDeletedIds = new Set(rawSavings.filter((saving) => !visibleSavings.includes(saving)).map((saving) => saving.id));
   const cashback = dashboard.cashback as (PublicClientDashboard["cashback"] & {

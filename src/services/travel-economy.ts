@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { buildSavingsMatchKey } from "@/lib/savings-match-key";
 import type { CashbackFormulaReconciliationPreview, CashbackFormulaReconciliationResult, ClientCashbackState, IddasSavingsImportState, TravelSalesResult } from "@/types/admin-modules";
 
 export interface RecordTravelSaleInput {
@@ -15,7 +16,10 @@ export async function getTravelSales(filters: { clientId?: string; startDate?: s
 }
 
 export function excludeDeletedTravelSales(result: TravelSalesResult): TravelSalesResult {
-  const items = result.items.filter((item) => item.deletedAt == null && !["deleted", "removed", "archived"].includes(String(item.status)));
+  const hiddenKeys = new Set(result.hiddenKeys ?? []);
+  const items = result.items.filter((item) => item.deletedAt == null
+    && !["deleted", "removed", "archived"].includes(String(item.status).toLowerCase())
+    && !hiddenKeys.has(buildSavingsMatchKey(item)));
   if (items.length === result.items.length) return result;
   const activeItems = items.filter((item) => item.status === "active");
   return {
@@ -153,6 +157,12 @@ export async function deleteTravelSaving(redemptionId: string, reason: string, e
   return data as unknown as { redemptionId: string; status: "deleted"; idempotentReplay: boolean; summary: import("@/types/admin-modules").CashbackSummary };
 }
 
+export async function hideTravelSaving(redemptionId: string, reason: string, expectedUpdatedAt?: string | null) {
+  const { data, error } = await supabase.rpc("admin_hide_travel_saving", { p_redemption_id: redemptionId, p_reason: reason, p_expected_updated_at: expectedUpdatedAt || null });
+  if (error || !data) throw new Error(safeMutationMessage(error, "Não foi possível ocultar esta economia migrada."));
+  return data as unknown as { redemptionId: string; status: "hidden"; matchKey: string; idempotentReplay: boolean; summary: import("@/types/admin-modules").CashbackSummary };
+}
+
 export async function previewTravelSavingVoid(redemptionId: string) {
   const { data, error } = await supabase.rpc("admin_preview_travel_saving_void", { p_redemption_id: redemptionId });
   if (error || !data) throw new Error(safeMutationMessage(error, "Não foi possível calcular o impacto da anulação."));
@@ -168,6 +178,7 @@ function safeMutationMessage(error: unknown, fallback: string) {
     CANCEL_REASON_REQUIRED: "Informe o motivo da anulação.",
     VOID_REASON_REQUIRED: "Informe o motivo da anulação.",
     DELETE_REASON_REQUIRED: "Informe o motivo da exclusão.",
+    HIDE_REASON_REQUIRED: "Informe o motivo da remoção.",
     CONCURRENT_EDIT: "O registro foi alterado por outra pessoa. Atualize a página e tente novamente.",
     CONFIRMATION_REQUIRED: "A confirmação do lote não confere.",
     ROW_NOT_PENDING: "Esta linha já foi conciliada ou está em conflito.",

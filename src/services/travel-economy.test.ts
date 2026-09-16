@@ -43,4 +43,16 @@ describe("proteção de economias excluídas", () => {
     expect(updated.totalCashback).toBe(10);
     expect(updated.ranking[0]).toMatchObject({ records: 1, totalSavings: 100 });
   });
+
+  it("remove um item cuja chave esteja na lista persistida de ocultações", () => {
+    const hidden = sale({ id: "legacy-id", sourceSystem: "iddas", sourceExternalKey: "iddas-row-14", migrated: true });
+    const visible = sale({ id: "visible", savingsAmount: 100, cashbackAmount: 10 });
+    const filtered = excludeDeletedTravelSales({
+      ...result([hidden, visible]),
+      hiddenKeys: ["client-1|iddas|iddas-row-14"],
+    });
+    expect(filtered.items.map((item) => item.id)).toEqual(["visible"]);
+    expect(filtered.totalSavings).toBe(100);
+    expect(filtered.totalCashback).toBe(10);
+  });
 });
