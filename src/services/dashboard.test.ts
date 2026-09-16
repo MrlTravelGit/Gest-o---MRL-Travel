@@ -66,4 +66,38 @@ describe("dashboard services", () => {
       cashback: { enabled: true, availableBalance: 34.14 },
     });
   });
+
+  it("remove economias excluídas e protege os totais mesmo se o backend vazar o registro", async () => {
+    invoke.mockResolvedValueOnce({
+      data: {
+        ...dashboardPayload,
+        summary: { ...dashboardPayload.summary, generatedSavings: 1460.13, redemptionsCount: 2 },
+        savingsHistory: [
+          { id: "visible", savingsValue: 1200, cashbackAmount: 120, deletedAt: null },
+          { id: "deleted", savingsValue: 260.13, cashbackAmount: 26.01, deletedAt: "2026-09-16T12:00:00Z" },
+        ],
+        cashback: {
+          enabled: true,
+          availableBalance: 146.01,
+          notice: null,
+          summary: { generated: 146.01, used: 0, paid: 0, reversed: 0, adjusted: 0, available: 146.01 },
+          transactions: [
+            { id: "tx-visible", type: "earning", amount: 120, description: "Visível", redemptionId: "visible", createdAt: "2026-09-15T12:00:00Z" },
+            { id: "tx-deleted", type: "earning", amount: 26.01, description: "Excluída", redemptionId: "deleted", createdAt: "2026-09-16T12:00:00Z" },
+          ],
+        },
+      },
+      error: null,
+    });
+
+    const result = await getPublicClientDashboardByLink("a".repeat(64));
+
+    expect(result.savingsHistory?.map((saving) => saving.id)).toEqual(["visible"]);
+    expect(result.summary).toMatchObject({ generatedSavings: 1200, redemptionsCount: 1 });
+    expect(result.cashback).toMatchObject({
+      availableBalance: 120,
+      summary: { generated: 120, available: 120 },
+      transactions: [{ id: "tx-visible" }],
+    });
+  });
 });

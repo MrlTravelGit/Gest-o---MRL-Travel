@@ -1,11 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Ban, Banknote, Eye, ImagePlus, Pencil, PiggyBank, Plus, ReceiptText, Settings2 } from "lucide-react";
+import { Ban, Banknote, CheckCircle2, Eye, ImagePlus, Pencil, PiggyBank, Plus, ReceiptText, Settings2, Trash2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import { calculateCashbackPreview, calculateSavingsPreview, normalizeMoneyDecimal, normalizePercentageDecimal } from "@/lib/cashback";
 import { formatCurrency, formatDate } from "@/lib/formatters";
-import { cancelTravelSaving, getAdminSavingEvidenceUrl, getClientCashback, getTravelSales, previewTravelSavingVoid, recordCashbackRedemption, removeSavingEvidence, updateClientCashbackConfig, updateTravelSaving, uploadSavingEvidence } from "@/services/travel-economy";
-import type { TravelSale } from "@/types/admin-modules";
+import { cancelTravelSaving, deleteTravelSaving, getAdminSavingEvidenceUrl, getClientCashback, getTravelSales, previewTravelSavingVoid, recordCashbackRedemption, removeSavingEvidence, removeTravelSaleFromResult, updateClientCashbackConfig, updateTravelSaving, uploadSavingEvidence } from "@/services/travel-economy";
+import type { ClientCashbackState, TravelSale, TravelSalesResult } from "@/types/admin-modules";
 
 export function ClientSavingsPanel({ clientId, canWrite }: { clientId: string; clientName: string; canWrite: boolean }) {
   const qc = useQueryClient();
@@ -16,27 +16,70 @@ export function ClientSavingsPanel({ clientId, canWrite }: { clientId: string; c
   const [configOpen, setConfigOpen] = useState(false);
   const [useOpen, setUseOpen] = useState(false);
   const [voiding, setVoiding] = useState<TravelSale | null>(null);
+  const [deleting, setDeleting] = useState<TravelSale | null>(null);
+  const [successMessage, setSuccessMessage] = useState("");
+  useEffect(() => {
+    if (!successMessage) return;
+    const timeout = window.setTimeout(() => setSuccessMessage(""), 4_000);
+    return () => window.clearTimeout(timeout);
+  }, [successMessage]);
   const refresh = () => Promise.all([qc.invalidateQueries({ queryKey: ["travel-sales"] }), qc.invalidateQueries({ queryKey: ["client-cashback", clientId] }), qc.invalidateQueries({ queryKey: ["admin-client-detail", clientId] }), qc.invalidateQueries({ queryKey: ["admin-clients"] }), qc.invalidateQueries({ queryKey: ["admin-overview"] })]);
   const evidenceUpload = useMutation({ mutationFn: ({ sale, file }: { sale: TravelSale; file: File }) => uploadSavingEvidence(sale.id, file), onSuccess: refresh });
   const evidenceRemove = useMutation({ mutationFn: async (sale: TravelSale) => { const reason = window.prompt("Motivo da remoção do comprovante:"); if (!reason) throw new Error("Remoção cancelada."); if (!window.confirm("Remover o comprovante desta economia?")) throw new Error("Remoção cancelada."); return removeSavingEvidence(sale.id, reason); }, onSuccess: refresh });
 
   return <section className="module-form client-savings-panel">
     <div className="form-title"><PiggyBank /><div><h2>Economias e cashback</h2><p>Histórico financeiro oficial, comprovantes privados e extrato auditável.</p></div></div>
+    {successMessage && <div className="form-success saving-delete-success" role="status"><CheckCircle2 size={16}/> {successMessage}</div>}
     {cashback.data && <><div className="cashback-ledger-summary"><Summary label="Total economizado" value={formatCurrency(query.data?.totalSavings ?? 0)}/><Summary label="Cashback gerado" value={formatCurrency(cashback.data.summary.generated)}/><Summary label="Saldo disponível" value={formatCurrency(cashback.data.summary.available)} highlight/><Summary label="Utilizado / pago" value={`${formatCurrency(cashback.data.summary.used)} / ${formatCurrency(cashback.data.summary.paid)}`}/></div><div className="client-savings-toolbar"><span className={`cashback-state ${cashback.data.config.enabled ? "enabled" : "disabled"}`}>{cashback.data.config.enabled ? "Cashback ativo" : "Cashback desabilitado"}{cashback.data.config.defaultPercentage ? ` · padrão ${cashback.data.config.defaultPercentage}%` : ""}</span><div><button className="secondary-button" disabled={!canWrite} onClick={() => setConfigOpen(true)}><Settings2 size={15}/> Configurar</button><button className="secondary-button" disabled={!canWrite || cashback.data.summary.available <= 0} onClick={() => setUseOpen(true)}><Banknote size={15}/> Registrar uso / pagamento</button><Link className="secondary-button" to={`/admin/viagens?clientId=${clientId}`}><Plus size={15}/> Nova economia</Link></div></div></>}
     <div className="saving-status-filter" aria-label="Filtrar economias por situação">{(["active","voided","all"] as const).map((value) => <button key={value} type="button" className={status===value ? "active" : ""} onClick={() => setStatus(value)}>{value==="active" ? "Ativas" : value==="voided" ? "Anuladas" : "Todas"}</button>)}</div>
     {query.isLoading && <div className="panel-state">Carregando economias...</div>}{query.isError && <div className="form-error">{query.error.message}</div>}{query.data?.items.length === 0 && <div className="panel-state">Nenhuma economia registrada.</div>}
     <div className="client-savings-list">{query.data?.items.map((sale) => <article key={sale.id} className={sale.status==="voided" ? "saving-voided" : ""}>
       <div><span>{formatDate(sale.launchedOn)} {sale.migrated && <em>Histórico migrado</em>} {sale.status==="voided" && <em className="voided-label">Operação anulada</em>}</span><strong>{sale.details}</strong><small>Original {formatCurrency(sale.originalValue)} · pago {formatCurrency(sale.paidValue)} · economia {formatCurrency(sale.savingsAmount)}</small><small>{sale.cashbackPercentage ? `Cashback de ${sale.cashbackPercentage}% sobre ${formatCurrency(sale.cashbackBaseAmount ?? sale.paidValue)}: ${formatCurrency(sale.cashbackAmount)}` : "Cashback não aplicado"}</small>{sale.voidReason && <small>Motivo: {sale.voidReason}</small>}</div>
       <b>{formatCurrency(sale.cashbackAmount)}</b>
-      <div className="row-actions">{sale.hasEvidence && <button className="icon-button" aria-label="Visualizar comprovante" onClick={async () => { const view = await getAdminSavingEvidenceUrl(sale.id); window.open(view.url, "_blank", "noopener,noreferrer"); }}><Eye size={15}/></button>}{canWrite && sale.status==="active" && <label className="icon-button" aria-label={sale.hasEvidence ? "Substituir comprovante" : "Adicionar comprovante"}><ImagePlus size={15}/><input hidden type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => { const file = event.target.files?.[0]; if (file) evidenceUpload.mutate({ sale, file }); event.currentTarget.value = ""; }}/></label>}{canWrite && sale.status==="active" && sale.hasEvidence && <button className="icon-button danger-button" aria-label="Remover comprovante" onClick={() => evidenceRemove.mutate(sale)}><ReceiptText size={15}/></button>}{canWrite && sale.status==="active" && sale.paymentMode === "cash" && <><button className="icon-button" aria-label="Editar economia" onClick={() => setEditing(sale)}><Pencil size={15}/></button><button className="icon-button danger-button" aria-label="Anular operação" onClick={() => setVoiding(sale)}><Ban size={15}/></button></>}</div>
+      <div className="row-actions">{sale.hasEvidence && <button className="icon-button" aria-label="Visualizar comprovante" onClick={async () => { const view = await getAdminSavingEvidenceUrl(sale.id); window.open(view.url, "_blank", "noopener,noreferrer"); }}><Eye size={15}/></button>}{canWrite && sale.status==="active" && <label className="icon-button" aria-label={sale.hasEvidence ? "Substituir comprovante" : "Adicionar comprovante"}><ImagePlus size={15}/><input hidden type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => { const file = event.target.files?.[0]; if (file) evidenceUpload.mutate({ sale, file }); event.currentTarget.value = ""; }}/></label>}{canWrite && sale.status==="active" && sale.hasEvidence && <button className="icon-button danger-button" aria-label="Remover comprovante" onClick={() => evidenceRemove.mutate(sale)}><ReceiptText size={15}/></button>}{canWrite && sale.status==="active" && sale.paymentMode === "cash" && <><button className="icon-button" aria-label="Editar economia" onClick={() => setEditing(sale)}><Pencil size={15}/></button><button className="icon-button danger-button" aria-label="Anular operação" onClick={() => setVoiding(sale)}><Ban size={15}/></button><button className="icon-button danger-button" aria-label="Excluir economia" onClick={() => setDeleting(sale)}><Trash2 size={15}/></button></>}</div>
     </article>)}</div>
     {(evidenceUpload.isError || evidenceRemove.isError) && <div className="form-error">{evidenceUpload.error?.message ?? evidenceRemove.error?.message}</div>}
     {cashback.data && cashback.data.transactions.length > 0 && <div className="cashback-statement"><div className="section-heading"><div><span className="eyebrow">Ledger</span><h3>Extrato de cashback</h3></div></div>{cashback.data.transactions.map((item) => <article key={item.id}><span className={`ledger-type ${item.type}`}>{ledgerLabel(item.type)}</span><div><strong>{item.description}</strong><small>{formatDate(item.createdAt)}</small></div><b className={item.type === "earning" || (item.type === "adjustment" && item.amount > 0) ? "value-positive" : "value-negative"}>{item.type === "earning" || (item.type === "adjustment" && item.amount > 0) ? "+" : "−"}{formatCurrency(Math.abs(item.amount))}</b></article>)}</div>}
     {editing && <EditSavingDialog sale={editing} cashbackEnabled={Boolean(cashback.data?.config.enabled)} onClose={() => setEditing(null)} onSaved={async () => { setEditing(null); await refresh(); }}/>} 
     {configOpen && cashback.data && <CashbackConfigDialog clientId={clientId} current={cashback.data.config} onClose={() => setConfigOpen(false)} onSaved={async () => { setConfigOpen(false); await refresh(); }}/>} 
     {useOpen && cashback.data && <CashbackUseDialog clientId={clientId} available={cashback.data.summary.available} onClose={() => setUseOpen(false)} onSaved={async () => { setUseOpen(false); await refresh(); }}/>} 
-    {voiding && <VoidSavingDialog sale={voiding} onClose={() => setVoiding(null)} onSaved={async () => { setVoiding(null); await refresh(); }}/>}
+    {voiding && (
+      <VoidSavingDialog sale={voiding} onClose={() => setVoiding(null)} onSaved={async () => { setVoiding(null); await refresh(); }}/>
+    )}
+    {deleting && (
+      <DeleteSavingDialog sale={deleting} onClose={() => setDeleting(null)} onDeleted={async () => {
+      setDeleting(null);
+      setSuccessMessage("Economia excluída. Lista e totais foram atualizados.");
+      await refresh();
+      }}/>
+    )}
   </section>;
+}
+
+function DeleteSavingDialog({ sale, onClose, onDeleted }: { sale: TravelSale; onClose: () => void; onDeleted: () => Promise<unknown> }) {
+  const queryClient = useQueryClient();
+  const [reason, setReason] = useState("");
+  const preview = useQuery({ queryKey: ["saving-delete-preview", sale.id], queryFn: () => previewTravelSavingVoid(sale.id) });
+  const mutation = useMutation({
+    mutationFn: () => deleteTravelSaving(sale.id, reason, sale.updatedAt),
+    onMutate: async () => {
+      await Promise.all([queryClient.cancelQueries({ queryKey: ["travel-sales"] }), queryClient.cancelQueries({ queryKey: ["client-cashback", sale.clientId] })]);
+      const salesSnapshots = queryClient.getQueriesData<TravelSalesResult>({ queryKey: ["travel-sales"] });
+      const cashbackSnapshot = queryClient.getQueryData<ClientCashbackState>(["client-cashback", sale.clientId]);
+      queryClient.setQueriesData<TravelSalesResult>({ queryKey: ["travel-sales"] }, (current) => current ? removeTravelSaleFromResult(current, sale.id) : current);
+      queryClient.setQueryData<ClientCashbackState>(["client-cashback", sale.clientId], (current) => current ? { ...current, summary: { ...current.summary, generated: current.summary.generated - sale.cashbackAmount, available: current.summary.available - sale.cashbackAmount } } : current);
+      return { salesSnapshots, cashbackSnapshot };
+    },
+    onError: (_error, _variables, context) => {
+      context?.salesSnapshots.forEach(([key, value]) => queryClient.setQueryData(key, value));
+      if (context?.cashbackSnapshot) queryClient.setQueryData(["client-cashback", sale.clientId], context.cashbackSnapshot);
+    },
+    onSuccess: async (result) => {
+      queryClient.setQueryData<ClientCashbackState>(["client-cashback", sale.clientId], (current) => current ? { ...current, summary: result.summary } : current);
+      await onDeleted();
+    },
+  });
+  return <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Excluir economia"><form className="confirm-modal void-saving-dialog" onSubmit={(event) => { event.preventDefault(); mutation.mutate(); }}><span className="eyebrow">Exclusão auditável</span><h2>Excluir economia</h2><p>O item sairá das listas, totais e painel público. O registro permanecerá no banco somente para auditoria.</p>{preview.isLoading && <div className="panel-state">Calculando impacto financeiro...</div>}{preview.data?.blocked && <div className="form-error">A exclusão está bloqueada: {formatCurrency(preview.data.allocated)} de cashback já foi utilizado ou pago.</div>}{preview.isError && <div className="form-error">{preview.error.message}</div>}<label>Motivo da exclusão<textarea minLength={5} required value={reason} onChange={(event) => setReason(event.target.value)}/></label>{mutation.isError && <div className="form-error">{mutation.error.message}</div>}<div className="dialog-actions"><button type="button" className="secondary-button" onClick={onClose}>Cancelar</button><button className="danger-confirm-button" disabled={mutation.isPending || preview.isLoading || preview.data?.blocked || reason.trim().length<5}>{mutation.isPending ? "Excluindo..." : "Confirmar exclusão"}</button></div></form></div>;
 }
 
 function Summary({ label, value, highlight = false }: { label: string; value: string; highlight?: boolean }) { return <article className={highlight ? "highlight" : ""}><span>{label}</span><strong>{value}</strong></article>; }

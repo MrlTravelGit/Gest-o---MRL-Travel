@@ -108,6 +108,9 @@ export interface TravelSale {
   cashbackCalculationVersion: string | null;
   hasEvidence: boolean;
   status: "active" | "voided";
+  deletedAt?: string | null;
+  deletedBy?: string | null;
+  deletionReason?: string | null;
   voidedAt: string | null;
   voidedBy: string | null;
   voidReason: string | null;

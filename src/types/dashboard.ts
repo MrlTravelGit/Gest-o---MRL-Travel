@@ -50,6 +50,8 @@ export interface PublicClientSaving {
   cashbackBaseAmount: number | null;
   cashbackCalculationVersion: string | null;
   hasEvidence: boolean;
+  deletedAt?: string | null;
+  status?: string | null;
 }
 
 export interface PublicClientCashback {

@@ -11,7 +11,35 @@ export interface RecordTravelSaleInput {
 export async function getTravelSales(filters: { clientId?: string; startDate?: string; endDate?: string; travelType?: "flight" | "hotel" | "other"; hasCashback?: boolean; status?: "active" | "voided" | "all"; limit?: number; offset?: number } = {}): Promise<TravelSalesResult> {
   const { data, error } = await supabase.rpc("get_travel_sales_v2", { p_client_id: filters.clientId || null, p_start_date: filters.startDate || null, p_end_date: filters.endDate || null, p_limit: filters.limit ?? 20, p_offset: filters.offset ?? 0, p_travel_type: filters.travelType || null, p_has_cashback: filters.hasCashback ?? null, p_status: filters.status ?? "active" });
   if (error || !data) throw new Error("Não foi possível carregar viagens e economia.");
-  return data as unknown as TravelSalesResult;
+  return excludeDeletedTravelSales(data as unknown as TravelSalesResult);
+}
+
+export function excludeDeletedTravelSales(result: TravelSalesResult): TravelSalesResult {
+  const items = result.items.filter((item) => item.deletedAt == null && !["deleted", "removed", "archived"].includes(String(item.status)));
+  if (items.length === result.items.length) return result;
+  const activeItems = items.filter((item) => item.status === "active");
+  return {
+    ...result,
+    items,
+    total: Math.max(0, result.total - (result.items.length - items.length)),
+    totalSavings: activeItems.reduce((sum, item) => sum + Number(item.savingsAmount || 0), 0),
+    totalCashback: activeItems.reduce((sum, item) => sum + Number(item.cashbackAmount || 0), 0),
+  };
+}
+
+export function removeTravelSaleFromResult(result: TravelSalesResult, redemptionId: string): TravelSalesResult {
+  const removed = result.items.find((item) => item.id === redemptionId);
+  if (!removed) return result;
+  return {
+    ...result,
+    items: result.items.filter((item) => item.id !== redemptionId),
+    total: Math.max(0, result.total - 1),
+    totalSavings: removed.status === "active" ? result.totalSavings - Number(removed.savingsAmount || 0) : result.totalSavings,
+    totalCashback: removed.status === "active" ? result.totalCashback - Number(removed.cashbackAmount || 0) : result.totalCashback,
+    ranking: result.ranking.map((entry) => entry.clientId === removed.clientId && removed.status === "active"
+      ? { ...entry, totalSavings: entry.totalSavings - Number(removed.savingsAmount || 0), records: Math.max(0, entry.records - 1) }
+      : entry).filter((entry) => entry.records > 0),
+  };
 }
 
 export async function recordTravelSale(input: RecordTravelSaleInput) {
@@ -119,6 +147,12 @@ export async function cancelTravelSaving(redemptionId: string, reason: string, e
   return data;
 }
 
+export async function deleteTravelSaving(redemptionId: string, reason: string, expectedUpdatedAt?: string | null) {
+  const { data, error } = await supabase.rpc("admin_delete_travel_saving", { p_redemption_id: redemptionId, p_reason: reason, p_expected_updated_at: expectedUpdatedAt || null });
+  if (error || !data) throw new Error(safeMutationMessage(error, "Não foi possível excluir esta economia."));
+  return data as unknown as { redemptionId: string; status: "deleted"; idempotentReplay: boolean; summary: import("@/types/admin-modules").CashbackSummary };
+}
+
 export async function previewTravelSavingVoid(redemptionId: string) {
   const { data, error } = await supabase.rpc("admin_preview_travel_saving_void", { p_redemption_id: redemptionId });
   if (error || !data) throw new Error(safeMutationMessage(error, "Não foi possível calcular o impacto da anulação."));
@@ -133,6 +167,7 @@ function safeMutationMessage(error: unknown, fallback: string) {
     CHANGE_REASON_REQUIRED: "Informe o motivo da alteração.",
     CANCEL_REASON_REQUIRED: "Informe o motivo da anulação.",
     VOID_REASON_REQUIRED: "Informe o motivo da anulação.",
+    DELETE_REASON_REQUIRED: "Informe o motivo da exclusão.",
     CONCURRENT_EDIT: "O registro foi alterado por outra pessoa. Atualize a página e tente novamente.",
     CONFIRMATION_REQUIRED: "A confirmação do lote não confere.",
     ROW_NOT_PENDING: "Esta linha já foi conciliada ou está em conflito.",

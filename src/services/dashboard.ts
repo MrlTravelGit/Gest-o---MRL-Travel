@@ -26,18 +26,50 @@ export async function getAdminOverview(): Promise<AdminOverview> {
 
 function normalizeDashboardCashback(payload: unknown): PublicClientDashboard {
   const dashboard = payload as PublicClientDashboard;
+  const rawSavings = Array.isArray(dashboard.savingsHistory) ? dashboard.savingsHistory : [];
+  const visibleSavings = rawSavings.filter((saving) =>
+    saving.deletedAt == null && !["deleted", "removed", "archived"].includes(String(saving.status ?? "").toLowerCase()),
+  );
+  const leakedDeletedIds = new Set(rawSavings.filter((saving) => !visibleSavings.includes(saving)).map((saving) => saving.id));
   const cashback = dashboard.cashback as (PublicClientDashboard["cashback"] & {
     summary?: { available?: number };
   }) | undefined;
 
-  if (!cashback || typeof cashback.availableBalance === "number") return { ...dashboard, travelInterests: Array.isArray(dashboard.travelInterests) ? dashboard.travelInterests : [] };
+  const generatedSavings = dashboard.savingsHistory
+    ? visibleSavings.reduce((total, saving) => total + Number(saving.savingsValue || 0), 0)
+    : dashboard.summary.generatedSavings;
+  const redemptionsCount = dashboard.savingsHistory ? visibleSavings.length : dashboard.summary.redemptionsCount;
+  const normalizedBase = {
+    ...dashboard,
+    summary: { ...dashboard.summary, generatedSavings, redemptionsCount },
+    savingsHistory: dashboard.savingsHistory ? visibleSavings : dashboard.savingsHistory,
+    travelInterests: Array.isArray(dashboard.travelInterests) ? dashboard.travelInterests : [],
+  };
+
+  if (!cashback) return normalizedBase;
+
+  const transactions = Array.isArray(cashback.transactions)
+    ? cashback.transactions.filter((transaction) => !transaction.redemptionId || !leakedDeletedIds.has(transaction.redemptionId))
+    : [];
+  const summary = dashboard.savingsHistory
+    ? (() => {
+      const generated = visibleSavings.reduce((total, saving) => total + Number(saving.cashbackAmount || 0), 0);
+      const source = cashback.summary;
+      return {
+        ...source,
+        generated,
+        available: generated + Number(source?.adjusted ?? 0) - Number(source?.used ?? 0) - Number(source?.paid ?? 0) - Number(source?.reversed ?? 0),
+      };
+    })()
+    : cashback.summary;
 
   return {
-    ...dashboard,
-    travelInterests: Array.isArray(dashboard.travelInterests) ? dashboard.travelInterests : [],
+    ...normalizedBase,
     cashback: {
       ...cashback,
-      availableBalance: Number(cashback.summary?.available ?? 0),
+      summary,
+      transactions,
+      availableBalance: Number(summary?.available ?? cashback.availableBalance ?? 0),
     },
   } as PublicClientDashboard;
 }
