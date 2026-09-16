@@ -21,6 +21,7 @@ type ContractRow = {
   include_cashback: boolean;
   cashback_percent: number | string;
   include_roi_guarantee: boolean;
+  include_courtesy_ticket: boolean;
   status: "generated" | "archived";
   pdf_path: string | null;
   created_at: string;
@@ -48,6 +49,7 @@ function mapContract(row: ContractRow): ClientContract {
     includeCashback: row.include_cashback,
     cashbackPercent: Number(row.cashback_percent),
     includeRoiGuarantee: row.include_roi_guarantee,
+    includeCourtesyTicket: row.include_courtesy_ticket ?? false,
     status: row.status,
     pdfPath: row.pdf_path,
     createdAt: row.created_at,
@@ -77,7 +79,7 @@ export async function createClientContract(draft: ContractDraft): Promise<{ cont
         estado_civil: draft.maritalStatus.trim(), profissao: draft.profession.trim(), endereco: draft.fullAddress.trim(),
         valor_total: draft.contractValue, num_parcelas: draft.installments, valor_parcela: draft.installmentValue,
         data: draft.contractDate, cidade: draft.signatureCity.trim() || "POMPÉU", incluir_cashback: draft.includeCashback,
-        pct_cashback: draft.cashbackPercent, incluir_reembolso: draft.includeRoiGuarantee,
+        pct_cashback: draft.cashbackPercent, incluir_reembolso: draft.includeRoiGuarantee, include_courtesy_ticket: draft.includeCourtesyTicket,
       },
     },
   });

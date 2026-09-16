@@ -20,6 +20,7 @@ const draft = (overrides: Partial<ContractDraft> = {}): ContractDraft => ({
   includeCashback: false,
   cashbackPercent: 2,
   includeRoiGuarantee: false,
+  includeCourtesyTicket: false,
   ...overrides,
 });
 
@@ -43,6 +44,13 @@ describe("contratos", () => {
     const both = buildContractClauses(draft({ includeCashback: true, includeRoiGuarantee: true }));
     expect(both).toHaveLength(10);
     expect(both.map((clause) => clause.number)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+  });
+
+  it("inclui a passagem cortesia somente quando marcada", () => {
+    const withoutTicket = buildContractClauses(draft())[0].blocks.map((block) => block.text).join(" ");
+    const withTicket = buildContractClauses(draft({ includeCourtesyTicket: true }))[0].blocks.map((block) => block.text).join(" ");
+    expect(withoutTicket).not.toMatch(/Passagem cortesia/);
+    expect(withTicket).toContain("1 Passagem cortesia para qualquer destino do Brasil IDA e VOLTA");
   });
 
   it("bloqueia contrato sem nome ou sem valor", () => {

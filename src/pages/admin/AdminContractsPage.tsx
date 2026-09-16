@@ -55,6 +55,7 @@ export function AdminContractsPage() {
   const [includeCashback, setIncludeCashback] = useState(false);
   const [cashbackPercent, setCashbackPercent] = useState("2");
   const [includeRoiGuarantee, setIncludeRoiGuarantee] = useState(false);
+  const [includeCourtesyTicket, setIncludeCourtesyTicket] = useState(false);
   const [feedback, setFeedback] = useState("");
 
   useEffect(() => {
@@ -96,6 +97,7 @@ export function AdminContractsPage() {
     includeCashback,
     cashbackPercent: (() => { try { return parseDecimalPtBr(cashbackPercent); } catch { return 0; } })(),
     includeRoiGuarantee,
+    includeCourtesyTicket,
   };
   const cpfDigits = cpf.replace(/\D/g, "");
   const validation = !clientId ? "Selecione um cliente." : validateContractDraft(draft);
@@ -153,6 +155,7 @@ export function AdminContractsPage() {
             <div className="contract-option-grid">
               <label className={includeCashback ? "selected" : ""}><input type="checkbox" checked={includeCashback} onChange={(event) => setIncludeCashback(event.target.checked)} /><span><strong>Cashback por viagens</strong><small>Benefício sobre serviços contratados via MRL Travel.</small></span></label>
               <label className={includeRoiGuarantee ? "selected" : ""}><input type="checkbox" checked={includeRoiGuarantee} onChange={(event) => setIncludeRoiGuarantee(event.target.checked)} /><span><strong>Garantia de retorno</strong><small>Prevê reembolso da diferença conforme as condições.</small></span></label>
+              <label className={includeCourtesyTicket ? "selected" : ""}><input type="checkbox" checked={includeCourtesyTicket} onChange={(event) => setIncludeCourtesyTicket(event.target.checked)} /><span><strong>Passagem cortesia inclusa</strong><small>Inclui 1 passagem cortesia ida e volta para qualquer destino do Brasil, mediante solicitação com no mínimo 30 dias de antecedência.</small></span></label>
             </div>
             {includeCashback && <label className="contract-percent-field">Percentual de cashback<input inputMode="decimal" value={cashbackPercent} onChange={(event) => setCashbackPercent(event.target.value)} /><span>%</span></label>}
           </section>
@@ -172,6 +175,7 @@ export function AdminContractsPage() {
             <div><dt>Assinatura</dt><dd>{signatureCity || "POMPÉU"} · {contractDate}</dd></div>
             <div><dt>Cashback</dt><dd>{includeCashback ? cashbackPercent + "%" : "Não incluído"}</dd></div>
             <div><dt>Garantia</dt><dd>{includeRoiGuarantee ? "Incluída" : "Não incluída"}</dd></div>
+            <div><dt>Passagem cortesia</dt><dd>{includeCourtesyTicket ? "Incluída" : "Não incluída"}</dd></div>
           </dl>
           <footer><Download /><span>O PDF é gerado no servidor, salvo no histórico privado e liberado por link temporário.</span></footer>
         </aside>

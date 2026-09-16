@@ -20,6 +20,7 @@ export interface ContractCommercialData {
   includeCashback: boolean;
   cashbackPercent: number;
   includeRoiGuarantee: boolean;
+  includeCourtesyTicket: boolean;
 }
 
 export type ContractDraft = ContractPartyData & ContractCommercialData;

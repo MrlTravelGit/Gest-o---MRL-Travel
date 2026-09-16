@@ -36,7 +36,7 @@ function paymentText(draft: ContractDraft): string {
 }
 
 function fixedClauses(draft: ContractDraft): Omit<ContractClause, "number">[] {
-  return [
+  const clauses: Omit<ContractClause, "number">[] = [
     {
       title: "OBJETO",
       blocks: [
@@ -101,7 +101,7 @@ function fixedClauses(draft: ContractDraft): Omit<ContractClause, "number">[] {
       title: "CONFIDENCIALIDADE E PROTEÇÃO DE DADOS (LGPD)",
       blocks: [
         { type: "paragraph", text: "As partes comprometem-se a manter sigilo absoluto de todas as informações e dados compartilhados, em conformidade com a Lei Geral de Proteção de Dados (Lei nº 13.709/2018)." },
-        { type: "paragraph", text: "A CONTRATADA armazena os acessos fornecidos em ambiente seguro e criptografado, com acesso restrito ao time autorizado e treinado." },
+        { type: "paragraph", text: "A CONTRATADA armazena os acessos fornecidos em ambiente seguro e criptografado, , com acesso restrito ao time autorizado e treinado." },
         { type: "paragraph", text: "A CONTRATANTE reconhece que, embora raros, casos de invasão por terceiros (hackers) podem ocorrer. Nestes casos:" },
         { type: "bullet", text: "A CONTRATADA compromete-se a apurar os fatos com apoio jurídico;" },
         { type: "bullet", text: "A CONTRATADA não será responsabilizada por eventuais prejuízos decorrentes de ações externas alheias ao seu controle;" },
@@ -110,6 +110,8 @@ function fixedClauses(draft: ContractDraft): Omit<ContractClause, "number">[] {
       ],
     },
   ];
+  if (draft.includeCourtesyTicket) clauses[0].blocks.push({ type: "bullet", text: "1 Passagem cortesia para qualquer destino do Brasil IDA e VOLTA a solicitação da mesma deve ser feita com no mínimo 30 dias antes do embarque" });
+  return clauses;
 }
 
 function cashbackClause(percent: number): Omit<ContractClause, "number"> {
@@ -138,8 +140,8 @@ function roiClause(): Omit<ContractClause, "number"> {
   return {
     title: "GARANTIA DE RETORNO DE INVESTIMENTO",
     blocks: [
-      { type: "bullet", text: "A CONTRATADA se compromete a gerar, no mínimo, o valor total investido pelo(a) CONTRATANTE em forma de descontos, cashbacks ou economias obtidas durante a gestão dos pontos/milhas em programas de fidelidades, conforme estipulado no presente contrato." },
-      { type: "bullet", text: "Reembolso da Diferença: Caso o(a) CONTRATANTE não obtenha o valor equivalente ao investimento inicial por meio dos referidos descontos, cashbacks ou economias até o término da prestação dos serviços, a CONTRATADA compromete-se a reembolsar ao(à) CONTRATANTE a diferença entre o valor investido e o valor efetivamente economizado ou obtido em forma de desconto e cashback." },
+      { type: "bullet", text: "A CONTRATADA se compromete a gerar, no mínimo, o valor total investido pelo(a) CONTRATANTE em forma de descontos ou economias obtidas durante a gestão dos pontos/milhas em programas de fidelidades, conforme estipulado no presente contrato." },
+      { type: "bullet", text: "Reembolso da Diferença: Caso o(a) CONTRATANTE não obtenha o valor equivalente ao investimento inicial por meio dos referidos descontos ou economias até o término da prestação dos serviços, a CONTRATADA compromete-se a reembolsar ao(à) CONTRATANTE a diferença entre o valor investido e o valor efetivamente economizado ou obtido em forma de desconto." },
       { type: "bullet", text: "Prazos e Condições: O reembolso da diferença deverá ser solicitado por escrito pelo(a) CONTRATANTE em até 15 dias após o término do contrato, apresentando a comprovação dos valores não atingidos, sendo o valor ressarcido pela CONTRATADA em até 30 dias após o recebimento da solicitação." },
       { type: "bullet", text: "Exclusões: Esta garantia não será aplicável nos casos em que o não atingimento do valor investido decorra de falta de colaboração ou cumprimento das obrigações por parte do(a) CONTRATANTE, conforme previsto nas demais cláusulas do contrato." },
     ],
@@ -162,9 +164,9 @@ function finalClauses(): Omit<ContractClause, "number">[] {
     {
       title: "FORO",
       blocks: [
-        { type: "paragraph", text: "Este contrato poderá ser assinado física ou digitalmente, por meio de plataformas como Docusign, Clicksign ou similares, sendo as assinaturas eletrônicas válidas nos termos da Medida Provisória nº 2.200-2/2001." },
-        { type: "paragraph", text: "Fica eleito o foro da Comarca de " + CONTRACTOR.forum + " para dirimir dúvidas ou controvérsias oriundas deste contrato, com renúncia a qualquer outro, por mais privilegiado que seja." },
-        { type: "paragraph", text: "E, por estarem de pleno acordo, as partes assinam o presente instrumento, física ou digitalmente, conferindo-lhe eficácia de título executivo extrajudicial." },
+        { type: "paragraph", text: "Este contrato poderá ser assinado física ou digitalmente, por meio de plataformas como Docusign, Clicksign ou similares, sendo as assinaturas eletrônicas consideradas válidas e eficazes, nos termos da Medida Provisória nº 2.200-2/2001, com valor jurídico equivalente ao da assinatura física." },
+        { type: "paragraph", text: "Fica eleito o foro da Comarca de " + CONTRACTOR.forum + " para dirimir quaisquer dúvidas ou controvérsias oriundas deste contrato, com renúncia a qualquer outro, por mais privilegiado que seja." },
+        { type: "paragraph", text: "E, por estarem de pleno acordo, as partes assinam o presente instrumento, física ou digitalmente, conferindo-lhe eficácia de título executivo extrajudicial.\"" },
       ],
     },
   ];

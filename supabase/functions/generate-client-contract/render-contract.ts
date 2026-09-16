@@ -1,4 +1,5 @@
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "npm:pdf-lib@1.17.1";
+import { LOGO_MRL_BASE64 } from "./logo-mrl-travel.ts";
 
 export interface ContractData {
   nome: string;
@@ -16,6 +17,7 @@ export interface ContractData {
   incluir_cashback: boolean;
   pct_cashback: number;
   incluir_reembolso: boolean;
+  include_courtesy_ticket: boolean;
 }
 
 const CONTRACTOR = {
@@ -29,11 +31,18 @@ const CONTRACTOR = {
 const money = (value: number) => new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
 const valueOr = (value: string, fallback = "não informado") => value.trim() || fallback;
 const safePdfText = (value: string) => value.replace(/[\u2013\u2014]/g, "-").replace(/[\u2018\u2019]/g, "'").replace(/[\u201c\u201d]/g, '"').replace(/\u2026/g, "...");
+const numberWords: Record<number, string> = { 1:"um",2:"dois",3:"três",4:"quatro",5:"cinco",6:"seis",7:"sete",8:"oito",9:"nove",10:"dez",11:"onze",12:"doze",13:"treze",14:"quatorze",15:"quinze",16:"dezesseis",17:"dezessete",18:"dezoito",19:"dezenove",20:"vinte",30:"trinta",40:"quarenta",50:"cinquenta",60:"sessenta",70:"setenta",80:"oitenta",90:"noventa",100:"cem" };
+const numberToWords = (value: number) => numberWords[value] ?? (value > 20 && value < 100 ? `${numberWords[Math.floor(value / 10) * 10]} e ${numberWords[value % 10]}` : String(value));
+const percent = (value: number) => new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 }).format(value) + "%";
+const percentageToWords = (value: number) => Number.isInteger(value) ? `${numberToWords(value)} por cento` : `${numberToWords(Math.trunc(value))} vírgula ${String(value).split(".")[1].split("").map((digit) => numberToWords(Number(digit))).join(" ")} por cento`;
+
+function decodeBase64(value: string): Uint8Array {
+  const binary = atob(value);
+  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+}
 
 function contractSections(data: ContractData): Array<{ title: string; paragraphs: string[] }> {
-  const payment = data.num_parcelas > 1
-    ? `A CONTRATANTE pagará à CONTRATADA o valor de R$ ${money(data.valor_total)}, em até ${data.num_parcelas} parcelas de R$ ${money(data.valor_parcela)}, via Pix, cartão de crédito ou link de pagamento.`
-    : `A CONTRATANTE pagará à CONTRATADA o valor de R$ ${money(data.valor_total)}, à vista, via Pix, cartão de crédito ou link de pagamento.`;
+  const payment = `A CONTRATANTE pagará à CONTRATADA o valor de R$ ${money(data.valor_total)}, por meio de Pix ou cartão de crédito, em parcelas até ${data.num_parcelas} (${numberToWords(data.num_parcelas)}) vezes de R$ ${money(data.valor_parcela)} via link de pagamento.`;
   const sections = [
     { title: "OBJETO", paragraphs: [
       "A CONTRATADA prestará à CONTRATANTE os seguintes serviços de gestão de milhas, durante o período de 12 (doze) meses:",
@@ -82,7 +91,7 @@ function contractSections(data: ContractData): Array<{ title: string; paragraphs
     ] },
     { title: "CONFIDENCIALIDADE E PROTEÇÃO DE DADOS (LGPD)", paragraphs: [
       "As partes comprometem-se a manter sigilo absoluto de todas as informações e dados compartilhados, em conformidade com a Lei Geral de Proteção de Dados (Lei nº 13.709/2018).",
-      "A CONTRATADA armazena os acessos fornecidos em ambiente seguro e criptografado, com acesso restrito ao time autorizado e treinado.",
+      "A CONTRATADA armazena os acessos fornecidos em ambiente seguro e criptografado, , com acesso restrito ao time autorizado e treinado.",
       "A CONTRATANTE reconhece que, embora raros, casos de invasão por terceiros (hackers) podem ocorrer. Nestes casos:",
       "• A CONTRATADA compromete-se a apurar os fatos com apoio jurídico;",
       "• A CONTRATADA não será responsabilizada por eventuais prejuízos decorrentes de ações externas alheias ao seu controle;",
@@ -90,19 +99,28 @@ function contractSections(data: ContractData): Array<{ title: string; paragraphs
       "Em caso de vazamento de dados por negligência da CONTRATADA, será aplicada multa de R$ 100.000,00 (cem mil reais), além de sanções legais cabíveis.",
     ] },
   ];
+  if (data.include_courtesy_ticket) sections[0].paragraphs.push("• 1 Passagem cortesia para qualquer destino do Brasil IDA e VOLTA a solicitação da mesma deve ser feita com no mínimo 30 dias antes do embarque");
   if (data.incluir_cashback) sections.push({ title: "PROGRAMA DE CASHBACK POR VIAGENS CONTRATADAS", paragraphs: [
-    `A CONTRATANTE fará jus a um benefício de cashback de ${money(data.pct_cashback)}% sobre o valor total de cada pacote ou serviço de viagem contratado diretamente através da MRL TRAVEL, nas hipóteses previstas neste instrumento.`,
-    "• O cashback será apurado mensalmente com base nos serviços efetivamente contratados e pagos;",
-    "• O saldo poderá ser utilizado como crédito em futuras viagens ou devolvido via Pix, mediante solicitação expressa;",
-    "• Quando optado pelo Pix, o pagamento será realizado até o 10º dia útil do mês subsequente à apuração;",
-    "• Não haverá cashback sobre serviços cancelados, estornados ou objeto de chargeback;",
-    "• O benefício não é cumulativo com outras promoções ou descontos, salvo acordo expresso.",
+    `A CONTRATANTE fará jus a um benefício de cashback de ${percent(data.pct_cashback)} (${percentageToWords(data.pct_cashback)}) sobre o valor total de cada pacote ou serviço de viagem contratado diretamente através da MRL TRAVEL, nas seguintes hipóteses:`,
+    "• Viagens corporativas custeadas ou reembolsadas pela empresa do(a) CONTRATANTE, desde que a contratação seja realizada por intermédio da CONTRATADA;",
+    "• Viagens geradas por indicações feitas pelo(a) CONTRATANTE a terceiros, que resultem em contratação efetiva junto à CONTRATADA.",
+    "Forma de apuração e utilização do cashback:",
+    "• O cashback será apurado mensalmente pela CONTRATADA com base nos serviços efetivamente contratados e pagos no período;",
+    "• O saldo acumulado poderá ser utilizado pelo(a) CONTRATANTE, a seu critério, nas seguintes modalidades: (a) crédito para abatimento em futuras contratações de viagens junto à MRL TRAVEL; ou (b) devolução em dinheiro via Pix, mediante solicitação expressa ao(à) CONTRATANTE;",
+    "• A opção pela modalidade de utilização (crédito ou Pix) deverá ser comunicada pelo(a) CONTRATANTE por escrito (WhatsApp ou e-mail) até o último dia do mês de apuração. Na ausência de manifestação, o saldo será mantido como crédito automaticamente;",
+    "• Quando optado pelo Pix, o pagamento será realizado pela CONTRATADA até o 10º dia útil do mês subsequente à apuração, para a chave Pix cadastrada pelo(a) CONTRATANTE;",
+    "• O saldo em crédito será informado ao(à) CONTRATANTE por escrito (WhatsApp ou e-mail) até o 5º dia útil do mês subsequente à apuração;",
+    "• Créditos não utilizados até o término do presente contrato poderão ser transferidos para eventual renovação ou convertidos em Pix, a critério do(a) CONTRATANTE mediante solicitação expressa.",
+    "Exclusões:",
+    "• Não incidirá cashback sobre serviços cancelados, estornados ou objetos de chargeback;",
+    "• Indicações que não resultem em contratação efetiva e paga não geram direito a cashback;",
+    "• O benefício de cashback não é cumulativo com outras promoções ou descontos concedidos pontualmente pela CONTRATADA, salvo acordo expresso em contrário.",
   ] });
   if (data.incluir_reembolso) sections.push({ title: "GARANTIA DE RETORNO DE INVESTIMENTO", paragraphs: [
-    "• A CONTRATADA se compromete a gerar, no mínimo, o valor total investido em forma de descontos, cashbacks ou economias obtidas durante a gestão;",
-    "• Caso o valor não seja atingido até o término, a CONTRATADA reembolsará a diferença entre o investimento e o valor efetivamente economizado;",
-    "• O pedido deverá ser feito por escrito em até 15 dias após o término do contrato, com pagamento em até 30 dias após a solicitação;",
-    "• A garantia não se aplica quando o resultado decorrer de falta de colaboração ou descumprimento das obrigações da CONTRATANTE.",
+    "• A CONTRATADA se compromete a gerar, no mínimo, o valor total investido pelo(a) CONTRATANTE em forma de descontos ou economias obtidas durante a gestão dos pontos/milhas em programas de fidelidades, conforme estipulado no presente contrato.",
+    "• Reembolso da Diferença: Caso o(a) CONTRATANTE não obtenha o valor equivalente ao investimento inicial por meio dos referidos descontos ou economias até o término da prestação dos serviços, a CONTRATADA compromete-se a reembolsar ao(à) CONTRATANTE a diferença entre o valor investido e o valor efetivamente economizado ou obtido em forma de desconto.",
+    "• Prazos e Condições: O reembolso da diferença deverá ser solicitado por escrito pelo(a) CONTRATANTE em até 15 dias após o término do contrato, apresentando a comprovação dos valores não atingidos, sendo o valor ressarcido pela CONTRATADA em até 30 dias após o recebimento da solicitação.",
+    "• Exclusões: Esta garantia não será aplicável nos casos em que o não atingimento do valor investido decorra de falta de colaboração ou cumprimento das obrigações por parte do(a) CONTRATANTE, conforme previsto nas demais cláusulas do contrato.",
   ] });
   sections.push(
     { title: "DISPOSIÇÕES GERAIS", paragraphs: [
@@ -114,9 +132,9 @@ function contractSections(data: ContractData): Array<{ title: string; paragraphs
       "• Qualquer outro contrato verbal ou escrito anterior é automaticamente substituído por este.",
     ] },
     { title: "FORO", paragraphs: [
-      "Este contrato poderá ser assinado física ou digitalmente, por meio de plataformas como Docusign, Clicksign ou similares, sendo as assinaturas eletrônicas válidas nos termos da Medida Provisória nº 2.200-2/2001.",
-      `Fica eleito o foro da Comarca de ${CONTRACTOR.forum} para dirimir dúvidas ou controvérsias oriundas deste contrato, com renúncia a qualquer outro, por mais privilegiado que seja.`,
-      "E, por estarem de pleno acordo, as partes assinam o presente instrumento, física ou digitalmente, conferindo-lhe eficácia de título executivo extrajudicial.",
+      "Este contrato poderá ser assinado física ou digitalmente, por meio de plataformas como Docusign, Clicksign ou similares, sendo as assinaturas eletrônicas consideradas válidas e eficazes, nos termos da Medida Provisória nº 2.200-2/2001, com valor jurídico equivalente ao da assinatura física.",
+      `Fica eleito o foro da Comarca de ${CONTRACTOR.forum} para dirimir quaisquer dúvidas ou controvérsias oriundas deste contrato, com renúncia a qualquer outro, por mais privilegiado que seja.`,
+      "E, por estarem de pleno acordo, as partes assinam o presente instrumento, física ou digitalmente, conferindo-lhe eficácia de título executivo extrajudicial.\"",
     ] },
   );
   return sections;
@@ -135,42 +153,75 @@ function wrap(text: string, font: PDFFont, size: number, maxWidth: number): stri
   return lines;
 }
 
-export async function renderContractPdf(data: ContractData, contractNumber: string): Promise<Uint8Array> {
+export async function renderContractPdf(data: ContractData, _contractNumber: string): Promise<Uint8Array> {
   const pdf = await PDFDocument.create();
   pdf.setTitle("Contrato de Prestação de Serviços de Gestão de Milhas");
   pdf.setAuthor(CONTRACTOR.name);
   pdf.setCreator("MRL Travel - geração segura no servidor");
   const regular = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
-  const pageWidth = 595.28, pageHeight = 841.89, margin = 54, bodySize = 9.2, lineHeight = 13;
+  const pageWidth = 595.28, pageHeight = 841.89, margin = 74, bodySize = 10.5, lineHeight = 15.2;
   let page: PDFPage;
   let y = 0;
   const newPage = () => { page = pdf.addPage([pageWidth, pageHeight]); y = pageHeight - margin; };
-  const ensure = (height: number) => { if (y - height < margin + 20) newPage(); };
-  const drawLines = (text: string, font: PDFFont, size: number, gap = lineHeight, indent = 0) => {
+  const ensure = (height: number) => { if (y - height < margin) newPage(); };
+  const drawLines = (text: string, font: PDFFont, size: number, gap = lineHeight, indent = 0, after = 8) => {
     const lines = wrap(text, font, size, pageWidth - margin * 2 - indent);
-    ensure(lines.length * gap + 5);
-    for (const line of lines) { page.drawText(line, { x: margin + indent, y, size, font, color: rgb(.12, .12, .12) }); y -= gap; }
-    y -= 4;
+    ensure(lines.length * gap + after);
+    for (const line of lines) { page.drawText(line, { x: margin + indent, y, size, font, color: rgb(.06, .06, .06) }); y -= gap; }
+    y -= after;
+  };
+  const drawRichLines = (parts: Array<{ text: string; font: PDFFont }>, after = 10) => {
+    const maxWidth = pageWidth - margin * 2;
+    const spaceWidth = regular.widthOfTextAtSize(" ", bodySize);
+    const words = parts.flatMap((part) => safePdfText(part.text).trim().split(/\s+/).filter(Boolean).map((text) => ({ text, font: part.font })));
+    const lines: Array<typeof words> = []; let current: typeof words = []; let width = 0;
+    for (const word of words) {
+      const wordWidth = word.font.widthOfTextAtSize(word.text, bodySize);
+      if (current.length && width + spaceWidth + wordWidth > maxWidth) { lines.push(current); current = []; width = 0; }
+      current.push(word); width += (current.length > 1 ? spaceWidth : 0) + wordWidth;
+    }
+    if (current.length) lines.push(current);
+    ensure(lines.length * lineHeight + after);
+    for (const line of lines) {
+      let x = margin;
+      line.forEach((word, index) => { if (index) x += spaceWidth; page.drawText(word.text, { x, y, size: bodySize, font: word.font, color: rgb(.06,.06,.06) }); x += word.font.widthOfTextAtSize(word.text, bodySize); });
+      y -= lineHeight;
+    }
+    y -= after;
   };
   newPage();
+  try {
+    const logo = await pdf.embedPng(decodeBase64(LOGO_MRL_BASE64));
+    const logoWidth = 100;
+    const logoHeight = logoWidth * logo.height / logo.width;
+    page.drawImage(logo, { x: (pageWidth - logoWidth) / 2, y: y - logoHeight + 18, width: logoWidth, height: logoHeight });
+    y -= logoHeight + 8;
+  } catch (error) {
+    console.warn("[generate-client-contract] logo indisponível; contrato será gerado sem logo", error instanceof Error ? error.message : "unknown");
+  }
   const title = "CONTRATO DE PRESTAÇÃO DE SERVIÇOS DE GESTÃO DE MILHAS";
-  page.drawText(title, { x: (pageWidth - bold.widthOfTextAtSize(title, 12.5)) / 2, y, size: 12.5, font: bold }); y -= 27;
-  drawLines(`CONTRATADA: ${CONTRACTOR.name}, CNPJ nº ${CONTRACTOR.cnpj}, com sede em ${CONTRACTOR.address}, representada por ${CONTRACTOR.representative}.`, regular, bodySize);
-  drawLines(`CONTRATANTE: ${data.nome}, brasileiro(a), ${valueOr(data.estado_civil).toLowerCase()}${data.profissao ? `, ${data.profissao}` : ""}, CPF ${valueOr(data.cpf)}, RG ${valueOr(data.rg)}, e-mail ${valueOr(data.email)}, residente em ${valueOr(data.endereco)}.`, regular, bodySize);
+  page.drawText(title, { x: (pageWidth - bold.widthOfTextAtSize(title, 11.5)) / 2, y, size: 11.5, font: bold }); y -= 28;
+  drawLines("PARTES:", bold, bodySize, lineHeight, 0, 12);
+  drawRichLines([{ text:"De um lado,",font:regular },{ text:"MRL TRAVEL,",font:bold },{ text:"inscrita no CNPJ sob o nº",font:regular },{ text:`${CONTRACTOR.cnpj},`,font:bold },{ text:`com sede em ${CONTRACTOR.address}, neste ato representada por`,font:regular },{ text:`${CONTRACTOR.representative},`,font:bold },{ text:"doravante denominada",font:regular },{ text:"CONTRATADA;",font:bold }], 13);
+  drawRichLines([{ text:"De outro lado, Sr(a).",font:regular },{ text:`${data.nome},`,font:bold },{ text:"brasileiro(a),",font:regular },{ text:`${valueOr(data.estado_civil)},`,font:bold },{ text:`${valueOr(data.profissao)},`,font:bold },{ text:"inscrito no CPF:",font:regular },{ text:`${valueOr(data.cpf)},`,font:bold },{ text:"portador do RG",font:regular },{ text:`${valueOr(data.rg)},`,font:bold },{ text:"residente e domiciliado em",font:regular },{ text:`${valueOr(data.endereco)};`,font:bold },{ text:"doravante denominado(a)",font:regular },{ text:"CONTRATANTE.",font:bold }], 14);
   contractSections(data).forEach((section, index) => {
-    ensure(44);
-    y -= 5;
-    drawLines(`CLÁUSULA ${index + 1} - ${section.title}`, bold, 10.2, 14);
-    section.paragraphs.forEach((paragraph) => drawLines(paragraph, regular, bodySize));
+    ensure(48); y -= 3;
+    drawLines(`CLÁUSULA ${index + 1} - ${section.title}`, bold, 10.5, lineHeight, 0, 12);
+    section.paragraphs.forEach((paragraph, blockIndex) => {
+      if (index === 0 && blockIndex === 1) { page.drawLine({ start: { x: margin, y: y + 3 }, end: { x: pageWidth - margin, y: y + 3 }, thickness: .65, color: rgb(.48,.48,.48) }); y -= 15; }
+      if (paragraph.startsWith("• ")) drawLines(paragraph, regular, bodySize, lineHeight, 18, 9);
+      else drawLines(paragraph, regular, bodySize, lineHeight, 0, 10);
+    });
+    if (index === 0) { ensure(18); page.drawLine({ start: { x: margin, y: y + 5 }, end: { x: pageWidth - margin, y: y + 5 }, thickness: .65, color: rgb(.48,.48,.48) }); y -= 13; }
   });
-  ensure(205); y -= 14;
-  const date = new Date(`${data.data}T12:00:00Z`).toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
-  drawLines(`${data.cidade || "POMPÉU"}, ${date}.`, regular, bodySize);
-  y -= 32; drawLines("_______________________________________________", regular, bodySize); drawLines(`CONTRATANTE: ${data.nome}`, regular, bodySize);
-  y -= 22; drawLines("_______________________________________________", regular, bodySize); drawLines(`CONTRATADA: ${CONTRACTOR.representative}`, regular, bodySize);
-  y -= 12; drawLines("TESTEMUNHAS:", bold, bodySize); drawLines("Nome: ___________________________  CPF: ___________________________", regular, bodySize); drawLines("Nome: ___________________________  CPF: ___________________________", regular, bodySize);
-  const pages = pdf.getPages();
-  pages.forEach((item, index) => item.drawText(`${contractNumber}  •  página ${index + 1} de ${pages.length}`, { x: margin, y: 25, size: 7, font: regular, color: rgb(.4, .4, .4) }));
+  ensure(300); y -= 25;
+  const date = new Date(`${data.data}T12:00:00Z`).toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).toUpperCase();
+  drawLines(`${data.cidade || "POMPÉU"}, ${date}`, regular, bodySize, lineHeight, 0, 34);
+  y -= 35; page.drawLine({ start:{ x:182,y },end:{ x:413,y },thickness:.7,color:rgb(.12,.12,.12) }); y -= 17; drawLines(`CONTRATANTE: ${data.nome}`, regular, bodySize, lineHeight, 92, 34);
+  page.drawLine({ start:{ x:182,y },end:{ x:413,y },thickness:.7,color:rgb(.12,.12,.12) }); y -= 17; drawLines(`CONTRATADA: ${CONTRACTOR.representative}`, regular, bodySize, lineHeight, 54, 38);
+  drawLines("TESTEMUNHAS:", bold, bodySize, lineHeight, 0, 24);
+  drawLines("Nome: ___________________________  CPF: 124.674.296-95", regular, bodySize, lineHeight, 70, 22);
+  drawLines("Nome: ___________________________  CPF: 157.386.726.82", regular, bodySize, lineHeight, 70, 0);
   return pdf.save({ useObjectStreams: false });
 }

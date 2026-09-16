@@ -57,7 +57,7 @@ export function ClientContractsPanel({ clientId, canWrite = true, compact = fals
               <small>{contract.contractNumber ?? "Contrato MRL"} · {formatDate(contract.contractDate)}</small>
               <strong>{contract.clientName}</strong>
               <span>{formatCurrency(contract.contractValue)} · {contract.installments}x de {formatCurrency(contract.installmentValue)}</span>
-              <p>{contract.includeCashback ? "Cashback " + contract.cashbackPercent + "%" : "Sem cashback"} · {contract.includeRoiGuarantee ? "Com garantia de retorno" : "Sem garantia de retorno"}</p>
+              <p>{contract.includeCashback ? "Cashback " + contract.cashbackPercent + "%" : "Sem cashback"} · {contract.includeRoiGuarantee ? "Com garantia de retorno" : "Sem garantia de retorno"} · {contract.includeCourtesyTicket ? "Com passagem cortesia" : "Sem passagem cortesia"}</p>
             </div>
             <span className={"status-badge status-" + contract.status}>{contract.status === "archived" ? "Arquivado" : "Gerado"}</span>
             <div className="contract-history-actions">

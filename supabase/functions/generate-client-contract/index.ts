@@ -9,7 +9,7 @@ const contractSchema = z.object({
   email: z.string().trim().max(180).default(""), estado_civil: z.string().trim().max(80).default(""), profissao: z.string().trim().max(120).default(""),
   endereco: z.string().trim().max(500).default(""), valor_total: z.number().positive().max(100000000), num_parcelas: z.number().int().min(1).max(120),
   valor_parcela: z.number().nonnegative().max(100000000), data: z.string().date(), cidade: z.string().trim().min(2).max(100).default("POMPÉU"),
-  incluir_cashback: z.boolean().default(false), pct_cashback: z.number().min(0).max(100).default(2), incluir_reembolso: z.boolean().default(false),
+  incluir_cashback: z.boolean().default(false), pct_cashback: z.number().min(0).max(100).default(2), incluir_reembolso: z.boolean().default(false), include_courtesy_ticket: z.boolean().default(false),
 }).strict();
 const requestSchema = z.object({ client_id: z.string().uuid(), contract_data: contractSchema }).strict();
 
@@ -33,8 +33,8 @@ Deno.serve(async (request) => {
       marital_status: data.estado_civil || null, profession: data.profissao || null, full_address: data.endereco || null,
       contract_value: data.valor_total, installments: data.num_parcelas, installment_value: data.valor_parcela,
       signature_city: data.cidade, contract_date: data.data, include_cashback: data.incluir_cashback, cashback_percent: data.pct_cashback,
-      include_roi_guarantee: data.incluir_reembolso, contract_data: data, clauses: { cashback: data.incluir_cashback, cashback_percent: data.pct_cashback, roi_guarantee: data.incluir_reembolso },
-      generation_version: "server-pdf-v1", document_format: "pdf", created_by: actor.userId,
+      include_roi_guarantee: data.incluir_reembolso, include_courtesy_ticket: data.include_courtesy_ticket, contract_data: data, clauses: { cashback: data.incluir_cashback, cashback_percent: data.pct_cashback, roi_guarantee: data.incluir_reembolso, courtesy_ticket: data.include_courtesy_ticket },
+      generation_version: "model-2026-server-pdf-v2", document_format: "pdf", created_by: actor.userId,
     }).select("id").single();
     if (inserted.error || !inserted.data) throw inserted.error ?? new Error("CONTRACT_INSERT_FAILED");
     createdId = inserted.data.id;
