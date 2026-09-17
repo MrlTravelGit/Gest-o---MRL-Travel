@@ -126,7 +126,7 @@ export async function recordCatalogCardStatement(input: {
 }
 
 export async function getCardStatements(filters: { clientId?: string; cardId?: string; status?: string; offset?: number }): Promise<CardStatementsResult> {
-  const { data, error } = await supabase.rpc("get_card_statements_v4", {
+  const { data, error } = await supabase.rpc("get_card_statements_v5", {
     p_client_id: filters.clientId || null,
     p_card_id: filters.cardId || null,
     p_prediction_status: filters.status || "all",
@@ -144,6 +144,7 @@ export interface SaveCardStatementInput {
   accountPersonType: "PF" | "PJ";
   cardId?: string | null;
   statementMonth: string;
+  dueDate?: string | null;
   totalAmount: number;
   domesticAmount?: number | null;
   internationalAmount?: number | null;
@@ -160,13 +161,14 @@ export interface SaveCardStatementInput {
 }
 
 export async function saveCardStatement(input: SaveCardStatementInput) {
-  const { data, error } = await supabase.rpc("save_card_statement_v4", {
+  const { data, error } = await supabase.rpc("save_card_statement_v5", {
     p_statement_id: input.statementId || null,
     p_client_id: input.clientId,
     p_financial_institution_id: input.financialInstitutionId,
     p_account_person_type: input.accountPersonType,
     p_card_id: input.cardId || null,
     p_statement_month: `${input.statementMonth}-01`,
+    p_due_on: input.dueDate || null,
     p_total_amount: input.totalAmount,
     p_domestic_amount: input.domesticAmount ?? null,
     p_international_amount: input.internationalAmount ?? null,

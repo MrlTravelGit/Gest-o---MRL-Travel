@@ -15,8 +15,10 @@ export interface ParsedInvoiceOcrData {
 const BANKS = ["Banco do Brasil", "Bradesco", "Caixa", "Itaú", "Santander", "Nubank", "Inter", "C6", "BTG", "Sicredi", "Sicoob", "XP", "Porto Bank"];
 const PROGRAMS = ["LATAM Pass", "TudoAzul", "Azul Fidelidade", "UAU Caixa", "Smiles", "Livelo", "Esfera", "Átomos", "Coopera", "Sicredi", "LATAM", "Azul", "Nubank", "PicPay", "Revolut"];
 const MONTHS: Record<string, number> = { janeiro: 1, fevereiro: 2, marco: 3, abril: 4, maio: 5, junho: 6, julho: 7, agosto: 8, setembro: 9, outubro: 10, novembro: 11, dezembro: 12 };
+const MONEY_PATTERN = /(?:R\$\s*)?(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})/gi;
 
 const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+export const normalizeInvoiceOcrText = (value: string) => value.replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").trim();
 const parsePtBrNumber = (value: string): number | null => {
   const cleaned = value.replace(/[^\d.,-]/g, "");
   if (!cleaned) return null;
@@ -31,32 +33,38 @@ function findNamedValue(text: string, values: string[]): string | null {
   return values.find((value) => normalized.includes(normalize(value))) || null;
 }
 
-function findAmountNearLabel(text: string, labels: RegExp): number | null {
-  for (const line of text.split(/\r?\n/)) {
-    if (!labels.test(normalize(line))) continue;
-    labels.lastIndex = 0;
-    const matches = [...line.matchAll(/(?:R\$\s*)?(\d{1,3}(?:\.\d{3})*,\d{2}|\d+[.,]\d{2})/g)];
-    if (matches.length) return parsePtBrNumber(matches.at(-1)?.[1] || "");
-  }
-  return null;
+function monetaryValues(text: string): number[] {
+  return [...normalizeInvoiceOcrText(text).matchAll(MONEY_PATTERN)]
+    .map((match) => parsePtBrNumber(match[1] || ""))
+    .filter((value): value is number => value != null);
 }
 
-function findDateNearLabel(text: string, labels: RegExp): string | null {
-  for (const line of text.split(/\r?\n/)) {
-    if (!labels.test(normalize(line))) continue;
-    labels.lastIndex = 0;
-    const match = line.match(/(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})/);
-    if (match) return isoDate(match[1], match[2], match[3]);
-  }
-  return null;
+function findAmountNearLabel(text: string, labels: RegExp): number | null {
+  const normalized = normalize(normalizeInvoiceOcrText(text));
+  const nearby = normalized.match(new RegExp(`(?:${labels.source})[^0-9]{0,40}(?:r\\$\\s*)?(\\d{1,3}(?:\\.\\d{3})*,\\d{2}|\\d+,\\d{2})`, "i"));
+  return nearby ? parsePtBrNumber(nearby[2]) : null;
+}
+
+function findDateNearLabel(text: string, labels: RegExp, fallbackYear?: string): string | null {
+  const normalized = normalize(normalizeInvoiceOcrText(text));
+  const match = normalized.match(new RegExp(`(?:${labels.source})[^0-9]{0,20}(\\d{1,2})[\\/.-](\\d{1,2})(?:[\\/.-](\\d{2,4}))?`, "i"));
+  const year = match?.[4] || fallbackYear;
+  if (!match || !year) return null;
+  const candidate = isoDate(match[2], match[3], year);
+  const date = new Date(`${candidate}T12:00:00Z`);
+  return Number.isNaN(date.getTime()) || date.getUTCDate() !== Number(match[2]) || date.getUTCMonth() + 1 !== Number(match[3]) ? null : candidate;
 }
 
 function findCompetency(text: string): string | null {
-  const normalized = normalize(text);
+  const normalized = normalize(normalizeInvoiceOcrText(text));
   const numeric = normalized.match(/(?:competencia|referencia|fatura\s+de|mes\s+da\s+fatura)[^\d]{0,20}(0?[1-9]|1[0-2])[\/.-](20\d{2}|\d{2})/);
-  if (numeric) return `${numeric[2].length === 2 ? `20${numeric[2]}` : numeric[2]}-${numeric[1].padStart(2, "0")}`;
-  const named = normalized.match(/(?:competencia|referencia|fatura\s+de|mes\s+da\s+fatura)[^a-z]{0,20}(janeiro|fevereiro|marco|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)[^\d]{0,10}(20\d{2})/);
-  return named ? `${named[2]}-${String(MONTHS[named[1]]).padStart(2, "0")}` : null;
+  if (numeric) return `${numeric[2].length === 2 ? `20${numeric[2]}` : numeric[2]}-${numeric[1].padStart(2, "0")}-01`;
+  const named = normalized.match(/\b(janeiro|fevereiro|marco|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\s+(20\d{2})\b/);
+  return named ? `${named[2]}-${String(MONTHS[named[1]]).padStart(2, "0")}-01` : null;
+}
+
+export function hasUsefulInvoiceOcrData(data: ParsedInvoiceOcrData): boolean {
+  return Boolean(data.bankName || data.cardName || data.cardLastDigits || data.competencyMonth || data.dueDate || data.invoiceTotal != null || data.exchangeRate != null || data.loyaltyProgramName || data.actualReceivedPoints != null);
 }
 
 export function parseInvoiceOcrText(rawText: string): ParsedInvoiceOcrData {
@@ -65,10 +73,13 @@ export function parseInvoiceOcrText(rawText: string): ParsedInvoiceOcrData {
   const loyaltyProgramName = findNamedValue(rawText, PROGRAMS);
   const lastDigits = normalized.match(/(?:final|finais|terminado\s+em|cartao)[^\d]{0,18}(\d{4})(?!\d)/) || normalized.match(/(?:\*|x){2,}\s*(\d{4})(?!\d)/);
   const cardLine = rawText.split(/\r?\n/).find((line) => /cart[aã]o/i.test(line) && !/(vencimento|pagamento|melhor dia)/i.test(line));
-  const pointsLine = rawText.split(/\r?\n/).find((line) => /(pontos recebidos|credito de pontos|pontos creditados)/i.test(normalize(line)));
-  const pointsMatch = pointsLine?.match(/(\d{1,3}(?:\.\d{3})+|\d{3,})/);
-  const invoiceTotal = findAmountNearLabel(rawText, /(total da fatura|valor total|total a pagar|pagamento total|saldo total|saldo desta fatura|valor da fatura|total deste mes)/);
-  const exchangeRate = findAmountNearLabel(rawText, /(cotacao|dolar|usd|ptax|taxa de conversao|taxa dolar)/);
+  const flatText = normalizeInvoiceOcrText(rawText);
+  const pointsMatch = normalize(flatText).match(/(?:pontos recebidos|pontos creditados|milhas recebidas|pontos gerados|credito de pontos)[^\d]{0,30}(\d{1,3}(?:\.\d{3})+|\d{1,})/);
+  const labeledTotal = findAmountNearLabel(rawText, /(total da fatura|valor da fatura|valor total|total a pagar|pagamento total|saldo total|saldo desta fatura|total deste mes|fatura|pagamento|total)/);
+  const invoiceTotal = labeledTotal ?? monetaryValues(rawText).sort((a, b) => b - a)[0] ?? null;
+  const exchangeRate = findAmountNearLabel(rawText, /(cotacao|dolar|usd|cambio|ptax|taxa de conversao|taxa dolar)/);
+  const competencyMonth = findCompetency(rawText);
+  const competencyYear = competencyMonth?.slice(0, 4);
   const warnings: string[] = [];
   if (invoiceTotal == null) warnings.push("Valor total da fatura não identificado.");
   if (exchangeRate != null && (exchangeRate < 3 || exchangeRate > 10)) warnings.push("A cotação identificada parece fora do padrão.");
@@ -78,8 +89,8 @@ export function parseInvoiceOcrText(rawText: string): ParsedInvoiceOcrData {
     bankName,
     cardName: cardLine?.replace(/.*?cart[aã]o\s*:?[\s-]*/i, "").trim() || null,
     cardLastDigits: lastDigits?.[1] || null,
-    competencyMonth: findCompetency(rawText),
-    dueDate: findDateNearLabel(rawText, /(vencimento|vence em)/),
+    competencyMonth,
+    dueDate: findDateNearLabel(rawText, /(vencimento|venc\.?|vence em)/, competencyYear),
     invoiceTotal,
     exchangeRate,
     exchangeRateDate: findDateNearLabel(rawText, /(data da cotacao|cotacao em|dolar em|ptax em)/),

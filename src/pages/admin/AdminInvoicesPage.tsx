@@ -9,7 +9,7 @@ import { parseMoneyPtBr } from "@/lib/admin-inputs";
 import { calculateInvoicePoints, isSuspiciousExchangeRate } from "@/lib/invoice-points";
 import { InvoiceOcrStartupError, ocrInvoiceImage } from "@/lib/invoices/ocrInvoiceImage";
 import { getDefaultExchangeRateDate } from "@/lib/invoices/exchange-rate-date";
-import { parseInvoiceOcrText } from "@/lib/invoices/parseInvoiceOcrText";
+import { hasUsefulInvoiceOcrData, parseInvoiceOcrText } from "@/lib/invoices/parseInvoiceOcrText";
 import type { ParsedInvoiceOcrData } from "@/lib/invoices/parseInvoiceOcrText";
 import { formatCurrency, formatDate, formatPoints } from "@/lib/formatters";
 import { deleteCardStatement, getCardStatementOptions, getCardStatements, recalculateCardStatement, saveCardStatement } from "@/services/invoices";
@@ -18,7 +18,7 @@ import type { CardStatement } from "@/types/admin-modules";
 const currentMonth = new Date().toISOString().slice(0, 7);
 const emptyForm = () => ({
   statementId: "", clientId: "", institutionId: "", accountPersonType: "PF" as "PF" | "PJ", cardId: "",
-  statementMonth: currentMonth, totalAmount: "", loyaltyProgramId: "", pointsReceived: "", fxRate: "", fxRateDate: getDefaultExchangeRateDate(), notes: "",
+  statementMonth: currentMonth, dueDate: "", totalAmount: "", loyaltyProgramId: "", pointsReceived: "", fxRate: "", fxRateDate: getDefaultExchangeRateDate(), notes: "",
 });
 const optionalMoney = (value: string) => {
   try { return value.trim() ? parseMoneyPtBr(value) : null; }
@@ -34,6 +34,7 @@ const looselyMatches = (candidate: string, extracted: string | null | undefined)
   const right = normalizeMatch(extracted || "");
   return Boolean(left && right && (left.includes(right) || right.includes(left)));
 };
+const formatCompetency = (value: string | null) => value ? new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${value.slice(0, 7)}-01T12:00:00Z`)) : null;
 const predictionCopy: Record<string, string> = { pending_card: "Previsão pendente, associe um cartão", pending_breakdown: "Regra do cartão não configurada", missing_fx: "Sem cotação", calculated: "Previsão calculada", outdated: "Previsão desatualizada", confirmed: "Pontos confirmados", divergent: "Pontos divergentes", not_applicable: "Previsão não aplicável" };
 
 export function AdminInvoicesPage() {
@@ -59,6 +60,7 @@ export function AdminInvoicesPage() {
   const cards = useMemo(() => allCards.filter((card) => card.clientId === form.clientId).sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary) || Number(b.institutionId === form.institutionId) - Number(a.institutionId === form.institutionId)), [allCards, form.clientId, form.institutionId]);
   const selectedCard = cards.find((card) => card.cardId === form.cardId);
   const selectedProgram = programs.find((program) => program.programId === form.loyaltyProgramId);
+  const selectedInstitution = institutions.find((institution) => institution.institutionId === form.institutionId);
   const exchangeRate = optionalMoney(form.fxRate);
   const suspiciousExchangeRate = isSuspiciousExchangeRate(exchangeRate);
   const preview = useMemo(() => calculateInvoicePoints({ invoiceTotal: optionalMoney(form.totalAmount) ?? 0, exchangeRate, cardRule: selectedCard ? { cardName: selectedCard.label, earningType: selectedCard.earningType || selectedCard.basis || "brl", pointsPerUsd: selectedCard.pointsPerUsd, pointsPerBrl: selectedCard.pointsPerBrl } : null, programName: selectedProgram?.name || selectedCard?.programName, programMileValue: selectedProgram?.mileValue ?? selectedCard?.mileValue, actualReceivedPoints: optionalMoney(form.pointsReceived) }), [form.totalAmount, exchangeRate, form.pointsReceived, selectedCard, selectedProgram]);
@@ -68,7 +70,7 @@ export function AdminInvoicesPage() {
   const unusuallyLargePoints = (preview.estimatedPoints ?? 0) > 1_000_000;
 
   const save = useMutation({
-    mutationFn: () => saveCardStatement({ statementId: form.statementId || null, clientId: form.clientId, financialInstitutionId: form.institutionId, accountPersonType: form.accountPersonType, cardId: form.cardId || null, statementMonth: form.statementMonth, totalAmount: optionalMoney(form.totalAmount) ?? 0, loyaltyProgramId: form.loyaltyProgramId || null, pointsReceived: optionalMoney(form.pointsReceived), fxRate: exchangeRate, fxRateDate: form.fxRateDate, notes: form.notes, operationId: crypto.randomUUID() }),
+    mutationFn: () => saveCardStatement({ statementId: form.statementId || null, clientId: form.clientId, financialInstitutionId: form.institutionId, accountPersonType: form.accountPersonType, cardId: form.cardId || null, statementMonth: form.statementMonth, dueDate: form.dueDate || null, totalAmount: optionalMoney(form.totalAmount) ?? 0, loyaltyProgramId: form.loyaltyProgramId || null, pointsReceived: optionalMoney(form.pointsReceived), fxRate: exchangeRate, fxRateDate: form.fxRateDate, notes: form.notes, operationId: crypto.randomUUID() }),
     onSuccess: () => { setPrintExtraction(null); setImportNotices([]); void Promise.all([queryClient.invalidateQueries({ queryKey: ["card-statements"] }), queryClient.invalidateQueries({ queryKey: ["client-invoices"] })]); },
   });
   const recalculate = useMutation({ mutationFn: recalculateCardStatement, onSuccess: () => void Promise.all([queryClient.invalidateQueries({ queryKey: ["card-statements"] }), queryClient.invalidateQueries({ queryKey: ["client-invoices"] })]) });
@@ -77,9 +79,10 @@ export function AdminInvoicesPage() {
       try {
         const recognized = await ocrInvoiceImage(file);
         const data = parseInvoiceOcrText(recognized.rawText);
+        if (!hasUsefulInvoiceOcrData(data)) throw new Error("Nenhum campo útil foi identificado no print. Tente uma imagem mais nítida ou preencha manualmente.");
         return { data, rawText: recognized.rawText, warnings: Array.from(new Set([...recognized.warnings, ...data.warnings])) };
       } catch (error) {
-        if (error instanceof Error && /Nesta versão|PNG|JPEG|15 MB/.test(error.message)) throw error;
+        if (error instanceof Error && /Nesta versão|PNG|JPEG|15 MB|Nenhum campo útil/.test(error.message)) throw error;
         console.error("[Faturas] erro ao ler print localmente", error);
         if (error instanceof InvoiceOcrStartupError) throw error;
         throw new Error("Não foi possível ler o print. Tente uma imagem mais nítida ou preencha manualmente.");
@@ -116,18 +119,19 @@ export function AdminInvoicesPage() {
     const card = clientCards.find((item) => (data.cardLastDigits && normalizeMatch(item.label).endsWith(normalizeMatch(data.cardLastDigits))) || (data.cardName && looselyMatches(item.label, data.cardName)));
     const program = programs.find((item) => data.loyaltyProgramName && looselyMatches(item.name, data.loyaltyProgramName));
     const notices = [...printExtraction.warnings];
-    if (!card) notices.push("Cartão não identificado. Selecione manualmente.");
-    if (!program) notices.push("Programa não identificado. Selecione manualmente.");
+    if (!card && !form.cardId) notices.push("Cartão não identificado. Selecione manualmente.");
+    if (!program && !form.loyaltyProgramId) notices.push("Programa não identificado. Selecione manualmente.");
     setForm((current) => ({
       ...current,
-      institutionId: card?.institutionId || institution?.institutionId || "",
-      cardId: card?.cardId || "",
+      institutionId: card?.institutionId || institution?.institutionId || current.institutionId,
+      cardId: card?.cardId || current.cardId,
       accountPersonType: card?.accountPersonType || current.accountPersonType,
-      statementMonth: data.competencyMonth && /^\d{4}-\d{2}$/.test(data.competencyMonth) ? data.competencyMonth : current.statementMonth,
+      statementMonth: data.competencyMonth && /^\d{4}-\d{2}(?:-\d{2})?$/.test(data.competencyMonth) ? data.competencyMonth.slice(0, 7) : current.statementMonth,
+      dueDate: data.dueDate && /^\d{4}-\d{2}-\d{2}$/.test(data.dueDate) ? data.dueDate : current.dueDate,
       totalAmount: data.invoiceTotal == null ? current.totalAmount : formatDecimalInput(String(data.invoiceTotal)),
       fxRate: data.exchangeRate == null ? current.fxRate : formatDecimalInput(String(data.exchangeRate)),
       fxRateDate: data.exchangeRateDate && /^\d{4}-\d{2}-\d{2}$/.test(data.exchangeRateDate) ? data.exchangeRateDate : current.fxRateDate,
-      loyaltyProgramId: program?.programId || "",
+      loyaltyProgramId: program?.programId || current.loyaltyProgramId,
       pointsReceived: data.actualReceivedPoints == null ? current.pointsReceived : String(Math.round(data.actualReceivedPoints)),
     }));
     setImportNotices(Array.from(new Set(notices)));
@@ -135,7 +139,7 @@ export function AdminInvoicesPage() {
     requestAnimationFrame(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
   };
   const edit = (item: CardStatement) => {
-    setForm({ ...emptyForm(), statementId: item.statementId, clientId: item.clientId || "", institutionId: item.institutionId || "", accountPersonType: item.accountPersonType || "PF", cardId: item.cardId || "", statementMonth: item.statementMonth.slice(0, 7), totalAmount: formatDecimalInput(String(item.totalSpend)), loyaltyProgramId: item.loyaltyProgramId || "", pointsReceived: item.receivedPoints == null ? "" : String(item.receivedPoints).replace(".", ","), fxRate: item.fxRate == null ? "" : formatDecimalInput(String(item.fxRate)), fxRateDate: item.fxRateDate || "", notes: item.notes || "" });
+    setForm({ ...emptyForm(), statementId: item.statementId, clientId: item.clientId || "", institutionId: item.institutionId || "", accountPersonType: item.accountPersonType || "PF", cardId: item.cardId || "", statementMonth: item.statementMonth.slice(0, 7), dueDate: item.dueOn || "", totalAmount: formatDecimalInput(String(item.totalSpend)), loyaltyProgramId: item.loyaltyProgramId || "", pointsReceived: item.receivedPoints == null ? "" : String(item.receivedPoints).replace(".", ","), fxRate: item.fxRate == null ? "" : formatDecimalInput(String(item.fxRate)), fxRateDate: item.fxRateDate || "", notes: item.notes || "" });
     requestAnimationFrame(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
   };
   useEffect(() => {
@@ -184,8 +188,8 @@ export function AdminInvoicesPage() {
     {options.data && <form ref={formRef} className="module-form invoice-entry-form" onSubmit={(event) => { event.preventDefault(); submitInvoice(); }}>
       <div className="invoice-form-title-row"><div className="form-title"><ReceiptText /><div><h2>{form.statementId ? "Editar fatura" : "Nova fatura"}</h2><p>Preencha os dados essenciais e confira o cálculo antes de salvar.</p></div></div><div className="invoice-print-upload"><input ref={fileInputRef} type="file" hidden accept=".png,.jpg,.jpeg,image/png,image/jpeg" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) { setReadingPastedPrint(false); handleInvoiceImage(file); } }} /><button type="button" className="secondary-button" disabled={extractPrint.isPending} onClick={() => fileInputRef.current?.click()}>{extractPrint.isPending ? <LoaderCircle className="invoice-upload-spinner" /> : <FileUp />} {extractPrint.isPending ? (readingPastedPrint ? "Lendo print colado" : "Lendo imagem...") : "Preencher com print"}</button><small>PNG, JPG ou JPEG · você também pode colar com Ctrl+V</small></div></div>
       {extractPrint.isError && <div className="form-error">{extractPrint.error.message}</div>}
-      {printExtraction && <div className="invoice-ocr-modal-backdrop" role="presentation"><section className="invoice-extraction-review invoice-ocr-modal" role="dialog" aria-modal="true" aria-labelledby="invoice-extraction-title"><header><div><ScanLine /><span>OCR local concluído</span><h3 id="invoice-extraction-title">Dados encontrados no print</h3></div><button type="button" className="icon-button" aria-label="Fechar" onClick={() => setPrintExtraction(null)}><X /></button></header><p className="invoice-review-warning"><AlertTriangle /> Confira os dados antes de salvar. A leitura não cria a fatura automaticamente.</p><dl><div><dt>Banco</dt><dd>{printExtraction.data.bankName || "Não identificado"}</dd></div><div><dt>Cartão</dt><dd>{[printExtraction.data.cardName, printExtraction.data.cardLastDigits && `final ${printExtraction.data.cardLastDigits}`].filter(Boolean).join(" · ") || "Não identificado"}</dd></div><div><dt>Competência</dt><dd>{printExtraction.data.competencyMonth || "Não identificada"}</dd></div><div><dt>Vencimento</dt><dd>{printExtraction.data.dueDate || "Não identificado"}</dd></div><div><dt>Valor da fatura</dt><dd>{printExtraction.data.invoiceTotal == null ? "Não identificado" : formatCurrency(printExtraction.data.invoiceTotal)}</dd></div><div><dt>Cotação</dt><dd>{printExtraction.data.exchangeRate == null ? "Não identificada" : formatCurrency(printExtraction.data.exchangeRate)}</dd></div><div><dt>Programa</dt><dd>{printExtraction.data.loyaltyProgramName || "Não identificado"}</dd></div><div><dt>Pontos recebidos</dt><dd>{printExtraction.data.actualReceivedPoints == null ? "Não identificados" : formatPoints(printExtraction.data.actualReceivedPoints)}</dd></div></dl>{printExtraction.warnings.length > 0 && <ul>{printExtraction.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>}<details className="invoice-ocr-raw"><summary>Texto lido do print</summary><pre>{printExtraction.rawText || "Nenhum texto identificado."}</pre></details><div className="invoice-extraction-actions"><button type="button" className="secondary-button" onClick={() => setPrintExtraction(null)}><X /> Descartar leitura</button><button type="button" className="primary-button" onClick={useExtractedData}><ScanLine /> Usar dados</button></div></section></div>}
-      {importNotices.length > 0 && <div className="invoice-import-applied" role="status"><AlertTriangle /><div><strong>Confira os dados antes de salvar</strong><span>A leitura local preencheu o formulário; revise e corrija o que for necessário.</span>{importNotices.map((notice) => <small key={notice}>{notice}</small>)}</div></div>}
+      {printExtraction && <div className="invoice-ocr-modal-backdrop" role="presentation"><section className="invoice-extraction-review invoice-ocr-modal" role="dialog" aria-modal="true" aria-labelledby="invoice-extraction-title"><header><div><ScanLine /><span>OCR local concluído</span><h3 id="invoice-extraction-title">Dados encontrados no print</h3></div><button type="button" className="icon-button" aria-label="Fechar" onClick={() => setPrintExtraction(null)}><X /></button></header><p className="invoice-review-warning"><AlertTriangle /> Conseguimos ler parte do print. Confira os campos preenchidos e complete manualmente o que faltar.</p><dl><div><dt>Banco</dt><dd>{printExtraction.data.bankName || (selectedInstitution ? `${selectedInstitution.name}, vindo do formulário` : "Não identificado")}</dd></div><div><dt>Cartão</dt><dd>{[printExtraction.data.cardName, printExtraction.data.cardLastDigits && `final ${printExtraction.data.cardLastDigits}`].filter(Boolean).join(" · ") || (selectedCard ? `${selectedCard.label}, vindo do formulário` : "Não identificado")}</dd></div><div><dt>Competência</dt><dd>{formatCompetency(printExtraction.data.competencyMonth) || "Não identificada"}</dd></div><div><dt>Vencimento</dt><dd>{printExtraction.data.dueDate ? formatDate(printExtraction.data.dueDate) : "Não identificado"}</dd></div><div><dt>Valor da fatura</dt><dd>{printExtraction.data.invoiceTotal == null ? "Não identificado" : formatCurrency(printExtraction.data.invoiceTotal)}</dd></div><div><dt>Cotação</dt><dd>{printExtraction.data.exchangeRate == null ? "Não identificada" : formatCurrency(printExtraction.data.exchangeRate)}</dd></div><div><dt>Programa</dt><dd>{printExtraction.data.loyaltyProgramName || (selectedProgram ? `${selectedProgram.name}, vindo do formulário` : "Não identificado")}</dd></div><div><dt>Pontos recebidos</dt><dd>{printExtraction.data.actualReceivedPoints == null ? "Não identificados" : formatPoints(printExtraction.data.actualReceivedPoints)}</dd></div></dl>{printExtraction.warnings.length > 0 && <ul>{printExtraction.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>}<details className="invoice-ocr-raw"><summary>Texto lido do print</summary><pre>{printExtraction.rawText || "Nenhum texto identificado."}</pre></details><div className="invoice-extraction-actions"><button type="button" className="secondary-button" onClick={() => setPrintExtraction(null)}><X /> Descartar leitura</button><button type="button" className="primary-button" onClick={useExtractedData}><ScanLine /> Usar dados</button></div></section></div>}
+      {importNotices.length > 0 && <div className="invoice-import-applied" role="status"><AlertTriangle /><div><strong>Confira os dados antes de salvar</strong><span>Conseguimos ler parte do print. Confira os campos preenchidos e complete manualmente o que faltar.</span>{importNotices.map((notice) => <small key={notice}>{notice}</small>)}</div></div>}
       <div className="invoice-entry-layout">
         <div className="invoice-form-sections">
           <section className="invoice-form-block"><header><span>01</span><div><h3>Cliente e cartão</h3><p>Defina para quem e para qual cartão esta fatura pertence.</p></div></header><div className="form-grid">
@@ -197,6 +201,7 @@ export function AdminInvoicesPage() {
           </div></section>
           <section className="invoice-form-block"><header><span>02</span><div><h3>Fatura</h3><p>Informe o total e a cotação considerada pelo banco.</p></div></header><div className="form-grid">
             <label>Competência<input type="month" required value={form.statementMonth} onChange={(event) => setForm((current) => ({ ...current, statementMonth: event.target.value }))} /></label>
+            <label>Vencimento <small>opcional</small><input type="date" value={form.dueDate} onChange={(event) => setForm((current) => ({ ...current, dueDate: event.target.value }))} /></label>
             <label>Valor total da fatura<input inputMode="decimal" required placeholder="20.000,00" value={form.totalAmount} onChange={(event) => setForm((current) => ({ ...current, totalAmount: event.target.value }))} onBlur={() => setForm((current) => ({ ...current, totalAmount: formatDecimalInput(current.totalAmount) }))} /></label>
             <label>Cotação do dólar usada<input inputMode="decimal" required placeholder="5,50" value={form.fxRate} onChange={(event) => setForm((current) => ({ ...current, fxRate: event.target.value }))} onBlur={() => setForm((current) => ({ ...current, fxRate: formatDecimalInput(current.fxRate) }))} /><small>Use a cotação do dólar considerada pelo banco na fatura.</small></label>
             <label>Data da cotação<input type="date" required value={form.fxRateDate} onChange={(event) => setForm((current) => ({ ...current, fxRateDate: event.target.value }))} /></label>

@@ -18,7 +18,7 @@ describe("serviço de faturas", () => {
     mocks.rpc.mockResolvedValueOnce({ data: { statementId: "33a9943c-1117-4ce8-bcf3-fe643990758a", predictionStatus: "calculated", predictedPoints: 7273, estimatedPointsValue: 254.55, pointsDifference: null }, error: null });
     await saveCardStatement({ clientId: "50d9a9f0-f204-4a36-b675-c18cd7a8fcbe", financialInstitutionId: "51d9a9f0-f204-4a36-b675-c18cd7a8fcbe", accountPersonType: "PF", cardId: "52d9a9f0-f204-4a36-b675-c18cd7a8fcbe", statementMonth: "2026-09", totalAmount: 20000, loyaltyProgramId: "53d9a9f0-f204-4a36-b675-c18cd7a8fcbe", fxRate: 5.5, fxRateDate: "2026-09-16", operationId: "55d9a9f0-f204-4a36-b675-c18cd7a8fcbe" });
     expect(mocks.rpc).toHaveBeenCalledTimes(1);
-    expect(mocks.rpc).toHaveBeenCalledWith("save_card_statement_v4", expect.any(Object));
+    expect(mocks.rpc).toHaveBeenCalledWith("save_card_statement_v5", expect.objectContaining({ p_due_on: null }));
   });
 
   it("usa soft delete por RPC", async () => {

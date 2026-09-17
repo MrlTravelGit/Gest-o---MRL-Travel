@@ -381,6 +381,7 @@ export interface CardStatement {
   cardId: string | null;
   cardLabel: string | null;
   statementMonth: string;
+  dueOn?: string | null;
   invoiceSequence: number;
   invoiceLabel: string | null;
   totalSpend: number;
