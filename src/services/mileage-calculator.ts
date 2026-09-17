@@ -6,6 +6,7 @@ const fallbackProgramDefinitions = [
   ["esfera", "Esfera", true, true],
   ["atomos", "Átomos", true, false],
   ["coopera", "Coopera", true, false],
+  ["coopera-pj", "COOPERA PJ", true, false],
   ["nubank", "Nubank", true, false],
   ["picpay", "PicPay", true, false],
   ["revolut", "Revolut", true, false],

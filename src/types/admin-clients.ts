@@ -90,6 +90,12 @@ export interface BulkReactivationResult {
   items: ReactivationResultItem[];
 }
 
+export interface DeleteTestClientsResult {
+  deleted: number;
+  skipped: number;
+  errors: Array<{ clientId: string; name: string; code: string }>;
+}
+
 export interface ClientNameCleanupSuggestion {
   clientId: string;
   currentName: string;

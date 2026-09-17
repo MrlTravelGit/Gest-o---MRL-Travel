@@ -7,7 +7,8 @@ import { EmptyState, ErrorState, LoadingState, PageHeader } from "@/components/a
 import { AppShell } from "@/components/layout/AppShell";
 import { parseMoneyPtBr } from "@/lib/admin-inputs";
 import { calculateInvoicePoints, isSuspiciousExchangeRate } from "@/lib/invoice-points";
-import { ocrInvoiceImage } from "@/lib/invoices/ocrInvoiceImage";
+import { InvoiceOcrStartupError, ocrInvoiceImage } from "@/lib/invoices/ocrInvoiceImage";
+import { getDefaultExchangeRateDate } from "@/lib/invoices/exchange-rate-date";
 import { parseInvoiceOcrText } from "@/lib/invoices/parseInvoiceOcrText";
 import type { ParsedInvoiceOcrData } from "@/lib/invoices/parseInvoiceOcrText";
 import { formatCurrency, formatDate, formatPoints } from "@/lib/formatters";
@@ -17,7 +18,7 @@ import type { CardStatement } from "@/types/admin-modules";
 const currentMonth = new Date().toISOString().slice(0, 7);
 const emptyForm = () => ({
   statementId: "", clientId: "", institutionId: "", accountPersonType: "PF" as "PF" | "PJ", cardId: "",
-  statementMonth: currentMonth, totalAmount: "", loyaltyProgramId: "", pointsReceived: "", fxRate: "", fxRateDate: "", notes: "",
+  statementMonth: currentMonth, totalAmount: "", loyaltyProgramId: "", pointsReceived: "", fxRate: "", fxRateDate: getDefaultExchangeRateDate(), notes: "",
 });
 const optionalMoney = (value: string) => {
   try { return value.trim() ? parseMoneyPtBr(value) : null; }
@@ -80,6 +81,7 @@ export function AdminInvoicesPage() {
       } catch (error) {
         if (error instanceof Error && /Nesta versão|PNG|JPEG|15 MB/.test(error.message)) throw error;
         console.error("[Faturas] erro ao ler print localmente", error);
+        if (error instanceof InvoiceOcrStartupError) throw error;
         throw new Error("Não foi possível ler o print. Tente uma imagem mais nítida ou preencha manualmente.");
       }
     },

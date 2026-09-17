@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 const migration = readFileSync(resolve("supabase/migrations/202609090043_financial_programs_and_bonus_campaigns.sql"), "utf8");
 const visibilityMigration = readFileSync(resolve("supabase/migrations/202609110044_canonical_program_catalog_and_zero_balance_wallet.sql"), "utf8");
 const walletMigration = readFileSync(resolve("supabase/migrations/202609110045_client_wallet_relationship_visibility.sql"), "utf8");
+const patch050Migration = readFileSync(resolve("supabase/migrations/202609170060_coopera_pj_exchange_date_and_test_client_cleanup.sql"), "utf8");
 const expectedAssets = ["nubank-croma.svg","nubank-ultravioleta.svg","picpay.svg","revolut.svg","btg-pactual.png","livelo.svg","itau.png","esfera.svg","astropay.png","bradesco-cartoes.png","banco-do-brasil.png","uau-caixa.svg","coopera.png","sicredi.png","banriclube.png","banco-do-nordeste.svg","banpara.svg","banco-pan.png","sisprime.png","credicard.svg","banestes.png","porto-bank.svg","brb-card.png","banco-mercantil.svg","unicred.png","credicoamo.png"];
 
 describe("catálogo de programas financeiros", () => {
@@ -42,5 +43,12 @@ describe("catálogo de programas financeiros", () => {
     expect(walletMigration).toContain("club.future_date>=current_date");
     expect(walletMigration).toContain("nullif(btrim(pa.membership_number_masked),'') is not null");
     expect(walletMigration).toContain("select public.build_client_program_wallet(p_client_id)");
+  });
+
+  it("cadastra COOPERA PJ sem alterar o Coopera existente", () => {
+    expect(patch050Migration).toContain("'coopera-pj','COOPERA PJ',35.00");
+    expect(patch050Migration).toContain("'/logos/programs/banks/coopera.png'");
+    expect(patch050Migration).toContain("on conflict (slug) do update");
+    expect(patch050Migration).not.toContain("where slug='coopera'");
   });
 });

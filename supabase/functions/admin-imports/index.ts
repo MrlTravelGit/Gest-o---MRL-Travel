@@ -220,7 +220,7 @@ async function reconcileRows(admin: ReturnType<typeof adminClient>, files: Analy
 
   const { data: programs } = await admin.from("loyalty_programs").select("id,slug,name,default_value_per_thousand").eq("active", true);
   const programByKey = new Map<string, { id: string; default_value_per_thousand: number }>();
-  const aliases: Record<string, string> = { latampass: "latam_pass", latam: "latam_pass", tudoazul: "azul_fidelidade", azulfidelidade: "azul_fidelidade", azul: "azul_fidelidade", smiles: "smiles", livelo: "livelo", esfera: "esfera", atomos: "atomos", c6atomos: "atomos" };
+  const aliases: Record<string, string> = { latampass: "latam_pass", latam: "latam_pass", tudoazul: "azul_fidelidade", azulfidelidade: "azul_fidelidade", azul: "azul_fidelidade", smiles: "smiles", livelo: "livelo", esfera: "esfera", atomos: "atomos", c6atomos: "atomos", coopera: "coopera", cooperapj: "coopera-pj" };
   for (const item of programs ?? []) { const value = { id: item.id, default_value_per_thousand: Number(item.default_value_per_thousand ?? 0) }; programByKey.set(normalizeText(item.slug), value); programByKey.set(normalizeText(item.name), value); }
   for (const row of programRows) {
     const clientExternalId = String(row.normalizedPayload.clientExternalId ?? "");

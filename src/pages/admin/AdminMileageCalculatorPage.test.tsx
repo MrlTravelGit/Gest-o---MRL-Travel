@@ -34,7 +34,7 @@ describe("AdminMileageCalculatorPage", () => {
 
     expect(screen.getByRole("heading", { name: "Calculadora de Milheiro" })).toBeInTheDocument();
     expect(await screen.findByText("Não foi possível carregar dados auxiliares, mas a calculadora continua disponível.")).toBeInTheDocument();
-    expect(mileageProgramFallback).toHaveLength(10);
+    expect(mileageProgramFallback).toHaveLength(11);
 
     fireEvent.change(screen.getByPlaceholderText("100.000"), { target: { value: "100000" } });
     fireEvent.change(screen.getByPlaceholderText("1.000"), { target: { value: "1000" } });
@@ -52,7 +52,7 @@ describe("AdminMileageCalculatorPage", () => {
   it("mantém programas oficiais e habilita o salvamento quando a migration está disponível", async () => {
     const officialPrograms = [
       { ...mileageProgramFallback[0], id: "11111111-1111-4111-8111-111111111111", isTransferTarget: false },
-      { ...mileageProgramFallback[7], id: "22222222-2222-4222-8222-222222222222" },
+      { ...mileageProgramFallback.find((program) => program.slug === "smiles")!, id: "22222222-2222-4222-8222-222222222222" },
     ];
     vi.mocked(loadMileageCalculatorAuxiliaryData).mockResolvedValueOnce({
       programs: officialPrograms,

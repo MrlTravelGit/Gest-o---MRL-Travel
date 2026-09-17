@@ -9,6 +9,7 @@ import type {
   BulkReactivationResult,
   ClientNameCleanupSuggestion,
   ClientReactivationPreview,
+  DeleteTestClientsResult,
   OnboardingLeadReview,
   RecordPointEntryInput,
   RecordPointEntryResult,
@@ -97,6 +98,12 @@ export async function bulkReactivateClients(clientIds: string[], note?: string):
   const { data, error } = await supabase.rpc("bulk_reactivate_clients_admin", { p_client_ids: clientIds, p_note: note || null });
   if (error || !data) throw mutationError(error);
   return data as unknown as BulkReactivationResult;
+}
+
+export async function deleteTestClientsStartingWithZ(): Promise<DeleteTestClientsResult> {
+  const { data, error } = await supabase.rpc("admin_delete_test_clients_starting_with_z");
+  if (error || !data) throw mutationError(error);
+  return data as unknown as DeleteTestClientsResult;
 }
 
 export async function previewClientNameCleanup(): Promise<ClientNameCleanupSuggestion[]> {

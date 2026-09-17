@@ -6,7 +6,7 @@ vi.mock("@/lib/supabase", () => ({
   supabase: { rpc },
 }));
 
-import { getAdminClients } from "./admin-clients";
+import { deleteTestClientsStartingWithZ, getAdminClients } from "./admin-clients";
 
 describe("getAdminClients", () => {
   beforeEach(() => rpc.mockReset());
@@ -41,5 +41,15 @@ describe("getAdminClients", () => {
       p_search: "",
       p_status: "all",
     });
+  });
+});
+
+describe("deleteTestClientsStartingWithZ", () => {
+  beforeEach(() => rpc.mockReset());
+
+  it("chama a RPC protegida e devolve o relatório", async () => {
+    rpc.mockResolvedValueOnce({ data: { deleted: 2, skipped: 1, errors: [] }, error: null });
+    await expect(deleteTestClientsStartingWithZ()).resolves.toEqual({ deleted: 2, skipped: 1, errors: [] });
+    expect(rpc).toHaveBeenCalledWith("admin_delete_test_clients_starting_with_z");
   });
 });

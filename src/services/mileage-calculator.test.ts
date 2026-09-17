@@ -18,7 +18,7 @@ describe("dados auxiliares da calculadora de milheiro", () => {
     const result = await loadMileageCalculatorAuxiliaryData();
 
     expect(result.programs.map((program) => program.name)).toEqual([
-      "Livelo", "Esfera", "Átomos", "Coopera", "Nubank", "PicPay", "Revolut", "Smiles", "Azul Fidelidade", "LATAM Pass",
+      "Livelo", "Esfera", "Átomos", "Coopera", "COOPERA PJ", "Nubank", "PicPay", "Revolut", "Smiles", "Azul Fidelidade", "LATAM Pass",
     ]);
     expect(result.clients).toEqual([]);
     expect(result.simulations).toEqual([]);
