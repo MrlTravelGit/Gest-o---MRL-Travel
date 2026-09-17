@@ -156,7 +156,6 @@ export interface SaveCardStatementInput {
   fxRateDate?: string;
   fxSource?: string;
   notes?: string;
-  importAttemptId?: string | null;
   operationId: string;
 }
 
@@ -183,12 +182,7 @@ export async function saveCardStatement(input: SaveCardStatementInput) {
     p_operation_id: input.operationId,
   });
   if (error || !data) throw new Error(error?.message ?? "A fatura não foi salva.");
-  const saved = data as { statementId: string; predictionStatus: string; predictedPoints: number | null; estimatedPointsValue: number | null; pointsDifference: number | null; warning?: string | null };
-  if (input.importAttemptId) {
-    const confirmed = await supabase.rpc("confirm_invoice_import_attempt", { p_attempt_id: input.importAttemptId, p_invoice_id: saved.statementId });
-    if (confirmed.error) saved.warning = "Fatura salva, mas não foi possível vincular a leitura do arquivo.";
-  }
-  return saved;
+  return data as { statementId: string; predictionStatus: string; predictedPoints: number | null; estimatedPointsValue: number | null; pointsDifference: number | null; warning?: string | null };
 }
 
 export async function recalculateCardStatement(statementId: string) {
@@ -197,45 +191,7 @@ export async function recalculateCardStatement(statementId: string) {
   return data;
 }
 
-export interface InvoicePrintExtraction {
-  bank_name: string;
-  card_name: string;
-  card_last_digits: string;
-  competency_month: string;
-  due_date: string;
-  invoice_total: number | null;
-  exchange_rate: number | null;
-  exchange_rate_date: string;
-  loyalty_program_name: string;
-  actual_received_points: number | null;
-  confidence_score: number;
-  warnings: string[];
-}
-
-export interface InvoicePrintExtractionResult {
-  attempt_id: string;
-  file_path: string;
-  extracted_data: InvoicePrintExtraction;
-}
-
-const acceptedInvoiceTypes = new Set(["image/png", "image/jpeg", "application/pdf"]);
-const invoiceMimeByExtension: Record<string, string> = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", pdf: "application/pdf" };
-
-export async function extractInvoiceFromPrint(clientId: string, file: File): Promise<InvoicePrintExtractionResult> {
-  const extension = file.name.split(".").pop()?.toLowerCase() || "";
-  const contentType = acceptedInvoiceTypes.has(file.type) ? file.type : invoiceMimeByExtension[extension];
-  if (!contentType) throw new Error("Envie um arquivo PNG, JPG, JPEG ou PDF.");
-  if (file.size > 15 * 1024 * 1024) throw new Error("O arquivo deve ter no máximo 15 MB.");
-  const importId = crypto.randomUUID();
-  const objectPath = `${clientId}/${importId}/original`;
-  const uploaded = await supabase.storage.from("invoice-uploads").upload(objectPath, file, { contentType, upsert: false, cacheControl: "3600" });
-  if (uploaded.error) throw new Error(uploaded.error.message || "Não foi possível enviar o arquivo.");
-  const invoked = await supabase.functions.invoke<InvoicePrintExtractionResult>("extract-invoice-from-print", { body: { client_id: clientId, file_path: `invoice-uploads/${objectPath}` } });
-  if (invoked.error || !invoked.data) throw new Error(invoked.error?.message || "Não foi possível ler o arquivo.");
-  return invoked.data;
-}
-
-export async function discardInvoiceImportAttempt(attemptId: string): Promise<void> {
-  const { error } = await supabase.rpc("discard_invoice_import_attempt", { p_attempt_id: attemptId });
-  if (error) throw new Error(error.message || "Não foi possível descartar a leitura.");
+export async function deleteCardStatement(statementId: string): Promise<void> {
+  const { error } = await supabase.rpc("delete_card_statement_v1", { p_statement_id: statementId });
+  if (error) throw new Error(error.message || "Não foi possível excluir a fatura.");
 }

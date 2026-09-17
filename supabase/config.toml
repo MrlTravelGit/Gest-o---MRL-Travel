@@ -64,9 +64,6 @@ verify_jwt = true
 [functions.generate-client-contract]
 verify_jwt = true
 
-[functions.extract-invoice-from-print]
-verify_jwt = true
-
 [functions.savings-evidence]
 verify_jwt = false
 

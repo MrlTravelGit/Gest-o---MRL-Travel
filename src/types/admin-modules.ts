@@ -346,6 +346,8 @@ export interface CardStatementOption {
   clientId: string;
   institutionId?: string | null;
   issuer?: string;
+  isPrimary?: boolean;
+  accountPersonType?: "PF" | "PJ";
   label: string;
   basis: "brl" | "usd" | null;
   pointsPerUnit: number | null;
@@ -379,6 +381,8 @@ export interface CardStatement {
   cardId: string | null;
   cardLabel: string | null;
   statementMonth: string;
+  invoiceSequence: number;
+  invoiceLabel: string | null;
   totalSpend: number;
   eligibleSpend: number;
   domesticAmount: number | null;

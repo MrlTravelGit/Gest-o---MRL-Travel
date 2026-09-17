@@ -28,6 +28,8 @@ export interface PublicClientMonthlyMovement {
 
 export interface PublicClientCardStatement {
   month: string;
+  invoiceSequence?: number;
+  invoiceLabel?: string | null;
   totalSpend: number;
   cardName: string;
   institutionName: string | null;
