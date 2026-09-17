@@ -100,7 +100,7 @@ export function AdminCardCatalogPage() {
   return <AppShell title="Catálogo de cartões" hideHeading>
     <PageHeader eyebrow="Motor de pontuação" title="Catálogo versionado de cartões" description="Taxas oficiais, condições e vigências ficam no backend. Produtos “até” permanecem bloqueados até a confirmação da condição real do cliente." />
     <section className="catalog-command">
-      <div className="catalog-command-copy"><CreditCard /><div><strong>{catalog.data?.items.length ?? 0} versões encontradas</strong><span>54 produtos iniciais · regras por dólar, real, parceiro, faixa e relacionamento</span></div></div>
+      <div className="catalog-command-copy"><CreditCard /><div><strong>{catalog.data?.items.length ?? 0} versões encontradas</strong><span>56 produtos iniciais · regras por dólar, real, parceiro, faixa e relacionamento</span></div></div>
       <div className="catalog-health"><ShieldCheck /><span>Fonte conferida e histórico preservado</span></div>
     </section>
     <section className="catalog-filter-rail" aria-label="Filtros do catálogo">

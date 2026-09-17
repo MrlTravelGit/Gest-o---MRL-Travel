@@ -16,6 +16,17 @@ describe("calculateInvoicePoints", () => {
     });
   });
 
+  it("calcula os novos cartões Sicoob Empresarial por dólar", () => {
+    expect(calculateInvoicePoints({ invoiceTotal: 10_000, exchangeRate: 5, cardRule: { cardName: "Sicoob Empresarial", earningType: "usd", pointsPerUsd: 1 } })).toMatchObject({
+      convertedUsd: 2000,
+      estimatedPoints: 2000,
+    });
+    expect(calculateInvoicePoints({ invoiceTotal: 10_000, exchangeRate: 5, cardRule: { cardName: "Sicoob Platinum Empresarial", earningType: "usd", pointsPerUsd: 1.5 } })).toMatchObject({
+      convertedUsd: 2000,
+      estimatedPoints: 3000,
+    });
+  });
+
   it("sinaliza apenas cotações fora da faixa operacional", () => {
     expect(isSuspiciousExchangeRate(2.99)).toBe(true);
     expect(isSuspiciousExchangeRate(5.5)).toBe(false);

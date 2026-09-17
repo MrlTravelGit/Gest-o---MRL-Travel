@@ -9,7 +9,7 @@ select is((select monthly_points from public.loyalty_club_plans where slug='esfe
 select is((select monthly_points from public.loyalty_club_plans where slug='esfera-exclusive' and catalog_version=1),20000::bigint,'Esfera Exclusive preve 20.000 pontos mensais');
 select is((select joining_bonus_points from public.loyalty_club_plans where slug='smiles-mais-streaming-1000'),14500::bigint,'bonus de 14.500 fica separado do mensal');
 select is((select count(*) from public.loyalty_club_plans where slug in ('esfera-pro','esfera-master','esfera-vip','esfera-exclusive','smiles-mais-streaming-1000')),5::bigint,'seed possui cinco clubes sem duplicidade');
-select is((select count(*) from public.card_catalog_versions where version=1),54::bigint,'catalogo inicial possui 54 produtos');
+select is((select count(*) from public.card_catalog_versions where version=1),56::bigint,'catalogo inicial possui 56 produtos');
 select is((select count(*) from public.card_catalog_versions where source_quality='official_up_to' and calculation_enabled),0::bigint,'nenhum produto official_up_to calcula automaticamente');
 
 insert into auth.users(id,instance_id,aud,role,email,encrypted_password,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)

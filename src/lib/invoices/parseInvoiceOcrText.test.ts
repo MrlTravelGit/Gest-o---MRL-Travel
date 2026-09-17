@@ -38,4 +38,9 @@ describe("parseInvoiceOcrText", () => {
     expect(result.exchangeRate).toBeNull();
     expect(result.actualReceivedPoints).toBeNull();
   });
+
+  it("reconhece aliases dos cartões Sicoob Empresarial no OCR", () => {
+    expect(parseInvoiceOcrText("Empresarial Sicoob\nSetembro 2026 R$ 10.000,00").cardName).toBe("Sicoob Empresarial");
+    expect(parseInvoiceOcrText("Sicoob Platinum PJ\nSetembro 2026 R$ 10.000,00").cardName).toBe("Sicoob Platinum Empresarial");
+  });
 });

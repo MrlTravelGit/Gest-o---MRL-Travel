@@ -14,6 +14,10 @@ export interface ParsedInvoiceOcrData {
 
 const BANKS = ["Banco do Brasil", "Bradesco", "Caixa", "Itaú", "Santander", "Nubank", "Inter", "C6", "BTG", "Sicredi", "Sicoob", "XP", "Porto Bank"];
 const PROGRAMS = ["LATAM Pass", "TudoAzul", "Azul Fidelidade", "UAU Caixa", "Smiles", "Livelo", "Esfera", "Átomos", "Coopera", "Sicredi", "LATAM", "Azul", "Nubank", "PicPay", "Revolut"];
+const CARD_ALIASES = [
+  { name: "Sicoob Empresarial", aliases: ["Sicoob Empresarial", "Sicoob Empresarial PJ", "Empresarial Sicoob"] },
+  { name: "Sicoob Platinum Empresarial", aliases: ["Sicoob Platinum Empresarial", "Sicoob Platinum PJ", "Platinum Empresarial Sicoob"] },
+];
 const MONTHS: Record<string, number> = { janeiro: 1, fevereiro: 2, marco: 3, abril: 4, maio: 5, junho: 6, julho: 7, agosto: 8, setembro: 9, outubro: 10, novembro: 11, dezembro: 12 };
 const MONEY_PATTERN = /(?:R\$\s*)?(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})/gi;
 
@@ -31,6 +35,11 @@ const isoDate = (day: string, month: string, year: string) => `${year.length ===
 function findNamedValue(text: string, values: string[]): string | null {
   const normalized = normalize(text);
   return values.find((value) => normalized.includes(normalize(value))) || null;
+}
+
+function findCardName(text: string): string | null {
+  const normalized = normalize(text);
+  return CARD_ALIASES.find((card) => card.aliases.some((alias) => normalized.includes(normalize(alias))))?.name ?? null;
 }
 
 function monetaryValues(text: string): number[] {
@@ -71,8 +80,9 @@ export function parseInvoiceOcrText(rawText: string): ParsedInvoiceOcrData {
   const normalized = normalize(rawText);
   const bankName = findNamedValue(rawText, BANKS);
   const loyaltyProgramName = findNamedValue(rawText, PROGRAMS);
+  const aliasedCardName = findCardName(rawText);
   const lastDigits = normalized.match(/(?:final|finais|terminado\s+em|cartao)[^\d]{0,18}(\d{4})(?!\d)/) || normalized.match(/(?:\*|x){2,}\s*(\d{4})(?!\d)/);
-  const cardLine = rawText.split(/\r?\n/).find((line) => /cart[aã]o/i.test(line) && !/(vencimento|pagamento|melhor dia)/i.test(line));
+  const cardLine = aliasedCardName ? `Cartão ${aliasedCardName}` : rawText.split(/\r?\n/).find((line) => /cart[aã]o/i.test(line) && !/(vencimento|pagamento|melhor dia)/i.test(line));
   const flatText = normalizeInvoiceOcrText(rawText);
   const pointsMatch = normalize(flatText).match(/(?:pontos recebidos|pontos creditados|milhas recebidas|pontos gerados|credito de pontos)[^\d]{0,30}(\d{1,3}(?:\.\d{3})+|\d{1,})/);
   const labeledTotal = findAmountNearLabel(rawText, /(total da fatura|valor da fatura|valor total|total a pagar|pagamento total|saldo total|saldo desta fatura|total deste mes|fatura|pagamento|total)/);
