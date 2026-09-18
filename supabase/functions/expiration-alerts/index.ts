@@ -69,7 +69,7 @@ async function sendTelegram(text: string): Promise<number> {
   return payload.result.message_id;
 }
 
-async function sendWhatsAppAlert({ dedupeKey, message }: WhatsAppAlertInput): Promise<unknown> {
+async function sendWhatsAppForwarderAlert({ dedupeKey, message }: WhatsAppAlertInput): Promise<unknown> {
   const enabled = Deno.env.get("WHATSAPP_ALERTS_ENABLED")?.trim() === "true";
   const url = Deno.env.get("WHATSAPP_ALERT_WEBHOOK_URL")?.trim();
   const secret = Deno.env.get("WHATSAPP_ALERT_WEBHOOK_SECRET")?.trim();
@@ -82,23 +82,23 @@ async function sendWhatsAppAlert({ dedupeKey, message }: WhatsAppAlertInput): Pr
   });
   if (!response.ok) {
     const text = await response.text().catch(() => "");
-    throw new Error(`WhatsApp alert failed: ${response.status} ${text}`.slice(0, 500));
+    throw new Error(`Falha no WhatsApp Forwarder: ${response.status} ${text}`.slice(0, 500));
   }
   return await response.json().catch(() => ({ ok: true }));
 }
 
 function whatsappDedupeKey(candidate: AlertCandidate, today: string): string {
   if (candidate.alert_type === "management_expiration") {
-    return `management:${candidate.client_id}:${candidate.expires_at}:${candidate.threshold_days}:${today}`;
+    return `whatsapp:management:${candidate.client_id}:${candidate.expires_at}:${candidate.threshold_days}:${today}`;
   }
-  return `points:${candidate.client_id}:${candidate.program_name}:${candidate.expires_at}:${candidate.threshold_days}:${today}`;
+  return `whatsapp:points:${candidate.client_id}:${candidate.program_name}:${candidate.expires_at}:${candidate.threshold_days}:${today}`;
 }
 
 async function mirrorToWhatsApp(input: WhatsAppAlertInput) {
   try {
-    await sendWhatsAppAlert(input);
+    await sendWhatsAppForwarderAlert(input);
   } catch (error) {
-    console.error("Erro ao enviar alerta WhatsApp", error);
+    console.error("[WHATSAPP ALERT] Falha ao enviar alerta:", error);
   }
 }
 
@@ -251,7 +251,7 @@ Deno.serve(async (request) => {
     if (parsed.data.action === "test_telegram") {
       const message = "Teste de alerta MRL Travel concluído com sucesso.";
       const messageId = await sendTelegram(message);
-      await mirrorToWhatsApp({ dedupeKey: `test:expiration-alerts:${saoPauloClock().date}`, message });
+      await mirrorToWhatsApp({ dedupeKey: `whatsapp:test:expiration-alerts:${saoPauloClock().date}`, message });
       await adminClient().from("audit_logs").insert({ actor_user_id: actor.userId, action: "test_telegram_alert", table_name: "expiration_alert_settings", record_id: "true", new_data: { telegramMessageId: messageId, whatsappMirror: true } });
       return jsonResponse(request, { ok: true, message: "Teste enviado com sucesso." });
     }
