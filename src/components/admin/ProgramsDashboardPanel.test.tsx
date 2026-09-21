@@ -22,6 +22,10 @@ const rows = [
       { clientId: "client-1", clientName: "Ana Lima", points: "70000", costPerThousand: "20", estimatedValue: "1400", nextExpirationDate: null, pointsExpiring90Days: "0", lastUpdatedAt: "2026-09-21T12:00:00Z", clubActive: false, accountLinked: false },
     ],
   },
+  {
+    program_key: "picpay", program_name: "PicPay", program_logo_url: null,
+    clients_count: 0, total_points: "0", total_estimated_value: "0", clients: [],
+  },
 ];
 
 function renderPanel() {
@@ -41,6 +45,9 @@ describe("ProgramsDashboardPanel", () => {
     expect(await screen.findByText("220.000")).toBeInTheDocument();
     expect(screen.getByText("clientes únicos não arquivados").previousElementSibling).toHaveTextContent("2");
     expect(screen.getAllByRole("link", { name: /abrir cliente/i })[0]).toHaveAttribute("href", "/admin/clientes/client-1");
+    expect(screen.getAllByRole("button", { name: /livelo|smiles/i })).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: /picpay/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /picpay/i })).toBeInTheDocument();
   });
 
   it("troca a lista ao selecionar outro programa", async () => {
@@ -53,5 +60,18 @@ describe("ProgramsDashboardPanel", () => {
     expect(screen.getByRole("heading", { name: "Smiles" })).toBeInTheDocument();
     expect(screen.getAllByText("70.000")).toHaveLength(3);
     expect(screen.queryByText("Bruno Reis")).not.toBeInTheDocument();
+  });
+
+  it("pesquisa e seleciona um programa sem clientes no catálogo completo", async () => {
+    renderPanel();
+
+    fireEvent.change(await screen.findByRole("searchbox", { name: /pesquisar no catálogo/i }), { target: { value: "PicPay" } });
+    const selector = screen.getByRole("combobox", { name: /selecionar programa/i });
+    expect(screen.getAllByRole("option")).toHaveLength(2);
+    fireEvent.change(selector, { target: { value: "picpay" } });
+
+    expect(screen.getByRole("heading", { name: "PicPay" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /nenhum cliente neste programa/i })).toBeInTheDocument();
+    expect(screen.getByText(/ainda não há saldo, clube ativo ou conta vinculada em picpay/i)).toBeInTheDocument();
   });
 });
