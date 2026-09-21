@@ -6,6 +6,7 @@ import { RouteErrorBoundary } from "@/components/routes/RouteErrorBoundary";
 
 const AdminDashboardPage = lazy(() => import("@/pages/AdminDashboardPage").then((module) => ({ default: module.AdminDashboardPage })));
 const AdminClientsPage = lazy(() => import("@/pages/AdminClientsPage").then((module) => ({ default: module.AdminClientsPage })));
+const AdminProgramsPage = lazy(() => import("@/pages/admin/AdminProgramsPage").then((module) => ({ default: module.AdminProgramsPage })));
 const AdminClientDetailPage = lazy(() => import("@/pages/AdminClientDetailPage").then((module) => ({ default: module.AdminClientDetailPage })));
 const AdminClientEditPage = lazy(() => import("@/pages/admin/AdminClientEditPage").then((module) => ({ default: module.AdminClientEditPage })));
 const AdminCreateClientPage = lazy(() => import("@/pages/admin/AdminCreateClientPage").then((module) => ({ default: module.AdminCreateClientPage })));
@@ -50,6 +51,7 @@ export default function App() {
         <Route element={<AdminProtectedRoute />}>
           <Route path="/admin" element={<AdminDashboardPage />} />
           <Route path="/admin/clientes" element={<AdminClientsPage />} />
+          <Route path="/admin/programas" element={<AdminProgramsPage />} />
           <Route path="/admin/clientes/novo" element={<AdminCreateClientPage />} />
           <Route path="/admin/pessoas/novo" element={<AdminCreateClientPage />} />
           <Route path="/admin/clientes/:clientId" element={<AdminClientDetailPage />} />

@@ -17,7 +17,11 @@ const defaults=[
   ["Smiles","https://www.smiles.com.br/","smiles"],
   ["Esfera","https://www.esfera.com.vc/","esfera"],
 ] as const;
-const inputText=(input:Record<string,unknown>,field:string,max:number)=>typeof input[field]==="string"?String(input[field]).trim().slice(0,max):null;
+const inputText=(input:Record<string,unknown>,field:string,max:number)=>{
+  if(typeof input[field]!=="string")return null;
+  const value=String(input[field]).trim().slice(0,max);
+  return value.length?value:null;
+};
 const isoDate=(value:string|null,code="INVALID_DATE")=>{if(value&&!/^\d{4}-\d{2}-\d{2}$/.test(value))throw new Error(code);return value;};
 const numberDay=(value:unknown)=>value===""||value==null?null:Number(value);
 const assertDay=(value:number|null)=>{if(value!==null&&(!Number.isInteger(value)||value<1||value>31))throw new Error("INVALID_CARD_DAY");};
