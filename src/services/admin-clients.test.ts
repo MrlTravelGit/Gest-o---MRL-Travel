@@ -42,6 +42,28 @@ describe("getAdminClients", () => {
       p_status: "all",
     });
   });
+
+  it("oculta defensivamente cadastros de teste iniciados por Z", async () => {
+    rpc.mockResolvedValueOnce({
+      data: {
+        items: [
+          { id: "1", fullName: "  zzz", status: "ended" },
+          { id: "2", fullName: "Letícia Tôrres de Souza", status: "active" },
+        ],
+        total: 2,
+        limit: 20,
+        offset: 0,
+        counts: { all: 2, active: 1, leads: 0, archived: 1, contractPending: 0, cashbackEnabled: 0 },
+      },
+      error: null,
+    });
+
+    const result = await getAdminClients();
+
+    expect(result.items.map((client) => client.fullName)).toEqual(["Letícia Tôrres de Souza"]);
+    expect(result.total).toBe(1);
+    expect(result.counts?.all).toBe(1);
+  });
 });
 
 describe("deleteTestClientsStartingWithZ", () => {

@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { isOperationalClientName } from "@/lib/operational-client";
 import type {
   ActivateOnboardingLeadInput,
   ActivateOnboardingLeadResult,
@@ -69,7 +70,19 @@ export async function getAdminClients(search = "", status = "", limit = 20, offs
     p_status: status || "all",
   });
   if (error || !data) throw new Error("Não foi possível carregar os clientes.");
-  return data as unknown as AdminClientsResult;
+  const result = data as unknown as AdminClientsResult;
+  const items = result.items.filter((client) => isOperationalClientName(client.fullName));
+  const hidden = result.items.length - items.length;
+  if (!hidden) return result;
+  return {
+    ...result,
+    items,
+    total: Math.max(0, result.total - hidden),
+    counts: result.counts ? {
+      ...result.counts,
+      all: Math.max(0, result.counts.all - hidden),
+    } : result.counts,
+  };
 }
 
 export async function archiveClient(clientId: string, confirmationName: string, reason?: string) {

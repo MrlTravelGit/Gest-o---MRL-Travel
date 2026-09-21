@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { isOperationalClientName } from "@/lib/operational-client";
 import type { MileageCalculatorAdminData, MileageSimulation, TransferProgram } from "@/types/admin-modules";
 
 const fallbackProgramDefinitions = [
@@ -45,7 +46,9 @@ async function getPrograms(): Promise<TransferProgram[]> {
 async function getClients(): Promise<MileageCalculatorAdminData["clients"]> {
   const { data, error } = await supabase.rpc("get_admin_form_options");
   if (error || !data) throw error ?? new Error("Resposta vazia ao carregar clientes.");
-  return ((data as unknown as { clients?: Array<{ clientId: string; fullName: string }> }).clients ?? []).map(({ clientId, fullName }) => ({ clientId, fullName }));
+  return ((data as unknown as { clients?: Array<{ clientId: string; fullName: string }> }).clients ?? [])
+    .filter((client) => isOperationalClientName(client.fullName))
+    .map(({ clientId, fullName }) => ({ clientId, fullName }));
 }
 
 async function getSimulationStorage(): Promise<{ canWrite: boolean; simulations: MileageSimulation[] }> {

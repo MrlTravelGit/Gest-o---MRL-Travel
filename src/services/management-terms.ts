@@ -1,4 +1,5 @@
 import { env } from "@/lib/env";
+import { isOperationalClientName } from "@/lib/operational-client";
 import { supabase } from "@/lib/supabase";
 import type { ManagementTermFilters, ManagementTermsResult } from "@/types/management-terms";
 import { z } from "zod";
@@ -73,10 +74,13 @@ export function normalizeManagementTerms(value: unknown): ManagementTermsResult 
   const source = record(value) ? value : {};
   const summary = record(source.summary) ? source.summary : {};
   const number = (candidate: unknown) => typeof candidate === "number" && Number.isFinite(candidate) ? candidate : 0;
+  const items = (Array.isArray(source.items) ? source.items : [])
+    .filter((item): item is ManagementTermsResult["items"][number] => record(item) && isOperationalClientName(item.clientName));
+  const hidden = (Array.isArray(source.items) ? source.items.length : 0) - items.length;
   return {
     summary: { active: number(summary.active), expiring: number(summary.expiring), ended: number(summary.ended), noTerm: number(summary.noTerm), totalSavings: number(summary.totalSavings), totalCashback: number(summary.totalCashback) },
-    items: Array.isArray(source.items) ? source.items as ManagementTermsResult["items"] : [],
-    total: number(source.total), limit: number(source.limit) || 25, offset: number(source.offset), canVaultAccess: source.canVaultAccess === true,
+    items,
+    total: Math.max(0, number(source.total) - hidden), limit: number(source.limit) || 25, offset: number(source.offset), canVaultAccess: source.canVaultAccess === true,
   };
 }
 
