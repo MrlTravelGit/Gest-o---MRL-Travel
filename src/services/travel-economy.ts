@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { getFriendlyErrorMessage } from "@/lib/friendly-errors";
 import { buildSavingsMatchKey } from "@/lib/savings-match-key";
 import type { CashbackFormulaReconciliationPreview, CashbackFormulaReconciliationResult, ClientCashbackState, IddasSavingsImportState, TravelSalesResult } from "@/types/admin-modules";
 
@@ -7,6 +8,7 @@ export interface RecordTravelSaleInput {
   travelType: "flight" | "hotel" | "other"; details: string;
   originalValue: string; paidValue: string; accountId?: string; pointsUsed?: number; operationId: string;
   cashbackPercentage?: string | null;
+  programName?: string | null; availablePoints?: number | null; clientName?: string | null;
 }
 
 export async function getTravelSales(filters: { clientId?: string; startDate?: string; endDate?: string; travelType?: "flight" | "hotel" | "other"; hasCashback?: boolean; status?: "active" | "voided" | "all"; limit?: number; offset?: number } = {}): Promise<TravelSalesResult> {
@@ -48,7 +50,16 @@ export function removeTravelSaleFromResult(result: TravelSalesResult, redemption
 
 export async function recordTravelSale(input: RecordTravelSaleInput) {
   const { data, error } = await supabase.rpc("record_travel_sale", { p_client_id: input.clientId, p_launched_on: input.launchedOn, p_payment_mode: input.paymentMode, p_travel_type: input.travelType, p_details: input.details, p_original_value: input.originalValue, p_paid_value: input.paidValue, p_account_id: input.accountId || null, p_points_used: input.pointsUsed ?? null, p_operation_id: input.operationId, p_cashback_percentage: input.cashbackPercentage ?? null });
-  if (error || !data) throw new Error(safeMutationMessage(error, "A viagem não foi registrada."));
+  if (error || !data) {
+    console.error("[economy] failed to register trip", error ?? new Error("Empty record_travel_sale response"));
+    throw new Error(getFriendlyErrorMessage(error, {
+      action: "registrar viagem",
+      programName: input.programName,
+      availablePoints: input.availablePoints,
+      requestedPoints: input.pointsUsed,
+      clientName: input.clientName,
+    }));
+  }
   return data;
 }
 

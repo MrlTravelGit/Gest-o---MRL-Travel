@@ -12,6 +12,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { parsePointsPtBr } from "@/lib/admin-inputs";
 import { calculateCashbackPreview, calculateSavingsPreview, normalizeMoneyDecimal, normalizePercentageDecimal } from "@/lib/cashback";
 import { formatCurrency, formatDate, formatPoints } from "@/lib/formatters";
+import { buildInsufficientPointsMessage } from "@/lib/friendly-errors";
 import { getAdminFormOptions } from "@/services/admin-options";
 import { applyCashbackPaidAmountReconciliation, getAdminSavingEvidenceUrl, getClientCashback, getTravelSales, previewCashbackPaidAmountReconciliation, recordTravelSale, SAVINGS_EVIDENCE_MAX_BYTES, uploadSavingEvidence } from "@/services/travel-economy";
 
@@ -33,6 +34,7 @@ export function AdminTravelEconomyPage() {
   const [filterStatus, setFilterStatus] = useState<"active" | "voided" | "all">("active");
   const [offset, setOffset] = useState(0);
   const [evidence, setEvidence] = useState<File | null>(null);
+  const [formError, setFormError] = useState("");
   const evidencePreview = useMemo(() => evidence ? URL.createObjectURL(evidence) : "", [evidence]);
   useEffect(() => () => { if (evidencePreview) URL.revokeObjectURL(evidencePreview); }, [evidencePreview]);
 
@@ -42,30 +44,51 @@ export function AdminTravelEconomyPage() {
   const clientId = form.watch("clientId");
   const paymentMode = form.watch("paymentMode");
   const client = options.data?.clients.find((item) => item.clientId === clientId);
+  const accountId = form.watch("accountId");
+  const pointsInput = form.watch("pointsUsed");
+  const selectedAccount = client?.accounts.find((account) => account.accountId === accountId);
+  const requestedPoints = safePoints(pointsInput);
+  const hasInsufficientPoints = paymentMode === "miles" && Boolean(selectedAccount) && requestedPoints > Number(selectedAccount?.balance ?? 0);
   const cashback = useQuery({ queryKey: ["client-cashback", clientId], queryFn: () => getClientCashback(clientId), enabled: Boolean(clientId) });
   useEffect(() => { form.setValue("cashbackPercentage", cashback.data?.config.enabled && cashback.data.config.defaultPercentage ? String(cashback.data.config.defaultPercentage).replace(".", ",") : ""); }, [cashback.data?.config.defaultPercentage, cashback.data?.config.enabled, clientId, form]);
   const savings = useMemo(() => { try { return calculateSavingsPreview(form.watch("originalValue"), form.watch("paidValue")); } catch { return 0; } }, [form.watch("originalValue"), form.watch("paidValue")]);
   const estimatedCashback = useMemo(() => { const percentage = form.watch("cashbackPercentage"); try { return cashback.data?.config.enabled && percentage.trim() ? calculateCashbackPreview(form.watch("paidValue"), percentage) : 0; } catch { return 0; } }, [cashback.data?.config.enabled, form.watch("cashbackPercentage"), form.watch("paidValue")]);
   const mutation = useMutation({
     mutationFn: async (value: FormData) => {
-      const result = await recordTravelSale({ clientId: value.clientId, launchedOn: value.launchedOn, paymentMode: value.paymentMode, travelType: value.travelType, details: value.details, originalValue: normalizeMoneyDecimal(value.originalValue), paidValue: normalizeMoneyDecimal(value.paidValue), accountId: value.paymentMode === "miles" ? value.accountId : undefined, pointsUsed: value.paymentMode === "miles" ? parsePointsPtBr(value.pointsUsed) : undefined, operationId, cashbackPercentage: cashback.data?.config.enabled && value.cashbackPercentage.trim() ? normalizePercentageDecimal(value.cashbackPercentage) : null });
+      const mutationClient = options.data?.clients.find((item) => item.clientId === value.clientId);
+      const mutationAccount = mutationClient?.accounts.find((account) => account.accountId === value.accountId);
+      const result = await recordTravelSale({ clientId: value.clientId, launchedOn: value.launchedOn, paymentMode: value.paymentMode, travelType: value.travelType, details: value.details, originalValue: normalizeMoneyDecimal(value.originalValue), paidValue: normalizeMoneyDecimal(value.paidValue), accountId: value.paymentMode === "miles" ? value.accountId : undefined, pointsUsed: value.paymentMode === "miles" ? parsePointsPtBr(value.pointsUsed) : undefined, operationId, cashbackPercentage: cashback.data?.config.enabled && value.cashbackPercentage.trim() ? normalizePercentageDecimal(value.cashbackPercentage) : null, programName: mutationAccount?.programName, availablePoints: mutationAccount?.balance, clientName: mutationClient?.fullName });
       if (evidence) await uploadSavingEvidence(String((result as { saleId: string }).saleId), evidence);
       return result as { saleId: string; savingsAmount: number; cashbackAmount: number; idempotentReplay: boolean };
     },
-    onSuccess: () => { setOperationId(crypto.randomUUID()); setEvidence(null); form.reset({ ...form.getValues(), details: "", originalValue: "", paidValue: "", pointsUsed: "", cashbackPercentage: cashback.data?.config.defaultPercentage ? String(cashback.data.config.defaultPercentage).replace(".", ",") : "" }); void Promise.all([queryClient.invalidateQueries({ queryKey: ["travel-sales"] }), queryClient.invalidateQueries({ queryKey: ["client-cashback"] }), queryClient.invalidateQueries({ queryKey: ["admin-overview"] }), queryClient.invalidateQueries({ queryKey: ["admin-form-options"] })]); },
+    onSuccess: () => { setFormError(""); setOperationId(crypto.randomUUID()); setEvidence(null); form.reset({ ...form.getValues(), details: "", originalValue: "", paidValue: "", pointsUsed: "", cashbackPercentage: cashback.data?.config.defaultPercentage ? String(cashback.data.config.defaultPercentage).replace(".", ",") : "" }); void Promise.all([queryClient.invalidateQueries({ queryKey: ["travel-sales"] }), queryClient.invalidateQueries({ queryKey: ["client-cashback"] }), queryClient.invalidateQueries({ queryKey: ["admin-overview"] }), queryClient.invalidateQueries({ queryKey: ["admin-form-options"] })]); },
   });
+
+  const submit = (value: FormData) => {
+    const account = options.data?.clients.find((item) => item.clientId === value.clientId)?.accounts.find((item) => item.accountId === value.accountId);
+    const points = value.paymentMode === "miles" ? safePoints(value.pointsUsed) : 0;
+    if (value.paymentMode === "miles" && account && points > Number(account.balance || 0)) {
+      const message = buildInsufficientPointsMessage({ programName: account.programName, availablePoints: account.balance, requestedPoints: points, clientName: client?.fullName });
+      form.setError("pointsUsed", { type: "validate", message: `Saldo disponível: ${formatPoints(account.balance)} pontos. Use no máximo esse valor.` });
+      setFormError(message);
+      return;
+    }
+    setFormError("");
+    mutation.mutate(value);
+  };
+  const clearTravelError = () => { setFormError(""); mutation.reset(); form.clearErrors("pointsUsed"); };
 
   return <AppShell title="Viagens e Economia" hideHeading>
     <PageHeader eyebrow="Operação comercial" title="Viagens de Clientes / Economia" description="Economia e cashback fecham no backend; o comprovante é opcional e permanece privado." />
     {options.isLoading && <LoadingState />}{options.isError && <ErrorState message={options.error.message} />}
-    {options.data && <form className="module-form operation-form cashback-operation-form" onSubmit={form.handleSubmit((value) => mutation.mutate(value))}>
+    {options.data && <form className="module-form operation-form cashback-operation-form" onSubmit={form.handleSubmit(submit)}>
       <div className="form-title"><PlaneTakeoff /><div><h2>Novo lançamento</h2><p>A confirmação cria economia, baixa de pontos e crédito de cashback em uma única operação financeira.</p></div></div>
       <div className="form-grid">
-        <label>Cliente<ClientSelect clients={options.data.clients} value={clientId} onChange={(value) => { form.setValue("clientId", value, { shouldValidate: true }); form.setValue("accountId", ""); }} /></label>
+        <label>Cliente<ClientSelect clients={options.data.clients} value={clientId} onChange={(value) => { clearTravelError(); form.setValue("clientId", value, { shouldValidate: true }); form.setValue("accountId", ""); }} /></label>
         <label>Data<input type="date" max={today} {...form.register("launchedOn")} /></label>
-        <label>Forma<select {...form.register("paymentMode")}><option value="cash">Dinheiro</option><option value="miles">Milhas</option></select></label>
+        <label>Forma<select {...form.register("paymentMode", { onChange: clearTravelError })}><option value="cash">Dinheiro</option><option value="miles">Milhas</option></select></label>
         <label>Categoria<select {...form.register("travelType")}><option value="flight">Voo</option><option value="hotel">Hotel</option><option value="other">Outro</option></select></label>
-        {paymentMode === "miles" && <><label>Programa<ProgramAccountSelect client={client} value={form.watch("accountId")} onChange={(value) => form.setValue("accountId", value, { shouldValidate: true })} /></label><label>Pontos utilizados<input inputMode="numeric" placeholder="20.000" {...form.register("pointsUsed")} />{form.formState.errors.pointsUsed && <small className="field-error">{form.formState.errors.pointsUsed.message}</small>}</label></>}
+        {paymentMode === "miles" && <><label>Programa<ProgramAccountSelect client={client} value={accountId} onChange={(value) => { clearTravelError(); form.setValue("accountId", value, { shouldValidate: true }); }} /></label><label>Pontos utilizados<input inputMode="numeric" placeholder="20.000" aria-invalid={hasInsufficientPoints || Boolean(form.formState.errors.pointsUsed)} aria-describedby="travel-points-help" className={hasInsufficientPoints ? "input-invalid" : undefined} {...form.register("pointsUsed", { onChange: clearTravelError })} />{selectedAccount && !form.formState.errors.pointsUsed && <small id="travel-points-help" className={hasInsufficientPoints ? "field-error" : "field-help"}>Saldo disponível: {formatPoints(selectedAccount.balance)} pontos. Use no máximo esse valor.</small>}{form.formState.errors.pointsUsed && <small id="travel-points-help" className="field-error">{form.formState.errors.pointsUsed.message}</small>}</label></>}
         <label>Valor original<input inputMode="decimal" placeholder="5.000,00" {...form.register("originalValue")} /></label>
         <label>Valor pago<input inputMode="decimal" placeholder="3.200,00" {...form.register("paidValue")} /></label>
         {cashback.data?.config.enabled && <label>Percentual de cashback desta reserva<input inputMode="decimal" placeholder="10,00" {...form.register("cashbackPercentage")} />{form.formState.errors.cashbackPercentage && <small className="field-error">{form.formState.errors.cashbackPercentage.message}</small>}</label>}
@@ -73,7 +96,7 @@ export function AdminTravelEconomyPage() {
       </div>
       <EvidencePicker file={evidence} preview={evidencePreview} onChange={setEvidence} />
       <div className="cashback-confirmation-strip"><div><span>Valor original</span><strong>{safeMoney(form.watch("originalValue"))}</strong></div><div><span>Valor pago pelo cliente</span><strong>{safeMoney(form.watch("paidValue"))}</strong></div><div><span>Economia gerada</span><strong>{formatCurrency(savings)}</strong></div>{cashback.data?.config.enabled && <><div><span>Percentual de cashback</span><strong>{form.watch("cashbackPercentage") || "—"}%</strong></div><div><span>Base do cashback</span><strong>Valor pago · {safeMoney(form.watch("paidValue"))}</strong></div><div className="cashback-highlight"><span>Cashback estimado</span><strong>{formatCurrency(estimatedCashback)}</strong></div></>}</div>
-      {mutation.isError && <div className="form-error">{mutation.error.message}</div>}{mutation.isSuccess && <div className="form-success">Economia confirmada. Cashback oficial sobre o valor pago: {formatCurrency(mutation.data.cashbackAmount ?? 0)}.</div>}
+      {(formError || mutation.isError) && <div className="form-error operation-error" role="alert"><AlertTriangle aria-hidden /><div><strong>{formError ? "Saldo insuficiente" : "A viagem não foi registrada"}</strong><span>{formError || mutation.error?.message}</span></div></div>}{mutation.isSuccess && <div className="form-success">Economia confirmada. Cashback oficial sobre o valor pago: {formatCurrency(mutation.data.cashbackAmount ?? 0)}.</div>}
       <button className="primary-button" disabled={!options.data.canWrite || mutation.isPending}>{mutation.isPending ? "Confirmando..." : "Registrar viagem"}</button>
     </form>}
     <section className="data-section"><div className="section-heading"><div><span className="eyebrow">Histórico</span><h2>Lançamentos recentes</h2><p>{sales.data ? `${sales.data.total} registros · ${formatCurrency(sales.data.totalSavings)} de economia · ${formatCurrency(sales.data.totalCashback)} em cashback` : "Dados oficiais"}</p></div></div>
@@ -133,4 +156,5 @@ function EvidencePicker({ file, preview, onChange }: { file: File | null; previe
 }
 
 function safeMoney(value: string) { try { return formatCurrency(Number(normalizeMoneyDecimal(value))); } catch { return formatCurrency(0); } }
+function safePoints(value: string) { try { return parsePointsPtBr(value); } catch { return 0; } }
 function Pagination({ offset, total, pending, setOffset }: { offset: number; total: number; pending: boolean; setOffset: (value: number) => void }) { return <div className="pagination-bar"><span>{offset + 1}–{Math.min(offset + 20, total)} de {total}</span><div><button className="secondary-button" disabled={!offset || pending} onClick={() => setOffset(Math.max(0, offset - 20))}>Anterior</button><button className="secondary-button" disabled={offset + 20 >= total || pending} onClick={() => setOffset(offset + 20)}>Próxima</button></div></div>; }
