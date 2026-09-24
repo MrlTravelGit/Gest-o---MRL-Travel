@@ -1,10 +1,10 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, BadgeDollarSign, CalendarClock, CopyPlus, CreditCard, ExternalLink, Pencil, Power, Save, ShieldCheck, X } from "lucide-react";
+import { AlertTriangle, BadgeDollarSign, CalendarClock, CopyPlus, CreditCard, ExternalLink, Pencil, Plus, Power, Save, ShieldCheck, X } from "lucide-react";
 import { EmptyState, ErrorState, LoadingState, PageHeader } from "@/components/admin/AdminPage";
 import { AppShell } from "@/components/layout/AppShell";
 import { formatDate } from "@/lib/formatters";
-import { duplicateCardCatalogVersion, getCardCatalog, setCardCatalogActive, updateCardCatalogRule } from "@/services/card-catalog";
+import { duplicateCardCatalogVersion, getCardCatalog, setCardCatalogActive, updateCardCatalogRule, upsertCardCatalog } from "@/services/card-catalog";
 import type { CardCatalogItem, CardCatalogRule, CardRuleUnit } from "@/types/admin-modules";
 
 const qualityLabels = {
@@ -12,6 +12,26 @@ const qualityLabels = {
   official_up_to: "Taxa máxima divulgada",
   official_conditional: "Condicional",
 } as const;
+
+type CatalogForm = {
+  id: string;
+  issuer: string;
+  cardName: string;
+  displayName: string;
+  accountType: "" | "Pessoa Física" | "Pessoa Jurídica" | "Ambos";
+  pointsPerUsd: string;
+  earningCurrency: string;
+  defaultProgram: string;
+  notes: string;
+  isActive: boolean;
+};
+
+const emptyCatalogForm = (): CatalogForm => ({
+  id: "", issuer: "", cardName: "", displayName: "", accountType: "Ambos",
+  pointsPerUsd: "", earningCurrency: "USD", defaultProgram: "", notes: "", isActive: true,
+});
+
+const catalogDisplayName = (issuer: string, cardName: string) => `${issuer.trim()} ${cardName.trim()}`.trim();
 
 function describeRule(rule: CardCatalogItem["rules"][number]) {
   const value = rule.unitType === "one_point_per_brl_amount"
@@ -39,6 +59,7 @@ export function AdminCardCatalogPage() {
   const [includeInactive, setIncludeInactive] = useState(false);
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [catalogForm, setCatalogForm] = useState<CatalogForm | null>(null);
   const [editor, setEditor] = useState<null | {
     ruleId: string; unitType: CardRuleUnit; value: string; calculationEnabled: boolean;
     requiresReview: boolean; validUntil: string; sourceUrl: string; sourceCheckedAt: string; reason: string;
@@ -74,10 +95,40 @@ export function AdminCardCatalogPage() {
     },
     onSuccess: () => { setEditor(null); void refresh(); },
   });
+  const saveCatalogCard = useMutation({
+    mutationFn: () => {
+      if (!catalogForm) throw new Error("Abra o formulário do cartão.");
+      if (!catalogForm.issuer.trim()) throw new Error("Informe o banco ou emissor do cartão.");
+      if (!catalogForm.cardName.trim()) throw new Error("Informe o nome do cartão.");
+      const pointsPerUsd = Number(catalogForm.pointsPerUsd.replace(",", "."));
+      if (!Number.isFinite(pointsPerUsd) || pointsPerUsd <= 0) throw new Error("Informe quantos pontos por dólar esse cartão acumula.");
+      return upsertCardCatalog({
+        id: catalogForm.id || null,
+        issuer: catalogForm.issuer.trim(),
+        cardName: catalogForm.cardName.trim(),
+        displayName: catalogForm.displayName.trim() || catalogDisplayName(catalogForm.issuer, catalogForm.cardName),
+        accountType: catalogForm.accountType || null,
+        pointsPerUsd,
+        earningCurrency: catalogForm.earningCurrency.trim().toUpperCase() || "USD",
+        defaultProgram: catalogForm.defaultProgram.trim() || null,
+        notes: catalogForm.notes.trim() || null,
+        isActive: catalogForm.isActive,
+      });
+    },
+    onSuccess: () => {
+      setCatalogForm(null);
+      void Promise.all([
+        refresh(),
+        queryClient.invalidateQueries({ queryKey: ["card-catalog-client-association"] }),
+        queryClient.invalidateQueries({ queryKey: ["card-statement-options-v4"] }),
+        queryClient.invalidateQueries({ queryKey: ["card-options"] }),
+      ]);
+    },
+  });
   const items = useMemo(() => {
     const term = search.trim().toLocaleLowerCase("pt-BR");
     return (catalog.data?.items ?? []).filter((item) => !term || [
-      item.issuer, item.cardName, item.cardVariant, item.brand, item.rewardsProgram, item.cardSlug,
+      item.issuer, item.cardName, item.displayName, item.accountType, item.cardVariant, item.brand, item.rewardsProgram, item.notes, item.cardSlug,
     ].some((value) => value?.toLocaleLowerCase("pt-BR").includes(term)));
   }, [catalog.data, search]);
 
@@ -96,12 +147,46 @@ export function AdminCardCatalogPage() {
     validUntil: rule.validUntil ?? "", sourceUrl: item.sourceUrl,
     sourceCheckedAt: item.sourceCheckedAt, reason: "",
   });
+  const editCatalogCard = (item: CardCatalogItem) => {
+    saveCatalogCard.reset();
+    const usdRule = item.rules.find((rule) => rule.unitType === "points_per_usd" && rule.scope === "default")
+      ?? item.rules.find((rule) => rule.unitType === "points_per_usd");
+    setCatalogForm({
+      id: item.catalogVersionId,
+      issuer: item.issuer,
+      cardName: item.cardName,
+      displayName: item.displayName || catalogDisplayName(item.issuer, item.cardName),
+      accountType: item.accountType ?? "",
+      pointsPerUsd: usdRule?.rate == null ? "" : String(usdRule.rate).replace(".", ","),
+      earningCurrency: item.earningCurrency || "USD",
+      defaultProgram: item.rewardsProgram === "Não informado" ? "" : item.rewardsProgram,
+      notes: item.notes ?? "",
+      isActive: item.active,
+    });
+  };
+  const openNewCatalogCard = () => {
+    saveCatalogCard.reset();
+    setCatalogForm(emptyCatalogForm());
+  };
+  const closeCatalogForm = () => {
+    saveCatalogCard.reset();
+    setCatalogForm(null);
+  };
+  const updateIdentityField = (field: "issuer" | "cardName", value: string) => setCatalogForm((current) => {
+    if (!current) return current;
+    const previousAutomaticName = catalogDisplayName(current.issuer, current.cardName);
+    const next = { ...current, [field]: value };
+    if (!current.displayName.trim() || current.displayName === previousAutomaticName) {
+      next.displayName = catalogDisplayName(next.issuer, next.cardName);
+    }
+    return next;
+  });
 
   return <AppShell title="Catálogo de cartões" hideHeading>
     <PageHeader eyebrow="Motor de pontuação" title="Catálogo versionado de cartões" description="Taxas oficiais, condições e vigências ficam no backend. Produtos “até” permanecem bloqueados até a confirmação da condição real do cliente." />
     <section className="catalog-command">
-      <div className="catalog-command-copy"><CreditCard /><div><strong>{catalog.data?.items.length ?? 0} versões encontradas</strong><span>56 produtos iniciais · regras por dólar, real, parceiro, faixa e relacionamento</span></div></div>
-      <div className="catalog-health"><ShieldCheck /><span>Fonte conferida e histórico preservado</span></div>
+      <div className="catalog-command-copy"><CreditCard /><div><strong>{catalog.data?.items.length ?? 0} versões encontradas</strong><span>Catálogo central · regras por dólar, real, parceiro, faixa e relacionamento</span></div></div>
+      <div className="catalog-command-actions"><div className="catalog-health"><ShieldCheck /><span>Fonte conferida e histórico preservado</span></div>{catalog.data?.canManage && <button className="primary-button" onClick={openNewCatalogCard}><Plus /> Adicionar cartão</button>}</div>
     </section>
     <section className="catalog-filter-rail" aria-label="Filtros do catálogo">
       <label className="catalog-search">Buscar<input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Banco, cartão, bandeira ou programa" /></label>
@@ -120,7 +205,7 @@ export function AdminCardCatalogPage() {
         return <article className={`card-catalog-record ${item.requiresReview ? "needs-review" : ""} ${!item.active ? "inactive" : ""}`} key={item.catalogVersionId}>
           <button className="card-catalog-summary" onClick={() => setExpanded(open ? null : item.catalogVersionId)} aria-expanded={open}>
             <div className="catalog-issuer-mark">{item.issuer.slice(0, 2).toUpperCase()}</div>
-            <div className="catalog-title"><span>{item.issuer} · v{item.version}</span><strong>{item.cardName}{item.cardVariant ? ` ${item.cardVariant}` : ""}</strong><small>{item.brand || "Bandeira não informada"} · {item.rewardsProgram}</small></div>
+            <div className="catalog-title"><span>{item.issuer} · v{item.version}</span><strong>{item.displayName || `${item.cardName}${item.cardVariant ? ` ${item.cardVariant}` : ""}`}</strong><small>{item.accountType || item.brand || "Tipo não informado"} · {item.rewardsProgram}</small></div>
             <div className="catalog-status-stack">
               <span className={`quality-pill ${item.sourceQuality}`}>{qualityLabels[item.sourceQuality]}</span>
               {item.requiresReview && <span className="review-pill"><AlertTriangle /> Precisa revisar</span>}
@@ -137,7 +222,7 @@ export function AdminCardCatalogPage() {
               <h3>Regras desta versão</h3>
               {item.rules.map((rule) => <div className={`catalog-rule ${!rule.calculationEnabled ? "blocked" : ""}`} key={rule.ruleId}>
                 <BadgeDollarSign /><div><strong>{rule.scope}</strong><span>{describeRule(rule)}</span></div>
-                <div className="catalog-rule-tools"><span className="rule-state">{rule.calculationEnabled ? "Calcula" : "Bloqueada"}</span><button className="table-action" onClick={() => editRule(item, rule)}><Pencil /> Editar</button></div>
+                <div className="catalog-rule-tools"><span className="rule-state">{rule.calculationEnabled ? "Calcula" : "Bloqueada"}</span>{catalog.data?.canManage && <button className="table-action" onClick={() => editRule(item, rule)}><Pencil /> Editar</button>}</div>
               </div>)}
             </div>
             {editor && item.rules.some((rule) => rule.ruleId === editor.ruleId) && <form className="catalog-rule-editor" onSubmit={(event) => { event.preventDefault(); updateRule.mutate(); }}>
@@ -155,14 +240,33 @@ export function AdminCardCatalogPage() {
               {updateRule.isError && <div className="form-error">{updateRule.error.message}</div>}
               <button className="primary-button" disabled={updateRule.isPending}><Save /> Salvar regra e auditoria</button>
             </form>}
-            <div className="catalog-actions">
+            {catalog.data?.canManage && <div className="catalog-actions">
+              <button className="secondary-button" onClick={() => editCatalogCard(item)}><Pencil /> Editar cadastro</button>
               <button className="secondary-button" onClick={() => requestDuplicate(item)} disabled={duplicate.isPending}><CopyPlus /> Duplicar como nova versão</button>
               <button className="secondary-button" onClick={() => requestToggle(item)} disabled={toggle.isPending}><Power /> {item.active ? "Desativar" : "Reativar"}</button>
-            </div>
+            </div>}
           </div>}
         </article>;
       })}
     </section>
     {(duplicate.isError || toggle.isError) && <div className="form-error">{(duplicate.error ?? toggle.error)?.message}</div>}
+    {catalogForm && <div className="catalog-modal-backdrop" role="presentation">
+      <form className="catalog-association-modal catalog-card-form-modal" role="dialog" aria-modal="true" aria-labelledby="catalog-card-form-title" onSubmit={(event) => { event.preventDefault(); saveCatalogCard.mutate(); }}>
+        <div className="catalog-modal-header"><div><span className="eyebrow">Catálogo administrativo</span><h2 id="catalog-card-form-title">{catalogForm.id ? "Editar cartão" : "Adicionar cartão"}</h2><p>Cadastre a regra principal para disponibilizar o produto nos vínculos de clientes e nas previsões de fatura.</p></div><button type="button" className="icon-button" aria-label="Fechar" onClick={closeCatalogForm}><X /></button></div>
+        <div className="form-grid catalog-card-form-grid">
+          <label>Banco ou emissor<input autoFocus value={catalogForm.issuer} onChange={(event) => updateIdentityField("issuer", event.target.value)} placeholder="Ex.: Sicoob" required /></label>
+          <label>Nome do cartão<input value={catalogForm.cardName} onChange={(event) => updateIdentityField("cardName", event.target.value)} placeholder="Ex.: Sicoob Black ou Infinite" required /></label>
+          <label className="field-full">Nome de exibição<input value={catalogForm.displayName} onChange={(event) => setCatalogForm((current) => current && ({ ...current, displayName: event.target.value }))} placeholder="Banco + nome do cartão" required /></label>
+          <label>Tipo de conta<select value={catalogForm.accountType} onChange={(event) => setCatalogForm((current) => current && ({ ...current, accountType: event.target.value as CatalogForm["accountType"] }))}><option value="">Não informado</option><option>Pessoa Física</option><option>Pessoa Jurídica</option><option>Ambos</option></select></label>
+          <label>Pontos por dólar<input inputMode="decimal" value={catalogForm.pointsPerUsd} onChange={(event) => setCatalogForm((current) => current && ({ ...current, pointsPerUsd: event.target.value }))} placeholder="2,2" required /></label>
+          <label>Moeda da regra<input maxLength={3} value={catalogForm.earningCurrency} onChange={(event) => setCatalogForm((current) => current && ({ ...current, earningCurrency: event.target.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 3) }))} required /></label>
+          <label>Programa padrão<input list="catalog-program-options" value={catalogForm.defaultProgram} onChange={(event) => setCatalogForm((current) => current && ({ ...current, defaultProgram: event.target.value }))} placeholder="Opcional" /><datalist id="catalog-program-options">{catalog.data?.filters.programs.filter((value) => value !== "Não informado").map((value) => <option key={value} value={value} />)}</datalist></label>
+          <label className="field-full">Observação<textarea value={catalogForm.notes} onChange={(event) => setCatalogForm((current) => current && ({ ...current, notes: event.target.value }))} placeholder="Detalhes úteis sobre a pontuação ou o produto" /></label>
+          <label className="binary-line field-full"><input type="checkbox" checked={catalogForm.isActive} onChange={(event) => setCatalogForm((current) => current && ({ ...current, isActive: event.target.checked }))} /> Cartão ativo e disponível para novos vínculos</label>
+        </div>
+        {saveCatalogCard.isError && <div className="form-error">{saveCatalogCard.error.message}</div>}
+        <div className="catalog-modal-actions"><button type="button" className="secondary-button" onClick={closeCatalogForm}>Cancelar</button><button className="primary-button" disabled={saveCatalogCard.isPending}><Save /> {saveCatalogCard.isPending ? "Salvando…" : "Salvar cartão"}</button></div>
+      </form>
+    </div>}
   </AppShell>;
 }

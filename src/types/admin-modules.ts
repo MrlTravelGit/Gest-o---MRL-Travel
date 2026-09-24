@@ -449,6 +449,10 @@ export interface CardCatalogItem {
   version: number;
   issuer: string;
   cardName: string;
+  displayName: string;
+  accountType: "Pessoa Física" | "Pessoa Jurídica" | "Ambos" | null;
+  earningCurrency: string;
+  notes: string | null;
   cardVariant: string | null;
   brand: string | null;
   rewardsProgram: string;
@@ -467,6 +471,7 @@ export interface CardCatalogItem {
 export interface CardCatalogResult {
   items: CardCatalogItem[];
   filters: { issuers: string[]; programs: string[] };
+  canManage: boolean;
 }
 
 export interface ClientCatalogCard {

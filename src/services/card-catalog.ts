@@ -1,6 +1,19 @@
 import { supabase } from "@/lib/supabase";
 import type { CardCatalogResult, CardRuleUnit, ClientCatalogCard } from "@/types/admin-modules";
 
+function cardCatalogError(error: unknown): Error {
+  const text = error && typeof error === "object"
+    ? ["code", "message", "details", "hint"].map((key) => String((error as Record<string, unknown>)[key] ?? "")).join(" ")
+    : String(error ?? "");
+  if (text.includes("CARD_ISSUER_REQUIRED")) return new Error("Informe o banco ou emissor do cartão.");
+  if (text.includes("CARD_NAME_REQUIRED")) return new Error("Informe o nome do cartão.");
+  if (text.includes("CARD_POINTS_RULE_REQUIRED")) return new Error("Informe quantos pontos por dólar esse cartão acumula.");
+  if (text.includes("CARD_CATALOG_DUPLICATE") || text.includes("23505")) return new Error("Esse cartão já existe no catálogo. Edite o cadastro existente.");
+  if (text.includes("CARD_NOT_FOUND")) return new Error("O cartão não foi encontrado. Atualize o catálogo e tente novamente.");
+  if (text.includes("FORBIDDEN") || text.includes("42501")) return new Error("Você não tem permissão para alterar o catálogo de cartões.");
+  return new Error("Não foi possível salvar o cartão. Tente novamente.");
+}
+
 export async function getCardCatalog(filters: {
   issuer?: string;
   program?: string;
@@ -83,6 +96,34 @@ export async function setCardCatalogActive(catalogVersionId: string, active: boo
     p_reason: reason,
   });
   if (error || !data) throw new Error(error?.message ?? "Não foi possível atualizar a versão.");
+  return data;
+}
+
+export async function upsertCardCatalog(input: {
+  id?: string | null;
+  issuer: string;
+  cardName: string;
+  displayName: string;
+  accountType?: string | null;
+  pointsPerUsd: number;
+  earningCurrency: string;
+  defaultProgram?: string | null;
+  notes?: string | null;
+  isActive: boolean;
+}) {
+  const { data, error } = await supabase.rpc("admin_upsert_card_catalog", {
+    p_id: input.id || null,
+    p_issuer: input.issuer,
+    p_card_name: input.cardName,
+    p_display_name: input.displayName,
+    p_account_type: input.accountType || null,
+    p_points_per_usd: input.pointsPerUsd,
+    p_earning_currency: input.earningCurrency,
+    p_default_program: input.defaultProgram || null,
+    p_notes: input.notes || null,
+    p_is_active: input.isActive,
+  });
+  if (error || !data) throw cardCatalogError(error);
   return data;
 }
 

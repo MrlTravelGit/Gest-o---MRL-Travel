@@ -23,7 +23,7 @@ export function ClientCardsPanel({ clientId, canWrite }: { clientId: string; can
   const products = useMemo(() => {
     const term = search.trim().toLocaleLowerCase("pt-BR");
     return (catalog.data?.items ?? []).filter((item) => !term || [
-      item.issuer, item.cardName, item.cardVariant, item.brand, item.rewardsProgram,
+      item.issuer, item.cardName, item.displayName, item.accountType, item.cardVariant, item.brand, item.rewardsProgram,
     ].some((value) => value?.toLocaleLowerCase("pt-BR").includes(term)));
   }, [catalog.data, search]);
   const selected = catalog.data?.items.find((item) => item.catalogVersionId === form.catalogVersionId);
@@ -69,7 +69,7 @@ export function ClientCardsPanel({ clientId, canWrite }: { clientId: string; can
       <form className="catalog-association-modal" onSubmit={(event) => { event.preventDefault(); save.mutate(); }}>
         <div className="catalog-modal-header"><div><span className="eyebrow">Novo vínculo</span><h2>Adicionar cartão ao cliente</h2></div><button type="button" className="icon-button" aria-label="Fechar" onClick={() => setOpen(false)}><X /></button></div>
         <label className="field-full">Buscar no catálogo<input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Banco, cartão, bandeira ou programa" /></label>
-        <label className="field-full">Produto e versão<select value={form.catalogVersionId} onChange={(event) => setForm((current) => ({ ...current, catalogVersionId: event.target.value }))} required><option value="">Selecione entre {products.length} opções</option>{products.map((item) => <option value={item.catalogVersionId} key={item.catalogVersionId}>{item.issuer} · {item.cardName} {item.cardVariant ?? ""} · {item.rewardsProgram} · v{item.version}</option>)}</select></label>
+        <label className="field-full">Produto e versão<select value={form.catalogVersionId} onChange={(event) => setForm((current) => ({ ...current, catalogVersionId: event.target.value }))} required><option value="">Selecione entre {products.length} opções</option>{products.map((item) => <option value={item.catalogVersionId} key={item.catalogVersionId}>{item.displayName || `${item.issuer} ${item.cardName}`} · {item.accountType || "tipo não informado"} · {item.rewardsProgram} · v{item.version}</option>)}</select></label>
         {selected?.sourceQuality === "official_up_to" && <div className="catalog-contract-warning"><AlertTriangle /><div><strong>Taxa divulgada como “até”</strong><span>O sistema não usará a taxa máxima. Confirme abaixo a taxa real contratada, com justificativa e fonte.</span></div></div>}
         <div className="form-grid">
           <label>Início do uso<input type="date" value={form.startedOn} onChange={(event) => setForm((current) => ({ ...current, startedOn: event.target.value }))} required /></label>
