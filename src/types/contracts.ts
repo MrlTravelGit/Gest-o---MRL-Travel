@@ -1,4 +1,35 @@
 export type ContractStatus = "generated" | "archived";
+export type ContractSignatureStatus = "draft" | "sent" | "pending_signature" | "partially_signed" | "completed" | "rejected" | "failed";
+export type ContractSignerStatus = "pending" | "viewed" | "signed" | "rejected" | "failed";
+
+export interface ContractSignatureSigner {
+  id: string;
+  providerPublicId: string | null;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  action: string;
+  deliveryMethod: string | null;
+  signatureLink: string | null;
+  status: ContractSignerStatus;
+  signedAt: string | null;
+  viewedAt: string | null;
+  rejectedAt: string | null;
+}
+
+export interface ContractSignatureRequest {
+  id: string;
+  providerDocumentId: string | null;
+  providerDocumentName: string | null;
+  status: ContractSignatureStatus;
+  sandbox: boolean;
+  signedPdfUrl: string | null;
+  padesPdfUrl: string | null;
+  errorMessage: string | null;
+  createdAt: string;
+  updatedAt: string;
+  signers: ContractSignatureSigner[];
+}
 
 export interface ContractPartyData {
   clientId: string;
@@ -33,6 +64,7 @@ export interface ClientContract extends ContractDraft {
   createdAt: string;
   updatedAt: string;
   archivedAt: string | null;
+  signatureRequest: ContractSignatureRequest | null;
 }
 
 export type ContractFilter = "active" | "archived" | "all";

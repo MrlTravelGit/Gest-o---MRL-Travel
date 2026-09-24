@@ -235,7 +235,7 @@ export function AdminClientDetailPage() {
 
         <ClientTasksPanel clientId={clientId} clientName={detail.data.client.fullName} canWrite={Boolean(detail.data.canWrite)} />
         <ClientSavingsPanel clientId={clientId} clientName={detail.data.client.fullName} canWrite={Boolean(detail.data.canWrite)} />
-        <ClientContractsPanel clientId={clientId} canWrite={Boolean(detail.data.canWrite)} compact />
+        <ClientContractsPanel clientId={clientId} canWrite={Boolean(detail.data.canWrite)} canManageSignatures={adminOverview.data?.role === "super_admin" || adminOverview.data?.role === "manager"} compact />
         <ClientCardsPanel clientId={clientId} canWrite={Boolean(detail.data.canWrite)} />
         <ClientInvoicesPanel clientId={clientId} />
 

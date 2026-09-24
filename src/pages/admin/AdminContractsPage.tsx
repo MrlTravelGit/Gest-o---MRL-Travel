@@ -11,6 +11,7 @@ import { openContractDownload } from "@/lib/contracts/downloadContract";
 import { getAdminClientManagement } from "@/services/admin-clients";
 import { getAdminFormOptions } from "@/services/admin-options";
 import { createClientContract } from "@/services/contracts";
+import { getAdminOverview } from "@/services/dashboard";
 import type { ContractDraft } from "@/types/contracts";
 
 function localToday(): string {
@@ -32,6 +33,7 @@ export function AdminContractsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const options = useQuery({ queryKey: ["admin-form-options"], queryFn: getAdminFormOptions });
+  const adminOverview = useQuery({ queryKey: ["admin-overview"], queryFn: getAdminOverview });
   const [search, setSearch] = useState("");
   const [clientId, setClientId] = useState(searchParams.get("clientId") ?? "");
   const management = useQuery({
@@ -181,7 +183,7 @@ export function AdminContractsPage() {
         </aside>
       </div>
       {feedback && <div className="contract-toast" role="status">{feedback}<button type="button" onClick={() => setFeedback("")}>Fechar</button></div>}
-      <ClientContractsPanel />
+      <ClientContractsPanel canManageSignatures={adminOverview.data?.role === "super_admin" || adminOverview.data?.role === "manager"} />
     </AppShell>
   );
 }
