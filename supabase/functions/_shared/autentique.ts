@@ -16,6 +16,8 @@ type AutentiqueSignature = {
   name?: string | null;
   email?: string | null;
   phone?: string | null;
+  delivery_method?: string | null;
+  action?: { name?: string | null } | null;
   link?: { short_link?: string | null } | null;
   user?: { name?: string | null; email?: string | null; phone?: string | null } | null;
   user_data?: { name?: string | null; email?: string | null; phone?: string | null } | null;
@@ -63,7 +65,9 @@ function signerPayload(signer: AutentiqueSignerInput): Record<string, unknown> {
   const method = signer.deliveryMethod ?? "link";
   const payload: Record<string, unknown> = { action: signer.action || "SIGN" };
   if (method === "email") {
+    payload.name = signer.name;
     payload.email = signer.email;
+    payload.delivery_method = "DELIVERY_METHOD_EMAIL";
   } else {
     payload.name = signer.name;
     if (signer.email) payload.email = signer.email;
@@ -99,7 +103,7 @@ async function uploadDocument(
   const query = `mutation CreateDocumentMutation($document: DocumentInput!, $signers: [SignerInput!]!, $file: Upload!) {
     createDocument(${sandboxArgument} document: $document, signers: $signers, file: $file${scopeArguments()}) {
       id name refusable sortable created_at
-      signatures { public_id name email created_at action { name } link { short_link } user { id name email phone } }
+      signatures { public_id name email delivery_method created_at action { name } link { short_link } user { id name email phone } }
     }
   }`;
   const form = new FormData();
@@ -142,7 +146,7 @@ export async function fetchAutentiqueDocument(documentId: string): Promise<Auten
       id name
       files { original signed pades }
       signatures {
-        public_id name email link { short_link }
+        public_id name email delivery_method action { name } link { short_link }
         user { id name email phone }
         user_data { name email phone }
         viewed { created_at } signed { created_at } rejected { created_at }
@@ -186,10 +190,13 @@ export async function persistAutentiqueDocument(
   document: AutentiqueDocument,
   webhookPayload?: unknown,
 ): Promise<void> {
+  const current = await admin.from("contract_signature_requests").select("approved_at,status").eq("id", requestId).single();
+  if (current.error) throw current.error;
+  const inferredStatus = inferAutentiqueStatus(document);
   const requestUpdate: Record<string, unknown> = {
     provider_document_id: document.id,
     provider_document_name: document.name ?? null,
-    status: inferAutentiqueStatus(document),
+    status: current.data.approved_at ? "completed" : current.data.status === "rejected" && inferredStatus !== "completed" ? "rejected" : inferredStatus,
     signed_pdf_url: document.files?.signed ?? null,
     pades_pdf_url: document.files?.pades ?? null,
     error_message: null,
@@ -198,7 +205,7 @@ export async function persistAutentiqueDocument(
   const updated = await admin.from("contract_signature_requests").update(requestUpdate).eq("id", requestId);
   if (updated.error) throw updated.error;
 
-  const existingResult = await admin.from("contract_signature_signers").select("id,name,email,provider_public_id").eq("signature_request_id", requestId);
+  const existingResult = await admin.from("contract_signature_signers").select("id,name,email,provider_public_id,action,delivery_method,status").eq("signature_request_id", requestId);
   if (existingResult.error) throw existingResult.error;
   const existing = existingResult.data ?? [];
   for (const signature of document.signatures ?? []) {
@@ -213,12 +220,14 @@ export async function persistAutentiqueDocument(
     const signedAt = eventDate(signature.signed);
     const rejectedAt = eventDate(signature.rejected);
     const viewedAt = eventDate(signature.viewed);
-    const status = rejectedAt ? "rejected" : signedAt ? "signed" : viewedAt ? "viewed" : "pending";
+    const status = rejectedAt ? "rejected" : signedAt ? "signed" : match?.status === "failed" ? "failed" : match?.status === "rejected" ? "rejected" : viewedAt ? "viewed" : "pending";
     const values = {
       provider_public_id: publicId,
       name: signatureName,
       email: signatureEmail,
       phone: signature.phone ?? signature.user_data?.phone ?? signature.user?.phone ?? null,
+      action: signature.action?.name ?? match?.action ?? "SIGN",
+      delivery_method: signature.delivery_method ?? match?.delivery_method ?? null,
       signature_link: signature.link?.short_link ?? null,
       status,
       signed_at: signedAt,
@@ -228,7 +237,7 @@ export async function persistAutentiqueDocument(
     };
     const result = match
       ? await admin.from("contract_signature_signers").update(values).eq("id", match.id)
-      : await admin.from("contract_signature_signers").insert({ signature_request_id: requestId, action: "SIGN", ...values });
+      : await admin.from("contract_signature_signers").insert({ signature_request_id: requestId, ...values });
     if (result.error) throw result.error;
   }
 }

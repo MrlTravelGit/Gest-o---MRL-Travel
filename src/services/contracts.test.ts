@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { createElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
@@ -21,17 +21,20 @@ vi.mock("@/services/contracts", async () => {
     downloadStoredContract: vi.fn(),
     sendContractToAutentique: vi.fn(),
     syncAutentiqueDocument: vi.fn(),
+    getAutentiqueSendContext: vi.fn(),
+    resendContractApprovedMessage: vi.fn(),
   };
 });
 
 import { ClientContractsPanel } from "@/components/admin/ClientContractsPanel";
 import { supabase } from "@/lib/supabase";
-import { listClientContracts, sendContractToAutentique } from "@/services/contracts";
+import { getAutentiqueSendContext, listClientContracts, sendContractToAutentique } from "@/services/contracts";
 import { createClientContract } from "./contracts";
 
 const invoke = vi.mocked(supabase.functions.invoke);
 const listContractsMock = vi.mocked(listClientContracts);
 const sendAutentiqueMock = vi.mocked(sendContractToAutentique);
+const contextMock = vi.mocked(getAutentiqueSendContext);
 
 describe("geração de contrato no servidor", () => {
   beforeEach(() => invoke.mockReset());
@@ -52,6 +55,20 @@ describe("painel de contratos", () => {
   beforeEach(() => {
     listContractsMock.mockReset();
     sendAutentiqueMock.mockReset();
+    contextMock.mockReset();
+    contextMock.mockResolvedValue({
+      sandbox: true,
+      witnesses: [
+        { name: "Michael", email: "michael@example.com" },
+        { name: "Gabriel", email: "gabriel@example.com" },
+        { name: "Camilla", email: "camilla@example.com" },
+      ],
+      witnessesConfigured: true,
+      productionMonthKey: "2026-09",
+      productionUsed: 7,
+      monthlyLimit: 20,
+      canOverrideMonthlyLimit: true,
+    });
     listContractsMock.mockResolvedValue([
       {
         id: "e9066ed5-2d7e-42a0-8f41-cbb5ca2d9a32",
@@ -106,5 +123,21 @@ describe("painel de contratos", () => {
 
     expect(await screen.findByText("Cliente Teste")).toBeInTheDocument();
     expect(screen.queryByText("Enviar para assinatura")).not.toBeInTheDocument();
+  });
+
+  it("mostra cliente, testemunhas seguras e informa que sandbox não conta na cota", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(createElement(QueryClientProvider, { client: queryClient },
+      createElement(MemoryRouter, null,
+        createElement(ClientContractsPanel, { clientId: "3af187c1-a45e-4587-88f1-5d8d87872698", canManageSignatures: true }),
+      ),
+    ));
+
+    fireEvent.click(await screen.findByText("Enviar para assinatura"));
+    expect(await screen.findByText("Testemunhas padrão")).toBeInTheDocument();
+    expect(await screen.findByText("Michael")).toBeInTheDocument();
+    expect(screen.getByText("Gabriel")).toBeInTheDocument();
+    expect(screen.getByText("Camilla")).toBeInTheDocument();
+    expect(screen.getByText("Este envio não conta no limite mensal.")).toBeInTheDocument();
   });
 });

@@ -1,6 +1,8 @@
 import { z } from "npm:zod@3.25.76";
 import { adminErrorResponse, requireAdmin } from "../_shared/admin-auth.ts";
 import { createAutentiqueDocument, autentiqueSandbox } from "../_shared/autentique.ts";
+import { autentiqueMonthlyLimit, defaultAutentiqueWitnesses } from "../_shared/autentique-config.ts";
+import { buildAutentiqueSigners } from "../_shared/autentique-rules.ts";
 import { isAllowedOrigin, jsonResponse, preflightResponse } from "../_shared/http.ts";
 import { adminClient } from "../_shared/supabase.ts";
 
@@ -23,6 +25,8 @@ const requestSchema = z.object({
   documentName: z.string().trim().min(2).max(255),
   sandbox: z.boolean().default(true),
   signers: z.array(signerSchema).min(1).max(20),
+  excludedWitnessEmails: z.array(z.string().email()).max(20).default([]),
+  overrideMonthlyLimit: z.boolean().default(false),
 }).strict();
 
 function failure(request: Request, code: string, status: number): Response {
@@ -34,6 +38,8 @@ function failure(request: Request, code: string, status: number): Response {
     AUTENTIQUE_API_FAILED: "Não foi possível enviar o contrato para assinatura. Tente novamente.",
     CONTRACT_ALREADY_SENT: "Este contrato já foi enviado para assinatura.",
     AUTENTIQUE_MODE_MISMATCH: "O modo escolhido não corresponde à configuração segura do servidor.",
+    AUTENTIQUE_MONTHLY_LIMIT_REACHED: "Limite mensal de contratos reais atingido. Este envio pode gerar cobrança adicional na Autentique.",
+    AUTENTIQUE_OVERRIDE_FORBIDDEN: "Somente o superadministrador pode autorizar envio acima do limite mensal.",
   };
   return jsonResponse(request, { code, error: messages[code] ?? messages.AUTENTIQUE_API_FAILED }, status);
 }
@@ -53,6 +59,7 @@ Deno.serve(async (request) => {
     const input = parsed.data;
     const admin = adminClient();
     if (input.sandbox !== autentiqueSandbox()) return failure(request, "AUTENTIQUE_MODE_MISMATCH", 409);
+    if (input.overrideMonthlyLimit && actor.role !== "super_admin") return failure(request, "AUTENTIQUE_OVERRIDE_FORBIDDEN", 403);
     const contractResult = await admin.from("client_contracts")
       .select("id,client_id,contract_number,client_name,pdf_path,status")
       .eq("id", input.contractId).maybeSingle();
@@ -73,6 +80,7 @@ Deno.serve(async (request) => {
     if (downloaded.data.size > maximumBytes) return failure(request, "AUTENTIQUE_FILE_TOO_LARGE", 413);
 
     const sandbox = input.sandbox;
+    const allSigners = buildAutentiqueSigners(input.signers, defaultAutentiqueWitnesses(), input.excludedWitnessEmails);
     const inserted = await admin.from("contract_signature_requests").insert({
       contract_id: contract.id,
       client_id: contract.client_id,
@@ -86,7 +94,21 @@ Deno.serve(async (request) => {
     if (inserted.error || !inserted.data) throw inserted.error ?? new Error("SIGNATURE_REQUEST_INSERT_FAILED");
     signatureRequestId = inserted.data.id;
 
-    const localSigners = await admin.from("contract_signature_signers").insert(input.signers.map((signer) => ({
+    if (!sandbox) {
+      const reservation = await admin.rpc("reserve_autentique_production_slot", {
+        p_request_id: signatureRequestId,
+        p_limit: autentiqueMonthlyLimit(),
+        p_override: input.overrideMonthlyLimit && actor.role === "super_admin",
+      });
+      if (reservation.error) {
+        const code = reservation.error.message.includes("AUTENTIQUE_MONTHLY_LIMIT_REACHED")
+          ? "AUTENTIQUE_MONTHLY_LIMIT_REACHED"
+          : "AUTENTIQUE_API_FAILED";
+        throw new Error(code);
+      }
+    }
+
+    const localSigners = await admin.from("contract_signature_signers").insert(allSigners.map((signer) => ({
       signature_request_id: signatureRequestId,
       name: signer.name,
       email: signer.email || null,
@@ -101,11 +123,11 @@ Deno.serve(async (request) => {
       downloaded.data,
       `${contract.contract_number ?? contract.id}.pdf`,
       input.documentName,
-      input.signers,
+      allSigners,
     );
     const signatures = document.signatures ?? [];
-    for (let index = 0; index < input.signers.length; index += 1) {
-      const local = input.signers[index];
+    for (let index = 0; index < allSigners.length; index += 1) {
+      const local = allSigners[index];
       const remote = signatures.find((signature) => local.email && signature.email?.toLowerCase() === local.email.toLowerCase())
         ?? signatures.find((signature) => signature.name?.toLowerCase() === local.name.toLowerCase())
         ?? signatures[index];
@@ -127,7 +149,7 @@ Deno.serve(async (request) => {
     if (requestUpdate.error) throw requestUpdate.error;
 
     const saved = await admin.from("contract_signature_requests")
-      .select("id,status,sandbox,provider_document_id,provider_document_name,contract_signature_signers(*)")
+      .select("id,status,sandbox,provider_document_id,provider_document_name,signed_pdf_url,pades_pdf_url,error_message,production_month_key,approved_at,customer_notified_at,customer_notification_status,customer_notification_error,created_at,updated_at,contract_signature_signers(*)")
       .eq("id", signatureRequestId).single();
     if (saved.error) throw saved.error;
     return jsonResponse(request, { request: saved.data });
@@ -139,8 +161,8 @@ Deno.serve(async (request) => {
       } catch { /* best effort status */ }
     }
     if (error instanceof Response) return adminErrorResponse(error, request, {});
-    if (["AUTENTIQUE_NOT_CONFIGURED","AUTENTIQUE_FILE_TOO_LARGE","AUTENTIQUE_API_FAILED"].includes(code)) {
-      return failure(request, code, code === "AUTENTIQUE_FILE_TOO_LARGE" ? 413 : code === "AUTENTIQUE_NOT_CONFIGURED" ? 503 : 502);
+    if (["AUTENTIQUE_NOT_CONFIGURED","AUTENTIQUE_FILE_TOO_LARGE","AUTENTIQUE_API_FAILED","AUTENTIQUE_MONTHLY_LIMIT_REACHED"].includes(code)) {
+      return failure(request, code, code === "AUTENTIQUE_FILE_TOO_LARGE" ? 413 : code === "AUTENTIQUE_NOT_CONFIGURED" ? 503 : code === "AUTENTIQUE_MONTHLY_LIMIT_REACHED" ? 409 : 502);
     }
     console.error("send-contract-to-autentique failed", code);
     return failure(request, "AUTENTIQUE_API_FAILED", 500);

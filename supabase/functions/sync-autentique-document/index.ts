@@ -23,7 +23,7 @@ Deno.serve(async (request) => {
     const document = await fetchAutentiqueDocument(found.data.provider_document_id);
     await persistAutentiqueDocument(admin, found.data.id, document);
     const refreshed = await admin.from("contract_signature_requests")
-      .select("id,status,sandbox,provider_document_id,provider_document_name,signed_pdf_url,pades_pdf_url,updated_at,contract_signature_signers(*)")
+      .select("id,status,sandbox,provider_document_id,provider_document_name,signed_pdf_url,pades_pdf_url,error_message,production_month_key,approved_at,customer_notified_at,customer_notification_status,customer_notification_error,created_at,updated_at,contract_signature_signers(*)")
       .eq("id", found.data.id).single();
     if (refreshed.error) throw refreshed.error;
     return jsonResponse(request, { request: refreshed.data });

@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { validateContractDraft } from "@/lib/contracts/contractFormat";
-import type { ClientContract, ContractDraft, ContractFilter, ContractSignatureRequest, ContractSignatureStatus, ContractSignerStatus } from "@/types/contracts";
+import type { AutentiqueSendContext, ClientContract, ContractDraft, ContractFilter, ContractSignatureRequest, ContractSignatureStatus, ContractSignerStatus } from "@/types/contracts";
 
 type SignatureSignerRow = {
   id: string; provider_public_id: string | null; name: string; email: string | null; phone: string | null;
@@ -12,6 +12,9 @@ type SignatureRequestRow = {
   id: string; provider_document_id: string | null; provider_document_name: string | null;
   status: ContractSignatureStatus; sandbox: boolean; signed_pdf_url: string | null; pades_pdf_url: string | null;
   error_message: string | null; created_at: string; updated_at: string;
+  production_month_key: string | null; approved_at: string | null; customer_notified_at: string | null;
+  customer_notification_status: ContractSignatureRequest["customerNotificationStatus"];
+  customer_notification_error: string | null;
   contract_signature_signers?: SignatureSignerRow[];
 };
 
@@ -53,6 +56,11 @@ function mapSignatureRequest(row: SignatureRequestRow): ContractSignatureRequest
     signedPdfUrl: row.signed_pdf_url,
     padesPdfUrl: row.pades_pdf_url,
     errorMessage: row.error_message,
+    productionMonthKey: row.production_month_key,
+    approvedAt: row.approved_at,
+    customerNotifiedAt: row.customer_notified_at,
+    customerNotificationStatus: row.customer_notification_status,
+    customerNotificationError: row.customer_notification_error,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     signers: (row.contract_signature_signers ?? []).map((signer) => ({
@@ -104,7 +112,7 @@ function mapContract(row: ContractRow): ClientContract {
 }
 
 export async function listClientContracts(input: { clientId?: string; filter?: ContractFilter } = {}): Promise<ClientContract[]> {
-  let query = supabase.from("client_contracts").select("*,contract_signature_requests(id,provider_document_id,provider_document_name,status,sandbox,signed_pdf_url,pades_pdf_url,error_message,created_at,updated_at,contract_signature_signers(id,provider_public_id,name,email,phone,action,delivery_method,signature_link,status,signed_at,viewed_at,rejected_at))").order("created_at", { ascending: false });
+  let query = supabase.from("client_contracts").select("*,contract_signature_requests(id,provider_document_id,provider_document_name,status,sandbox,signed_pdf_url,pades_pdf_url,error_message,production_month_key,approved_at,customer_notified_at,customer_notification_status,customer_notification_error,created_at,updated_at,contract_signature_signers(id,provider_public_id,name,email,phone,action,delivery_method,signature_link,status,signed_at,viewed_at,rejected_at))").order("created_at", { ascending: false });
   if (input.clientId) query = query.eq("client_id", input.clientId);
   if (input.filter === "active" || !input.filter) query = query.is("archived_at", null).neq("status", "archived");
   if (input.filter === "archived") query = query.or("archived_at.not.is.null,status.eq.archived");
@@ -128,6 +136,8 @@ export async function sendContractToAutentique(input: {
   contract: ClientContract;
   documentName: string;
   sandbox: boolean;
+  excludedWitnessEmails?: string[];
+  overrideMonthlyLimit?: boolean;
   signers: Array<{ name: string; email?: string; phone?: string; cpf?: string; action?: string; deliveryMethod: "link" | "email" | "whatsapp" | "sms" }>;
 }): Promise<ContractSignatureRequest> {
   if (!input.contract.pdfPath) throw new Error("Gere o PDF do contrato antes de enviar para assinatura.");
@@ -139,11 +149,27 @@ export async function sendContractToAutentique(input: {
       pdfPath: input.contract.pdfPath,
       documentName: input.documentName,
       sandbox: input.sandbox,
+      excludedWitnessEmails: input.excludedWitnessEmails ?? [],
+      overrideMonthlyLimit: input.overrideMonthlyLimit ?? false,
       signers: input.signers.map((signer) => ({ ...signer, action: signer.action ?? "SIGN" })),
     },
   });
   if (error || !data?.request) throw await functionError(error, "Não foi possível enviar o contrato para assinatura. Tente novamente.");
   return mapSignatureRequest(data.request);
+}
+
+export async function getAutentiqueSendContext(): Promise<AutentiqueSendContext> {
+  const { data, error } = await supabase.functions.invoke<AutentiqueSendContext>("get-autentique-send-context", { body: {} });
+  if (error || !data) throw await functionError(error, "Não foi possível carregar as testemunhas e o limite mensal.");
+  return data;
+}
+
+export async function resendContractApprovedMessage(signatureRequestId: string): Promise<"sent" | "pending_manual" | "failed"> {
+  const { data, error } = await supabase.functions.invoke<{ outcome: { status: "sent" | "pending_manual" | "failed" } }>("resend-contract-approved-message", {
+    body: { signatureRequestId },
+  });
+  if (error || !data?.outcome) throw await functionError(error, "Não foi possível reenviar a mensagem ao cliente.");
+  return data.outcome.status;
 }
 
 export async function syncAutentiqueDocument(signatureRequestId: string): Promise<ContractSignatureRequest> {

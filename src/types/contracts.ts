@@ -26,9 +26,24 @@ export interface ContractSignatureRequest {
   signedPdfUrl: string | null;
   padesPdfUrl: string | null;
   errorMessage: string | null;
+  productionMonthKey: string | null;
+  approvedAt: string | null;
+  customerNotifiedAt: string | null;
+  customerNotificationStatus: "sending" | "sent" | "pending_manual" | "failed" | null;
+  customerNotificationError: string | null;
   createdAt: string;
   updatedAt: string;
   signers: ContractSignatureSigner[];
+}
+
+export interface AutentiqueSendContext {
+  sandbox: boolean;
+  witnesses: Array<{ name: string; email: string }>;
+  witnessesConfigured: boolean;
+  productionMonthKey: string;
+  productionUsed: number;
+  monthlyLimit: number;
+  canOverrideMonthlyLimit: boolean;
 }
 
 export interface ContractPartyData {
