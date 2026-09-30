@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { validateContractDraft } from "@/lib/contracts/contractFormat";
-import type { AutentiqueSendContext, ClientContract, ContractDraft, ContractFilter, ContractSignatureRequest, ContractSignatureStatus, ContractSignerStatus } from "@/types/contracts";
+import type { AutentiqueSendContext, ClientContract, ContractDraft, ContractFilter, ContractPaymentMode, ContractSignatureRequest, ContractSignatureStatus, ContractSignerStatus } from "@/types/contracts";
 
 type SignatureSignerRow = {
   id: string; provider_public_id: string | null; name: string; email: string | null; phone: string | null;
@@ -30,6 +30,7 @@ type ContractRow = {
   profession: string | null;
   full_address: string | null;
   contract_value: number | string;
+  payment_mode?: ContractPaymentMode | null;
   installments: number;
   installment_value: number | string;
   signature_city: string;
@@ -94,6 +95,7 @@ function mapContract(row: ContractRow): ClientContract {
     profession: row.profession ?? "",
     fullAddress: row.full_address ?? "",
     contractValue: Number(row.contract_value),
+    paymentMode: row.payment_mode ?? "calculated",
     installments: row.installments,
     installmentValue: Number(row.installment_value),
     signatureCity: row.signature_city,
@@ -189,7 +191,8 @@ export async function createClientContract(draft: ContractDraft): Promise<{ cont
       contract_data: {
         nome: draft.clientName.trim(), cpf: draft.cpf.trim(), rg: draft.rg.trim(), email: draft.email.trim(),
         estado_civil: draft.maritalStatus.trim(), profissao: draft.profession.trim(), endereco: draft.fullAddress.trim(),
-        valor_total: draft.contractValue, num_parcelas: draft.installments, valor_parcela: draft.installmentValue,
+        valor_total: draft.contractValue, forma_parcelamento: draft.paymentMode,
+        num_parcelas: draft.installments, valor_parcela: draft.installmentValue,
         data: draft.contractDate, cidade: draft.signatureCity.trim() || "POMPÉU", incluir_cashback: draft.includeCashback,
         pct_cashback: draft.cashbackPercent, incluir_reembolso: draft.includeRoiGuarantee, include_courtesy_ticket: draft.includeCourtesyTicket,
       },

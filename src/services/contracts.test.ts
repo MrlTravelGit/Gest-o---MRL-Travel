@@ -43,10 +43,10 @@ describe("geração de contrato no servidor", () => {
     invoke.mockResolvedValue({ data: { contract_id: "2af187c1-a45e-4587-88f1-5d8d87872698", pdf_path: "client/contract.pdf", signed_url: "https://signed.example/contract" }, error: null } as never);
     const result = await createClientContract({
       clientId: "3af187c1-a45e-4587-88f1-5d8d87872698", clientName: "Cliente Teste", cpf: "", rg: "", email: "cliente@example.com",
-      maritalStatus: "", profession: "", fullAddress: "", contractValue: 2000, installments: 2, installmentValue: 1000,
+      maritalStatus: "", profession: "", fullAddress: "", contractValue: 2000, paymentMode: "up_to_12_with_fees", installments: 12, installmentValue: 0,
       signatureCity: "POMPÉU", contractDate: "2026-09-16", includeCashback: true, cashbackPercent: 2, includeRoiGuarantee: false, includeCourtesyTicket: true,
     });
-    expect(invoke).toHaveBeenCalledWith("generate-client-contract", expect.objectContaining({ body: expect.objectContaining({ client_id: "3af187c1-a45e-4587-88f1-5d8d87872698", contract_data: expect.objectContaining({ nome: "Cliente Teste", valor_total: 2000, incluir_cashback: true, include_courtesy_ticket: true }) }) }));
+    expect(invoke).toHaveBeenCalledWith("generate-client-contract", expect.objectContaining({ body: expect.objectContaining({ client_id: "3af187c1-a45e-4587-88f1-5d8d87872698", contract_data: expect.objectContaining({ nome: "Cliente Teste", valor_total: 2000, forma_parcelamento: "up_to_12_with_fees", valor_parcela: 0, incluir_cashback: true, include_courtesy_ticket: true }) }) }));
     expect(result.signedUrl).toBe("https://signed.example/contract");
   });
 });
@@ -82,6 +82,7 @@ describe("painel de contratos", () => {
         profession: "Analista",
         fullAddress: "Rua Teste, 123",
         contractValue: 3000,
+        paymentMode: "calculated",
         installments: 1,
         installmentValue: 3000,
         signatureCity: "POMPÉU",

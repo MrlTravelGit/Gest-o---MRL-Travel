@@ -89,7 +89,7 @@ export function ClientContractsPanel({ clientId, canWrite = true, canManageSigna
         <div className="contract-history-icon"><FileText /></div>
         <div className="contract-history-main">
           <small>{contract.contractNumber ?? "Contrato MRL"} · {formatDate(contract.contractDate)}</small><strong>{contract.clientName}</strong>
-          <span>{formatCurrency(contract.contractValue)} · {contract.installments}x de {formatCurrency(contract.installmentValue)}</span>
+          <span>{formatCurrency(contract.contractValue)} · {contract.paymentMode === "up_to_12_with_fees" ? "Até 12x com taxas no link" : `${contract.installments}x de ${formatCurrency(contract.installmentValue)}`}</span>
           <p>{contract.includeCashback ? "Cashback " + contract.cashbackPercent + "%" : "Sem cashback"} · {contract.includeRoiGuarantee ? "Com garantia de retorno" : "Sem garantia de retorno"} · {contract.includeCourtesyTicket ? "Com passagem cortesia" : "Sem passagem cortesia"}</p>
           {signature && <div className="contract-signature-summary">
             <div className="contract-signature-state"><ShieldCheck /><span>{signature.sandbox ? "Sandbox" : "Produção"}</span><strong>{displayStatus}</strong>{signature.approvedAt && <small>{formatDate(signature.approvedAt)}</small>}</div>

@@ -12,7 +12,7 @@ import { getAdminClientManagement } from "@/services/admin-clients";
 import { getAdminFormOptions } from "@/services/admin-options";
 import { createClientContract } from "@/services/contracts";
 import { getAdminOverview } from "@/services/dashboard";
-import type { ContractDraft } from "@/types/contracts";
+import type { ContractDraft, ContractPaymentMode } from "@/types/contracts";
 
 function localToday(): string {
   const date = new Date();
@@ -49,6 +49,7 @@ export function AdminContractsPage() {
   const [profession, setProfession] = useState("");
   const [fullAddress, setFullAddress] = useState("");
   const [contractValue, setContractValue] = useState("");
+  const [paymentMode, setPaymentMode] = useState<ContractPaymentMode>("up_to_12_with_fees");
   const [installments, setInstallments] = useState("1");
   const [installmentValue, setInstallmentValue] = useState("");
   const [manualInstallment, setManualInstallment] = useState(false);
@@ -71,11 +72,11 @@ export function AdminContractsPage() {
   }, [management.data]);
 
   useEffect(() => {
-    if (manualInstallment) return;
+    if (paymentMode !== "calculated" || manualInstallment) return;
     const count = Math.max(1, Number.parseInt(installments, 10) || 1);
     const total = parseMoneyOrZero(contractValue);
     setInstallmentValue(total > 0 ? formatContractCurrency(calculateInstallment(total, count)) : "");
-  }, [contractValue, installments, manualInstallment]);
+  }, [contractValue, installments, manualInstallment, paymentMode]);
 
   const filteredClients = useMemo(() => {
     const term = search.trim().toLocaleLowerCase("pt-BR");
@@ -92,8 +93,9 @@ export function AdminContractsPage() {
     profession,
     fullAddress,
     contractValue: parseMoneyOrZero(contractValue),
-    installments: Math.max(1, Number.parseInt(installments, 10) || 1),
-    installmentValue: parseMoneyOrZero(installmentValue),
+    paymentMode,
+    installments: paymentMode === "calculated" ? Math.max(1, Number.parseInt(installments, 10) || 1) : 12,
+    installmentValue: paymentMode === "calculated" ? parseMoneyOrZero(installmentValue) : 0,
     signatureCity,
     contractDate,
     includeCashback,
@@ -141,12 +143,15 @@ export function AdminContractsPage() {
           </section>
 
           <section className="contract-form-section">
-            <div className="contract-section-title"><span>02</span><div><h3>Condições comerciais</h3><p>O valor da parcela acompanha o total até ser editado manualmente.</p></div></div>
+            <div className="contract-section-title"><span>02</span><div><h3>Condições comerciais</h3><p>{paymentMode === "calculated" ? "O valor da parcela acompanha o total até ser editado manualmente." : "O PDF informará até 12 parcelas, com as taxas definidas no link de pagamento."}</p></div></div>
             <div className="form-grid">
               <label>Valor total<input inputMode="decimal" value={contractValue} onChange={(event) => setContractValue(event.target.value)} placeholder="R$ 5.000,00" /></label>
-              <label>Número de parcelas<input type="number" min="1" max="120" value={installments} onChange={(event) => setInstallments(event.target.value)} /></label>
-              <label>Valor da parcela<input inputMode="decimal" value={installmentValue} onChange={(event) => { setManualInstallment(true); setInstallmentValue(event.target.value); }} /></label>
-              <button type="button" className="secondary-button contract-recalculate" onClick={() => { setManualInstallment(false); setInstallmentValue(formatContractCurrency(calculateInstallment(parseMoneyOrZero(contractValue), Math.max(1, Number(installments) || 1)))); }}><Calculator size={15} /> Recalcular</button>
+              <label className="field-wide">Forma de parcelamento<select value={paymentMode} onChange={(event) => { const next = event.target.value as ContractPaymentMode; setPaymentMode(next); if (next === "calculated") setManualInstallment(false); }}><option value="up_to_12_with_fees">Até 12x com taxas no link</option><option value="calculated">Parcela calculada</option></select></label>
+              {paymentMode === "calculated" && <>
+                <label>Número de parcelas<input type="number" min="1" max="120" value={installments} onChange={(event) => setInstallments(event.target.value)} /></label>
+                <label>Valor da parcela<input inputMode="decimal" value={installmentValue} onChange={(event) => { setManualInstallment(true); setInstallmentValue(event.target.value); }} /></label>
+                <button type="button" className="secondary-button contract-recalculate" onClick={() => { setManualInstallment(false); setInstallmentValue(formatContractCurrency(calculateInstallment(parseMoneyOrZero(contractValue), Math.max(1, Number(installments) || 1)))); }}><Calculator size={15} /> Recalcular</button>
+              </>}
               <label>Data do contrato<input type="date" value={contractDate} onChange={(event) => setContractDate(event.target.value)} /></label>
               <label>Cidade da assinatura<input value={signatureCity} onChange={(event) => setSignatureCity(event.target.value.toUpperCase())} /></label>
             </div>
@@ -171,7 +176,7 @@ export function AdminContractsPage() {
 
         <aside className="contract-summary-card">
           <header><span>Prévia operacional</span><FileText /></header>
-          <div className="contract-summary-value"><small>Valor do contrato</small><strong>R$ {formatContractCurrency(draft.contractValue)}</strong><span>{draft.installments}x de R$ {formatContractCurrency(draft.installmentValue)}</span></div>
+          <div className="contract-summary-value"><small>Valor do contrato</small><strong>R$ {formatContractCurrency(draft.contractValue)}</strong><span>{paymentMode === "up_to_12_with_fees" ? "Até 12x com taxas no link" : `${draft.installments}x de R$ ${formatContractCurrency(draft.installmentValue)}`}</span></div>
           <dl>
             <div><dt>Contratante</dt><dd>{clientName || "Não selecionado"}</dd></div>
             <div><dt>Assinatura</dt><dd>{signatureCity || "POMPÉU"} · {contractDate}</dd></div>

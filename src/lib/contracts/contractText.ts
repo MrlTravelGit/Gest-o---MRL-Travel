@@ -25,14 +25,12 @@ export interface ContractClause {
 
 function paymentText(draft: ContractDraft): string {
   const total = formatContractCurrency(draft.contractValue);
-  if (draft.installments > 1) {
-    return "A CONTRATANTE pagará à CONTRATADA o valor de R$ " + total +
-      ", por meio de Pix ou cartão de crédito, em parcelas até " + draft.installments +
-      " (" + numberToWords(draft.installments) + ") vezes de R$ " +
-      formatContractCurrency(draft.installmentValue) + " via link de pagamento.";
-  }
+  if (draft.paymentMode === "up_to_12_with_fees") return "A CONTRATANTE pagará à CONTRATADA o valor de R$ " + total +
+    ", por meio de Pix ou cartão de crédito, em até 12 (doze) parcelas acrescidas de taxas no link de pagamento.";
   return "A CONTRATANTE pagará à CONTRATADA o valor de R$ " + total +
-    ", por meio de Pix ou cartão de crédito, à vista, via link de pagamento.";
+    ", por meio de Pix ou cartão de crédito, em parcelas até " + draft.installments +
+    " (" + numberToWords(draft.installments) + ") vezes de R$ " +
+    formatContractCurrency(draft.installmentValue) + " via link de pagamento.";
 }
 
 function fixedClauses(draft: ContractDraft): Omit<ContractClause, "number">[] {

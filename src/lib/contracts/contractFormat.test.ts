@@ -13,6 +13,7 @@ const draft = (overrides: Partial<ContractDraft> = {}): ContractDraft => ({
   profession: "",
   fullAddress: "",
   contractValue: 5_000,
+  paymentMode: "calculated",
   installments: 4,
   installmentValue: 1_250,
   signatureCity: "POMPÉU",
@@ -36,6 +37,17 @@ describe("contratos", () => {
 
   it("mantém oito cláusulas sem opcionais", () => {
     expect(buildContractClauses(draft())).toHaveLength(8);
+  });
+
+  it("usa o texto de até 12x com taxas sem exibir valor de parcela", () => {
+    const payment = buildContractClauses(draft({ paymentMode: "up_to_12_with_fees", installmentValue: 166.67 }))[1].blocks[0].text;
+    expect(payment).toBe("A CONTRATANTE pagará à CONTRATADA o valor de R$ 5.000,00, por meio de Pix ou cartão de crédito, em até 12 (doze) parcelas acrescidas de taxas no link de pagamento.");
+    expect(payment).not.toContain("166,67");
+  });
+
+  it("mantém o texto de parcela calculada disponível", () => {
+    const payment = buildContractClauses(draft({ contractValue: 2_000, installments: 1, installmentValue: 2_000 }))[1].blocks[0].text;
+    expect(payment).toContain("em parcelas até 1 (um) vezes de R$ 2.000,00 via link de pagamento.");
   });
 
   it("acrescenta cashback, garantia ou ambos com numeração contínua", () => {

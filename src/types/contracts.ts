@@ -1,4 +1,5 @@
 export type ContractStatus = "generated" | "archived";
+export type ContractPaymentMode = "calculated" | "up_to_12_with_fees";
 export type ContractSignatureStatus = "draft" | "sent" | "pending_signature" | "partially_signed" | "completed" | "rejected" | "failed";
 export type ContractSignerStatus = "pending" | "viewed" | "signed" | "rejected" | "failed";
 
@@ -59,6 +60,7 @@ export interface ContractPartyData {
 
 export interface ContractCommercialData {
   contractValue: number;
+  paymentMode: ContractPaymentMode;
   installments: number;
   installmentValue: number;
   signatureCity: string;
