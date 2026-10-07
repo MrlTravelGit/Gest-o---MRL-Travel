@@ -205,7 +205,7 @@ export async function persistAutentiqueDocument(
   const updated = await admin.from("contract_signature_requests").update(requestUpdate).eq("id", requestId);
   if (updated.error) throw updated.error;
 
-  const existingResult = await admin.from("contract_signature_signers").select("id,name,email,provider_public_id,action,delivery_method,status").eq("signature_request_id", requestId);
+  const existingResult = await admin.from("contract_signature_signers").select("id,name,email,provider_public_id,action,signer_role,delivery_method,status").eq("signature_request_id", requestId);
   if (existingResult.error) throw existingResult.error;
   const existing = existingResult.data ?? [];
   for (const signature of document.signatures ?? []) {
@@ -227,6 +227,7 @@ export async function persistAutentiqueDocument(
       email: signatureEmail,
       phone: signature.phone ?? signature.user_data?.phone ?? signature.user?.phone ?? null,
       action: signature.action?.name ?? match?.action ?? "SIGN",
+      signer_role: match?.signer_role ?? (signature.action?.name === "SIGN_AS_A_WITNESS" ? "witness" : "client_signer"),
       delivery_method: signature.delivery_method ?? match?.delivery_method ?? null,
       signature_link: signature.link?.short_link ?? null,
       status,

@@ -58,8 +58,9 @@ describe("painel de contratos", () => {
     contextMock.mockReset();
     contextMock.mockResolvedValue({
       sandbox: true,
+      contractorSigner: { name: "Michael", email: "mick_felipebh@hotmail.com" },
+      contractorSignerConfigured: true,
       witnesses: [
-        { name: "Michael", email: "michael@example.com" },
         { name: "Gabriel", email: "gabriel@example.com" },
         { name: "Camilla", email: "camilla@example.com" },
       ],
@@ -126,7 +127,7 @@ describe("painel de contratos", () => {
     expect(screen.queryByText("Enviar para assinatura")).not.toBeInTheDocument();
   });
 
-  it("mostra cliente, testemunhas seguras e informa que sandbox não conta na cota", async () => {
+  it("mostra cliente, contratado, testemunhas seguras e informa que sandbox não conta na cota", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(createElement(QueryClientProvider, { client: queryClient },
       createElement(MemoryRouter, null,
@@ -137,6 +138,7 @@ describe("painel de contratos", () => {
     fireEvent.click(await screen.findByText("Enviar para assinatura"));
     expect(await screen.findByText("Testemunhas padrão")).toBeInTheDocument();
     expect(await screen.findByText("Michael")).toBeInTheDocument();
+    expect(screen.getByText("Contratado · SIGN · envio por e-mail")).toBeInTheDocument();
     expect(screen.getByText("Gabriel")).toBeInTheDocument();
     expect(screen.getByText("Camilla")).toBeInTheDocument();
     expect(screen.getByText("Este envio não conta no limite mensal.")).toBeInTheDocument();

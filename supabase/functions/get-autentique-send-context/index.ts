@@ -1,5 +1,5 @@
 import { adminErrorResponse, requireAdmin } from "../_shared/admin-auth.ts";
-import { autentiqueMonthlyLimit, defaultAutentiqueWitnesses, productionMonthKey } from "../_shared/autentique-config.ts";
+import { autentiqueMonthlyLimit, defaultAutentiqueContractorSigner, defaultAutentiqueWitnesses, productionMonthKey } from "../_shared/autentique-config.ts";
 import { autentiqueSandbox } from "../_shared/autentique.ts";
 import { isAllowedOrigin, jsonResponse, preflightResponse } from "../_shared/http.ts";
 import { adminClient } from "../_shared/supabase.ts";
@@ -20,8 +20,9 @@ Deno.serve(async (request) => {
       .neq("status", "failed");
     if (usage.error) throw usage.error;
     const witnesses = defaultAutentiqueWitnesses();
+    const contractorSigner = defaultAutentiqueContractorSigner();
     return jsonResponse(request, {
-      sandbox: autentiqueSandbox(), witnesses, witnessesConfigured: witnesses.length > 0,
+      sandbox: autentiqueSandbox(), contractorSigner, contractorSignerConfigured: Boolean(contractorSigner), witnesses, witnessesConfigured: witnesses.length > 0,
       productionMonthKey: monthKey, productionUsed: usage.count ?? 0,
       monthlyLimit: autentiqueMonthlyLimit(), canOverrideMonthlyLimit: actor.role === "super_admin",
     });

@@ -2,6 +2,7 @@ export type ContractStatus = "generated" | "archived";
 export type ContractPaymentMode = "calculated" | "up_to_12_with_fees";
 export type ContractSignatureStatus = "draft" | "sent" | "pending_signature" | "partially_signed" | "completed" | "rejected" | "failed";
 export type ContractSignerStatus = "pending" | "viewed" | "signed" | "rejected" | "failed";
+export type ContractSignerRole = "client_signer" | "contractor_signer" | "witness";
 
 export interface ContractSignatureSigner {
   id: string;
@@ -10,6 +11,7 @@ export interface ContractSignatureSigner {
   email: string | null;
   phone: string | null;
   action: string;
+  signerRole: ContractSignerRole;
   deliveryMethod: string | null;
   signatureLink: string | null;
   status: ContractSignerStatus;
@@ -39,6 +41,8 @@ export interface ContractSignatureRequest {
 
 export interface AutentiqueSendContext {
   sandbox: boolean;
+  contractorSigner: { name: string; email: string } | null;
+  contractorSignerConfigured: boolean;
   witnesses: Array<{ name: string; email: string }>;
   witnessesConfigured: boolean;
   productionMonthKey: string;

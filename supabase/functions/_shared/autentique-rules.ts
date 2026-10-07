@@ -1,6 +1,8 @@
 export type WitnessConfig = { name: string; email: string };
+export type ContractorSignerConfig = { name: string; email: string };
+export type SignerRole = "client_signer" | "contractor_signer" | "witness";
 export type BasicSigner = { name: string; email?: string; phone?: string; cpf?: string; action?: string; deliveryMethod?: "link" | "email" | "whatsapp" | "sms" };
-export type PreparedSigner = Omit<BasicSigner, "action"> & { action: string };
+export type PreparedSigner = Omit<BasicSigner, "action"> & { action: string; signerRole: SignerRole };
 
 export function parseDefaultWitnesses(raw?: string | null): WitnessConfig[] {
   if (!raw?.trim()) return [];
@@ -20,13 +22,33 @@ export function parseDefaultWitnesses(raw?: string | null): WitnessConfig[] {
   } catch { return []; }
 }
 
-export function buildAutentiqueSigners(primary: BasicSigner[], witnesses: WitnessConfig[], excludedWitnessEmails: string[]): PreparedSigner[] {
+export function parseContractorSigner(raw?: string | null): ContractorSignerConfig | null {
+  if (!raw?.trim()) return null;
+  const parsed = parseDefaultWitnesses(`[${raw}]`);
+  return parsed.length === 1 ? parsed[0] : null;
+}
+
+export function buildAutentiqueSigners(primary: BasicSigner[], contractor: ContractorSignerConfig | null, witnesses: WitnessConfig[], excludedWitnessEmails: string[]): PreparedSigner[] {
   const excluded = new Set(excludedWitnessEmails.map((email) => email.toLowerCase()));
   const primaryEmails = new Set(primary.flatMap((signer) => signer.email ? [signer.email.toLowerCase()] : []));
+  const primaryNames = new Set(primary.map((signer) => signer.name.trim().toLocaleLowerCase("pt-BR")));
+  const contractorEmail = contractor?.email.toLowerCase();
+  const contractorName = contractor?.name.trim().toLocaleLowerCase("pt-BR");
+  const includeContractor = contractor && !primaryEmails.has(contractorEmail!) && !primaryNames.has(contractorName!);
   return [
-    ...primary.map((signer) => ({ ...signer, action: "SIGN" })),
-    ...witnesses.filter((witness) => !excluded.has(witness.email) && !primaryEmails.has(witness.email)).map((witness) => ({
-      ...witness, phone: "", cpf: "", action: "SIGN_AS_A_WITNESS", deliveryMethod: "email" as const,
+    ...primary.map((signer) => {
+      const isContractor = Boolean(contractor && (
+        (signer.email && signer.email.toLowerCase() === contractorEmail)
+        || signer.name.trim().toLocaleLowerCase("pt-BR") === contractorName
+      ));
+      return { ...signer, action: "SIGN", signerRole: isContractor ? "contractor_signer" as const : "client_signer" as const };
+    }),
+    ...(includeContractor ? [{ ...contractor, phone: "", cpf: "", action: "SIGN", deliveryMethod: "email" as const, signerRole: "contractor_signer" as const }] : []),
+    ...witnesses.filter((witness) => {
+      const email = witness.email.toLowerCase();
+      return !excluded.has(email) && !primaryEmails.has(email) && email !== contractorEmail;
+    }).map((witness) => ({
+      ...witness, phone: "", cpf: "", action: "SIGN_AS_A_WITNESS", deliveryMethod: "email" as const, signerRole: "witness" as const,
     })),
   ];
 }

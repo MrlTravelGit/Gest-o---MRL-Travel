@@ -1,4 +1,4 @@
-import { parseDefaultWitnesses, type WitnessConfig } from "./autentique-rules.ts";
+import { parseContractorSigner, parseDefaultWitnesses, type ContractorSignerConfig, type WitnessConfig } from "./autentique-rules.ts";
 
 export type DefaultWitness = WitnessConfig;
 
@@ -21,4 +21,11 @@ export function defaultAutentiqueWitnesses(): DefaultWitness[] {
   const witnesses = parseDefaultWitnesses(raw);
   if (raw && witnesses.length === 0) console.error("AUTENTIQUE_DEFAULT_WITNESSES não possui testemunhas válidas.");
   return witnesses;
+}
+
+export function defaultAutentiqueContractorSigner(): ContractorSignerConfig | null {
+  const raw = Deno.env.get("AUTENTIQUE_CONTRACTOR_SIGNER")?.trim();
+  const signer = parseContractorSigner(raw);
+  if (raw && !signer) console.error("AUTENTIQUE_CONTRACTOR_SIGNER não possui um signatário válido.");
+  return signer;
 }

@@ -10,6 +10,7 @@ export interface ContractData {
   profissao: string;
   endereco: string;
   valor_total: number;
+  forma_parcelamento: "calculated" | "up_to_12_with_fees";
   num_parcelas: number;
   valor_parcela: number;
   data: string;
@@ -42,7 +43,9 @@ function decodeBase64(value: string): Uint8Array {
 }
 
 function contractSections(data: ContractData): Array<{ title: string; paragraphs: string[] }> {
-  const payment = `A CONTRATANTE pagará à CONTRATADA o valor de R$ ${money(data.valor_total)}, por meio de Pix ou cartão de crédito, em parcelas até ${data.num_parcelas} (${numberToWords(data.num_parcelas)}) vezes de R$ ${money(data.valor_parcela)} via link de pagamento.`;
+  const payment = data.forma_parcelamento === "up_to_12_with_fees"
+    ? `A CONTRATANTE pagará à CONTRATADA o valor de R$ ${money(data.valor_total)}, por meio de Pix ou cartão de crédito, em até 12 (doze) parcelas acrescidas de taxas no link de pagamento.`
+    : `A CONTRATANTE pagará à CONTRATADA o valor de R$ ${money(data.valor_total)}, por meio de Pix ou cartão de crédito, em parcelas até ${data.num_parcelas} (${numberToWords(data.num_parcelas)}) vezes de R$ ${money(data.valor_parcela)} via link de pagamento.`;
   const sections = [
     { title: "OBJETO", paragraphs: [
       "A CONTRATADA prestará à CONTRATANTE os seguintes serviços de gestão de milhas, durante o período de 12 (doze) meses:",

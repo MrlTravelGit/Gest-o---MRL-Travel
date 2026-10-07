@@ -1,10 +1,10 @@
 import { supabase } from "@/lib/supabase";
 import { validateContractDraft } from "@/lib/contracts/contractFormat";
-import type { AutentiqueSendContext, ClientContract, ContractDraft, ContractFilter, ContractPaymentMode, ContractSignatureRequest, ContractSignatureStatus, ContractSignerStatus } from "@/types/contracts";
+import type { AutentiqueSendContext, ClientContract, ContractDraft, ContractFilter, ContractPaymentMode, ContractSignatureRequest, ContractSignatureStatus, ContractSignerRole, ContractSignerStatus } from "@/types/contracts";
 
 type SignatureSignerRow = {
   id: string; provider_public_id: string | null; name: string; email: string | null; phone: string | null;
-  action: string; delivery_method: string | null; signature_link: string | null; status: ContractSignerStatus;
+  action: string; signer_role: ContractSignerRole; delivery_method: string | null; signature_link: string | null; status: ContractSignerStatus;
   signed_at: string | null; viewed_at: string | null; rejected_at: string | null;
 };
 
@@ -71,6 +71,7 @@ function mapSignatureRequest(row: SignatureRequestRow): ContractSignatureRequest
       email: signer.email,
       phone: signer.phone,
       action: signer.action,
+      signerRole: signer.signer_role,
       deliveryMethod: signer.delivery_method,
       signatureLink: signer.signature_link,
       status: signer.status,
@@ -114,7 +115,7 @@ function mapContract(row: ContractRow): ClientContract {
 }
 
 export async function listClientContracts(input: { clientId?: string; filter?: ContractFilter } = {}): Promise<ClientContract[]> {
-  let query = supabase.from("client_contracts").select("*,contract_signature_requests(id,provider_document_id,provider_document_name,status,sandbox,signed_pdf_url,pades_pdf_url,error_message,production_month_key,approved_at,customer_notified_at,customer_notification_status,customer_notification_error,created_at,updated_at,contract_signature_signers(id,provider_public_id,name,email,phone,action,delivery_method,signature_link,status,signed_at,viewed_at,rejected_at))").order("created_at", { ascending: false });
+  let query = supabase.from("client_contracts").select("*,contract_signature_requests(id,provider_document_id,provider_document_name,status,sandbox,signed_pdf_url,pades_pdf_url,error_message,production_month_key,approved_at,customer_notified_at,customer_notification_status,customer_notification_error,created_at,updated_at,contract_signature_signers(id,provider_public_id,name,email,phone,action,signer_role,delivery_method,signature_link,status,signed_at,viewed_at,rejected_at))").order("created_at", { ascending: false });
   if (input.clientId) query = query.eq("client_id", input.clientId);
   if (input.filter === "active" || !input.filter) query = query.is("archived_at", null).neq("status", "archived");
   if (input.filter === "archived") query = query.or("archived_at.not.is.null,status.eq.archived");

@@ -12,10 +12,11 @@ Configure também as testemunhas e a cota mensal:
 
 ```powershell
 npx supabase secrets set AUTENTIQUE_MONTHLY_FREE_LIMIT="20"
-npx supabase secrets set AUTENTIQUE_DEFAULT_WITNESSES='[{"name":"Michael","email":"EMAIL_DO_MICHAEL_AQUI"},{"name":"Gabriel","email":"EMAIL_DO_GABRIEL_AQUI"},{"name":"Camilla","email":"EMAIL_DA_CAMILLA_AQUI"}]'
+npx supabase secrets set AUTENTIQUE_CONTRACTOR_SIGNER='{"name":"Michael","email":"mick_felipebh@hotmail.com"}'
+npx supabase secrets set AUTENTIQUE_DEFAULT_WITNESSES='[{"name":"Gabriel","email":"gabrielhrmendes05@gmail.com"},{"name":"Camilla","email":"camillafelisbino1@gmail.com"}]'
 ```
 
-As testemunhas são acrescentadas no backend com o papel `SIGN_AS_A_WITNESS`; se o secret estiver ausente ou inválido, o cliente ainda pode ser enviado sozinho e o painel mostra um alerta. Os secrets opcionais são `AUTENTIQUE_ORGANIZATION_ID`, `AUTENTIQUE_FOLDER_ID` e `AUTENTIQUE_MAX_FILE_BYTES`. O limite padrão de arquivo é 5 MiB; configure `20971520` somente após confirmar o plano contratado.
+O signatário da contratada é acrescentado com o papel `SIGN`; as testemunhas são acrescentadas com `SIGN_AS_A_WITNESS`. O backend elimina duplicidades por nome ou e-mail e salva os papéis `client_signer`, `contractor_signer` e `witness` no snapshot de signatários. Sem um `AUTENTIQUE_CONTRACTOR_SIGNER` válido o envio é bloqueado; a ausência de testemunhas gera um alerta no painel. Os secrets opcionais são `AUTENTIQUE_ORGANIZATION_ID`, `AUTENTIQUE_FOLDER_ID` e `AUTENTIQUE_MAX_FILE_BYTES`. O limite padrão de arquivo é 5 MiB; configure `20971520` somente após confirmar o plano contratado.
 
 Para envio automático da confirmação ao cliente, configure `CUSTOMER_WHATSAPP_WEBHOOK_URL` e `CUSTOMER_WHATSAPP_WEBHOOK_SECRET`. Sem esse canal, o sistema cria uma notificação pendente para tratamento manual e não derruba o webhook.
 
