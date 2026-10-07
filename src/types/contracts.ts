@@ -11,7 +11,7 @@ export interface ContractSignatureSigner {
   email: string | null;
   phone: string | null;
   action: string;
-  signerRole: ContractSignerRole;
+  signerRole: ContractSignerRole | string | null;
   deliveryMethod: string | null;
   signatureLink: string | null;
   status: ContractSignerStatus;
@@ -85,6 +85,7 @@ export interface ClientContract extends ContractDraft {
   createdAt: string;
   updatedAt: string;
   archivedAt: string | null;
+  signaturesLoadError?: boolean;
   signatureRequest: ContractSignatureRequest | null;
 }
 

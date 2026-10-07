@@ -15,7 +15,14 @@ const signatureLabels: Record<ContractSignatureStatus, string> = {
   partially_signed: "Parcialmente assinado", completed: "Assinado", rejected: "Recusado", failed: "Falha no envio",
 };
 const notificationLabels = { sending: "enviando", sent: "enviada", pending_manual: "pendente manual", failed: "falhou" } as const;
-const signerRoleLabels = { client_signer: "assinante principal", contractor_signer: "contratado", witness: "testemunha" } as const;
+function getSignerRoleLabel(role?: string | null, email?: string | null): string {
+  const normalizedRole = String(role ?? "").toLowerCase();
+  if (["witness", "sign_as_a_witness", "testemunha"].includes(normalizedRole)) return "testemunha";
+  if (["contractor_signer", "contratado", "company_signer"].includes(normalizedRole)) return "signatário contratado";
+  if (email?.toLowerCase() === "mick_felipebh@hotmail.com" && ["sign", "signer"].includes(normalizedRole)) return "signatário contratado";
+  if (["client_signer", "signer", "sign", "assinante_principal"].includes(normalizedRole)) return "assinante principal";
+  return "participante";
+}
 const newSigner = (contract?: ClientContract): SignerDraft => ({
   key: crypto.randomUUID(), name: contract?.clientName ?? "", email: contract?.email ?? "", phone: "", cpf: contract?.cpf ?? "", deliveryMethod: "link",
 });
@@ -94,10 +101,11 @@ export function ClientContractsPanel({ clientId, canWrite = true, canManageSigna
           <p>{contract.includeCashback ? "Cashback " + contract.cashbackPercent + "%" : "Sem cashback"} · {contract.includeRoiGuarantee ? "Com garantia de retorno" : "Sem garantia de retorno"} · {contract.includeCourtesyTicket ? "Com passagem cortesia" : "Sem passagem cortesia"}</p>
           {signature && <div className="contract-signature-summary">
             <div className="contract-signature-state"><ShieldCheck /><span>{signature.sandbox ? "Sandbox" : "Produção"}</span><strong>{displayStatus}</strong>{signature.approvedAt && <small>{formatDate(signature.approvedAt)}</small>}</div>
-            {signature.signers.map((signer) => <div className="contract-signer-line" key={signer.id}><span><b>{signer.name}</b> · {signerRoleLabels[signer.signerRole]} · {signer.status === "signed" ? `assinado em ${formatDate(signer.signedAt ?? signature.approvedAt ?? "")}` : signer.status === "failed" ? "falha de entrega" : signer.status}</span>{signer.signatureLink && <button type="button" onClick={() => void copySignatureLink(signer.signatureLink!)}><Copy /> Copiar link</button>}</div>)}
+            {signature.signers.map((signer) => <div className="contract-signer-line" key={signer.id}><span><b>{signer.name}</b> · {getSignerRoleLabel(signer.signerRole ?? signer.action, signer.email)} · {signer.status === "signed" ? `assinado em ${formatDate(signer.signedAt ?? signature.approvedAt ?? "")}` : signer.status === "failed" ? "falha de entrega" : signer.status}</span>{signer.signatureLink && <button type="button" onClick={() => void copySignatureLink(signer.signatureLink!)}><Copy /> Copiar link</button>}</div>)}
             {signature.customerNotificationStatus && <div className={`contract-notification-state ${signature.customerNotificationStatus}`}><MessageCircle /><span>Mensagem ao cliente: <strong>{notificationLabels[signature.customerNotificationStatus]}</strong></span>{signature.customerNotificationError && <small>{signature.customerNotificationError}</small>}</div>}
             {signature.errorMessage && <p className="form-error">{signature.errorMessage}</p>}
           </div>}
+          {contract.signaturesLoadError && <div className="contract-config-warning"><AlertTriangle /><span>Contrato carregado, mas não foi possível carregar o status das assinaturas.</span></div>}
         </div>
         <span className={"status-badge status-" + (signature?.approvedAt ? "completed" : signature?.status ?? contract.status)}>{displayStatus}</span>
         <div className="contract-history-actions">

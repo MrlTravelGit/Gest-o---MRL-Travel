@@ -4,7 +4,7 @@ import type { AutentiqueSendContext, ClientContract, ContractDraft, ContractFilt
 
 type SignatureSignerRow = {
   id: string; provider_public_id: string | null; name: string; email: string | null; phone: string | null;
-  action: string; signer_role: ContractSignerRole; delivery_method: string | null; signature_link: string | null; status: ContractSignerStatus;
+  signature_request_id?: string; action: string; signer_role?: ContractSignerRole | string | null; delivery_method: string | null; signature_link: string | null; status: ContractSignerStatus;
   signed_at: string | null; viewed_at: string | null; rejected_at: string | null;
 };
 
@@ -42,6 +42,7 @@ type ContractRow = {
   status: "generated" | "archived";
   pdf_path: string | null;
   created_at: string;
+  generated_at?: string | null;
   updated_at: string;
   archived_at: string | null;
   contract_signature_requests?: SignatureRequestRow[];
@@ -71,7 +72,7 @@ function mapSignatureRequest(row: SignatureRequestRow): ContractSignatureRequest
       email: signer.email,
       phone: signer.phone,
       action: signer.action,
-      signerRole: signer.signer_role,
+      signerRole: signer.signer_role ?? signer.action ?? null,
       deliveryMethod: signer.delivery_method,
       signatureLink: signer.signature_link,
       status: signer.status,
@@ -82,8 +83,12 @@ function mapSignatureRequest(row: SignatureRequestRow): ContractSignatureRequest
   };
 }
 
-function mapContract(row: ContractRow): ClientContract {
-  const latestSignature = [...(row.contract_signature_requests ?? [])].sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+function historyDate(row: { created_at?: string | null; generated_at?: string | null; updated_at?: string | null; approved_at?: string | null; signed_at?: string | null }): string {
+  return String(row.created_at ?? row.generated_at ?? row.approved_at ?? row.signed_at ?? row.updated_at ?? "");
+}
+
+function mapContract(row: ContractRow, signaturesLoadError = false): ClientContract {
+  const latestSignature = [...(row.contract_signature_requests ?? [])].sort((a, b) => historyDate(b).localeCompare(historyDate(a)))[0];
   return {
     id: row.id,
     clientId: row.client_id,
@@ -105,11 +110,12 @@ function mapContract(row: ContractRow): ClientContract {
     cashbackPercent: Number(row.cashback_percent),
     includeRoiGuarantee: row.include_roi_guarantee,
     includeCourtesyTicket: row.include_courtesy_ticket ?? false,
-    status: row.status,
+    status: row.status ?? (row.archived_at ? "archived" : "generated"),
     pdfPath: row.pdf_path,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     archivedAt: row.archived_at,
+    signaturesLoadError,
     signatureRequest: latestSignature ? mapSignatureRequest(latestSignature) : null,
   };
 }
@@ -117,7 +123,6 @@ function mapContract(row: ContractRow): ClientContract {
 export async function listClientContracts(input: { clientId?: string; filter?: ContractFilter } = {}): Promise<ClientContract[]> {
   let query = supabase.from("client_contracts").select("*");
   if (input.clientId) query = query.eq("client_id", input.clientId);
-  query = query.order("created_at", { ascending: false });
   if (input.filter === "active" || !input.filter) query = query.is("archived_at", null);
   if (input.filter === "archived") query = query.not("archived_at", "is", null);
   const { data, error } = await query;
@@ -126,25 +131,45 @@ export async function listClientContracts(input: { clientId?: string; filter?: C
     throw new Error("Não foi possível carregar o histórico de contratos.");
   }
 
-  const rows = (data ?? []) as ContractRow[];
+  const rows = ([...((data ?? []) as ContractRow[])]).sort((a, b) => historyDate(b).localeCompare(historyDate(a)));
   if (!rows.length) return [];
 
   const signaturesResult = await supabase.from("contract_signature_requests")
-    .select("id,contract_id,provider_document_id,provider_document_name,status,sandbox,signed_pdf_url,pades_pdf_url,error_message,production_month_key,approved_at,customer_notified_at,customer_notification_status,customer_notification_error,created_at,updated_at,contract_signature_signers(id,provider_public_id,name,email,phone,action,signer_role,delivery_method,signature_link,status,signed_at,viewed_at,rejected_at)")
-    .in("contract_id", rows.map((row) => row.id))
-    .order("created_at", { ascending: false });
+    .select("*")
+    .in("contract_id", rows.map((row) => row.id));
   if (signaturesResult.error) {
     console.error("Falha ao carregar assinaturas do histórico de contratos:", signaturesResult.error);
-    throw new Error("Não foi possível carregar o histórico de contratos.");
+    return rows.map((row) => mapContract(row, true));
+  }
+
+  const signatureRows = [...((signaturesResult.data ?? []) as SignatureRequestRow[])]
+    .sort((a, b) => historyDate(b).localeCompare(historyDate(a)));
+  let signersLoadError = false;
+  const signersByRequest = new Map<string, SignatureSignerRow[]>();
+  const requestIds = signatureRows.map((signature) => signature.id).filter(Boolean);
+  if (requestIds.length) {
+    const signersResult = await supabase.from("contract_signature_signers").select("*").in("signature_request_id", requestIds);
+    if (signersResult.error) {
+      signersLoadError = true;
+      console.error("Falha ao carregar participantes das assinaturas do histórico de contratos:", signersResult.error);
+    } else {
+      for (const signer of (signersResult.data ?? []) as SignatureSignerRow[]) {
+        if (!signer.signature_request_id) continue;
+        const current = signersByRequest.get(signer.signature_request_id) ?? [];
+        current.push(signer);
+        signersByRequest.set(signer.signature_request_id, current);
+      }
+    }
   }
 
   const signaturesByContract = new Map<string, SignatureRequestRow[]>();
-  for (const signature of (signaturesResult.data ?? []) as SignatureRequestRow[]) {
+  for (const signature of signatureRows) {
+    signature.contract_signature_signers = signersByRequest.get(signature.id) ?? [];
     const current = signaturesByContract.get(signature.contract_id) ?? [];
     current.push(signature);
     signaturesByContract.set(signature.contract_id, current);
   }
-  return rows.map((row) => mapContract({ ...row, contract_signature_requests: signaturesByContract.get(row.id) ?? [] }));
+  return rows.map((row) => mapContract({ ...row, contract_signature_requests: signaturesByContract.get(row.id) ?? [] }, signersLoadError));
 }
 
 async function functionError(error: unknown, fallback: string): Promise<Error> {
