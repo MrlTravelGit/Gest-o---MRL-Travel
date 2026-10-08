@@ -58,8 +58,14 @@ describe("painel de contratos", () => {
     contextMock.mockReset();
     contextMock.mockResolvedValue({
       sandbox: true,
-      contractorSigner: { name: "Michael", email: "mick_felipebh@hotmail.com" },
+      contractorSigner: { name: "Michael", email: "mick_felipebh@hotmail.com", role: "SIGN" },
       contractorSignerConfigured: true,
+      contractorSignerWarning: null,
+      defaultWitnesses: [
+        { name: "Gabriel", email: "gabriel@example.com", role: "SIGN_AS_A_WITNESS" },
+        { name: "Camilla", email: "camilla@example.com", role: "SIGN_AS_A_WITNESS" },
+      ],
+      monthlyQuota: { productionMonthKey: "2026-09", productionUsed: 7, monthlyLimit: 20, canOverrideMonthlyLimit: true },
       witnesses: [
         { name: "Gabriel", email: "gabriel@example.com" },
         { name: "Camilla", email: "camilla@example.com" },
@@ -138,7 +144,7 @@ describe("painel de contratos", () => {
     fireEvent.click(await screen.findByText("Enviar para assinatura"));
     expect(await screen.findByText("Testemunhas padrão")).toBeInTheDocument();
     expect(await screen.findByText("Michael")).toBeInTheDocument();
-    expect(screen.getByText("Contratado · SIGN · envio por e-mail")).toBeInTheDocument();
+    expect(screen.getByText("Contratada · SIGN · envio por e-mail")).toBeInTheDocument();
     expect(screen.getByText("Gabriel")).toBeInTheDocument();
     expect(screen.getByText("Camilla")).toBeInTheDocument();
     expect(screen.getByText("Este envio não conta no limite mensal.")).toBeInTheDocument();

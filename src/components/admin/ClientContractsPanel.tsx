@@ -82,7 +82,7 @@ export function ClientContractsPanel({ clientId, canWrite = true, canManageSigna
   };
   const updateSigner = (key: string, values: Partial<SignerDraft>) => setSignatureDraft((current) => current && ({ ...current, signers: current.signers.map((signer) => signer.key === key ? { ...signer, ...values } : signer) }));
   const monthlyLimitReached = Boolean(!signatureDraft?.sandbox && sendContext.data && sendContext.data.productionUsed >= sendContext.data.monthlyLimit);
-  const visibleWitnesses = (sendContext.data?.witnesses ?? []).filter((witness) => !signatureDraft?.excludedWitnessEmails.includes(witness.email));
+  const visibleWitnesses = (sendContext.data?.defaultWitnesses ?? sendContext.data?.witnesses ?? []).filter((witness) => !signatureDraft?.excludedWitnessEmails.includes(witness.email));
 
   return <section className={"client-contracts-panel" + (compact ? " compact" : "")}>
     <div className="section-heading"><div><span className="eyebrow">Documentos jurídicos</span><h2>Contratos gerados</h2><p>PDFs privados, auditáveis e vinculados ao cliente.</p></div>{clientId && <Link className="primary-button" to={"/admin/contratos?clientId=" + clientId}><Plus size={16} /> Gerar contrato</Link>}</div>
@@ -132,8 +132,8 @@ export function ClientContractsPanel({ clientId, canWrite = true, canManageSigna
       </div></fieldset>)}</div>
 
       <section className="contract-witnesses-section"><div className="contract-signers-heading"><div><span className="eyebrow">Signatário da contratada</span><strong>{sendContext.data?.contractorSigner ? "1 incluído" : "Não configurado"}</strong></div></div>
-        {sendContext.data && !sendContext.data.contractorSignerConfigured && <div className="contract-config-warning"><AlertTriangle /><span>O signatário da contratada ainda não foi configurado.</span></div>}
-        {sendContext.data?.contractorSigner && <div className="contract-witness-list"><article><UserCheck /><div><strong>{sendContext.data.contractorSigner.name}</strong><span>{sendContext.data.contractorSigner.email}</span><small>Contratado · SIGN · envio por e-mail</small></div></article></div>}
+        {sendContext.data && !sendContext.data.contractorSignerConfigured && <div className="contract-config-warning"><AlertTriangle /><span>{sendContext.data.contractorSignerWarning ?? "O signatário da contratada ainda não foi configurado."}</span></div>}
+        {sendContext.data?.contractorSigner && <div className="contract-witness-list"><article><UserCheck /><div><strong>{sendContext.data.contractorSigner.name}</strong><span>{sendContext.data.contractorSigner.email}</span><small>Contratada · {sendContext.data.contractorSigner.role} · envio por e-mail</small></div></article></div>}
       </section>
 
       <section className="contract-witnesses-section"><div className="contract-signers-heading"><div><span className="eyebrow">Testemunhas padrão</span><strong>{visibleWitnesses.length} incluída(s)</strong></div><button type="button" className="secondary-button" disabled={sendContext.isFetching} onClick={() => { setSignatureDraft((current) => current && ({ ...current, excludedWitnessEmails: [] })); void sendContext.refetch(); }}><RotateCcw /> Recarregar padrão</button></div>

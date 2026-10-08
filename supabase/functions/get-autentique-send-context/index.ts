@@ -21,10 +21,19 @@ Deno.serve(async (request) => {
     if (usage.error) throw usage.error;
     const witnesses = defaultAutentiqueWitnesses();
     const contractorSigner = defaultAutentiqueContractorSigner();
+    const monthlyLimit = autentiqueMonthlyLimit();
+    const canOverrideMonthlyLimit = actor.role === "super_admin";
+    const contractorSignerWarning = contractorSigner ? null : "O signatário da contratada ainda não foi configurado.";
     return jsonResponse(request, {
-      sandbox: autentiqueSandbox(), contractorSigner, contractorSignerConfigured: Boolean(contractorSigner), witnesses, witnessesConfigured: witnesses.length > 0,
+      sandbox: autentiqueSandbox(),
+      contractorSigner: contractorSigner ? { ...contractorSigner, role: "SIGN" } : null,
+      contractorSignerConfigured: Boolean(contractorSigner),
+      contractorSignerWarning,
+      defaultWitnesses: witnesses.map((witness) => ({ ...witness, role: "SIGN_AS_A_WITNESS" })),
+      monthlyQuota: { productionMonthKey: monthKey, productionUsed: usage.count ?? 0, monthlyLimit, canOverrideMonthlyLimit },
+      witnesses, witnessesConfigured: witnesses.length > 0,
       productionMonthKey: monthKey, productionUsed: usage.count ?? 0,
-      monthlyLimit: autentiqueMonthlyLimit(), canOverrideMonthlyLimit: actor.role === "super_admin",
+      monthlyLimit, canOverrideMonthlyLimit,
     });
   } catch (error) {
     if (error instanceof Response) return adminErrorResponse(error, request, {});

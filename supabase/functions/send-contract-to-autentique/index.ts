@@ -34,7 +34,7 @@ function failure(request: Request, code: string, status: number): Response {
     CONTRACT_PDF_REQUIRED: "Gere o PDF do contrato antes de enviar para assinatura.",
     CONTRACT_SIGNER_REQUIRED: "Adicione pelo menos um signatário para enviar o contrato.",
     AUTENTIQUE_NOT_CONFIGURED: "Integração com Autentique não configurada.",
-    AUTENTIQUE_CONTRACTOR_NOT_CONFIGURED: "O signatário da contratada não está configurado.",
+    CONTRACTOR_SIGNER_NOT_CONFIGURED: "O signatário da contratada ainda não foi configurado.",
     AUTENTIQUE_FILE_TOO_LARGE: "O PDF excede o limite aceito pela Autentique.",
     AUTENTIQUE_API_FAILED: "Não foi possível enviar o contrato para assinatura. Tente novamente.",
     CONTRACT_ALREADY_SENT: "Este contrato já foi enviado para assinatura.",
@@ -42,7 +42,8 @@ function failure(request: Request, code: string, status: number): Response {
     AUTENTIQUE_MONTHLY_LIMIT_REACHED: "Limite mensal de contratos reais atingido. Este envio pode gerar cobrança adicional na Autentique.",
     AUTENTIQUE_OVERRIDE_FORBIDDEN: "Somente o superadministrador pode autorizar envio acima do limite mensal.",
   };
-  return jsonResponse(request, { code, error: messages[code] ?? messages.AUTENTIQUE_API_FAILED }, status);
+  const message = messages[code] ?? messages.AUTENTIQUE_API_FAILED;
+  return jsonResponse(request, { code, error: message, message }, status);
 }
 
 Deno.serve(async (request) => {
@@ -61,6 +62,8 @@ Deno.serve(async (request) => {
     const admin = adminClient();
     if (input.sandbox !== autentiqueSandbox()) return failure(request, "AUTENTIQUE_MODE_MISMATCH", 409);
     if (input.overrideMonthlyLimit && actor.role !== "super_admin") return failure(request, "AUTENTIQUE_OVERRIDE_FORBIDDEN", 403);
+    const contractorSigner = defaultAutentiqueContractorSigner();
+    if (!contractorSigner) return failure(request, "CONTRACTOR_SIGNER_NOT_CONFIGURED", 400);
     const contractResult = await admin.from("client_contracts")
       .select("id,client_id,contract_number,client_name,pdf_path,status")
       .eq("id", input.contractId).maybeSingle();
@@ -81,8 +84,6 @@ Deno.serve(async (request) => {
     if (downloaded.data.size > maximumBytes) return failure(request, "AUTENTIQUE_FILE_TOO_LARGE", 413);
 
     const sandbox = input.sandbox;
-    const contractorSigner = defaultAutentiqueContractorSigner();
-    if (!contractorSigner) return failure(request, "AUTENTIQUE_CONTRACTOR_NOT_CONFIGURED", 503);
     const allSigners = buildAutentiqueSigners(input.signers, contractorSigner, defaultAutentiqueWitnesses(), input.excludedWitnessEmails);
     const inserted = await admin.from("contract_signature_requests").insert({
       contract_id: contract.id,
@@ -165,8 +166,8 @@ Deno.serve(async (request) => {
       } catch { /* best effort status */ }
     }
     if (error instanceof Response) return adminErrorResponse(error, request, {});
-    if (["AUTENTIQUE_NOT_CONFIGURED","AUTENTIQUE_CONTRACTOR_NOT_CONFIGURED","AUTENTIQUE_FILE_TOO_LARGE","AUTENTIQUE_API_FAILED","AUTENTIQUE_MONTHLY_LIMIT_REACHED"].includes(code)) {
-      return failure(request, code, code === "AUTENTIQUE_FILE_TOO_LARGE" ? 413 : ["AUTENTIQUE_NOT_CONFIGURED", "AUTENTIQUE_CONTRACTOR_NOT_CONFIGURED"].includes(code) ? 503 : code === "AUTENTIQUE_MONTHLY_LIMIT_REACHED" ? 409 : 502);
+    if (["AUTENTIQUE_NOT_CONFIGURED","CONTRACTOR_SIGNER_NOT_CONFIGURED","AUTENTIQUE_FILE_TOO_LARGE","AUTENTIQUE_API_FAILED","AUTENTIQUE_MONTHLY_LIMIT_REACHED"].includes(code)) {
+      return failure(request, code, code === "AUTENTIQUE_FILE_TOO_LARGE" ? 413 : code === "CONTRACTOR_SIGNER_NOT_CONFIGURED" ? 400 : code === "AUTENTIQUE_NOT_CONFIGURED" ? 503 : code === "AUTENTIQUE_MONTHLY_LIMIT_REACHED" ? 409 : 502);
     }
     console.error("send-contract-to-autentique failed", code);
     return failure(request, "AUTENTIQUE_API_FAILED", 500);

@@ -41,8 +41,16 @@ export interface ContractSignatureRequest {
 
 export interface AutentiqueSendContext {
   sandbox: boolean;
-  contractorSigner: { name: string; email: string } | null;
+  contractorSigner: { name: string; email: string; role: "SIGN" } | null;
   contractorSignerConfigured: boolean;
+  contractorSignerWarning: string | null;
+  defaultWitnesses: Array<{ name: string; email: string; role: "SIGN_AS_A_WITNESS" }>;
+  monthlyQuota: {
+    productionMonthKey: string;
+    productionUsed: number;
+    monthlyLimit: number;
+    canOverrideMonthlyLimit: boolean;
+  };
   witnesses: Array<{ name: string; email: string }>;
   witnessesConfigured: boolean;
   productionMonthKey: string;
