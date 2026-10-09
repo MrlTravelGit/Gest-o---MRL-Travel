@@ -6,6 +6,7 @@ import type { PublicClientDashboard } from "@/types/dashboard";
 
 const lineChartSpy = vi.fn();
 const barChartSpy = vi.fn();
+const barSeriesSpy = vi.fn();
 
 vi.mock("recharts", () => ({
   LineChart: ({ children, data, height, width }: { children: ReactNode; data: unknown[]; height: number; width: number }) => {
@@ -22,7 +23,10 @@ vi.mock("recharts", () => ({
   Tooltip: () => null,
   Legend: () => null,
   Line: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-  Bar: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  Bar: (props: { children?: ReactNode; dataKey?: string; fill?: string; name?: string }) => {
+    barSeriesSpy(props);
+    return <div>{props.children}</div>;
+  },
 }));
 
 const balanceHistory = [
@@ -155,11 +159,24 @@ describe("ClientDashboardView", () => {
       { period: "2026-07-01", points: 18500, averageCost: 18.2 },
     ]);
     expect(barChartSpy).toHaveBeenCalledWith([
-      { period: "2026-06-01", pointsIn: 1000, pointsOut: 0, netPoints: 1000 },
-      { period: "2026-07-01", pointsIn: 2500, pointsOut: 0, netPoints: 2500 },
+      { period: "2026-06-01", pointsIn: 1000, pointsRedeemed: 0, pointsExpired: 0, pointsAdjustment: 0, netPoints: 1000, savingsGenerated: 0 },
+      { period: "2026-07-01", pointsIn: 2500, pointsRedeemed: 0, pointsExpired: 0, pointsAdjustment: 0, netPoints: 2500, savingsGenerated: 0 },
     ]);
     expect(balanceHistory).toEqual(originalBalance);
     expect(monthlyMovements).toEqual(originalMovements);
+  });
+
+  it("comunica resgates em âmbar e reserva vermelho apenas para expirações", () => {
+    render(<ClientDashboardView dashboard={dashboard} />);
+    const series = barSeriesSpy.mock.calls.map(([props]) => props);
+
+    expect(series).toEqual(expect.arrayContaining([
+      expect.objectContaining({ dataKey: "pointsIn", fill: "#F4C76B", name: "Entradas" }),
+      expect.objectContaining({ dataKey: "pointsRedeemed", fill: "#C89B3C", name: "Pontos utilizados" }),
+      expect.objectContaining({ dataKey: "pointsExpired", fill: "#B94A48", name: "Expirados" }),
+    ]));
+    expect(series.some((item) => item.name === "Saídas")).toBe(false);
+    expect(screen.getByText(/a redução do saldo pode representar pontos utilizados em emissões/i)).toBeInTheDocument();
   });
 
   it("mostra empty state compacto quando não há série válida", () => {
@@ -174,7 +191,7 @@ describe("ClientDashboardView", () => {
     expect(screen.getByTestId("line-chart")).toBeInTheDocument();
     expect(screen.getByTestId("bar-chart")).toBeInTheDocument();
     expect(lineChartSpy).toHaveBeenLastCalledWith([{ period: "2026-07-01", points: 0, averageCost: 0 }]);
-    expect(barChartSpy).toHaveBeenLastCalledWith([{ period: "2026-07-01", pointsIn: 5000, pointsOut: 0, netPoints: 5000 }]);
+    expect(barChartSpy).toHaveBeenLastCalledWith([{ period: "2026-07-01", pointsIn: 5000, pointsRedeemed: 0, pointsExpired: 0, pointsAdjustment: 0, netPoints: 5000, savingsGenerated: 0 }]);
   });
 
   it("fornece dimensões numéricas aos gráficos sem depender da medição interna do Recharts", () => {

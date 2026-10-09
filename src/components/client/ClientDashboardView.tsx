@@ -5,7 +5,7 @@ import { BrandLogo } from "@/components/brand/BrandLogo";
 import { LoyaltyProgramLogo } from "@/components/brand/LoyaltyProgramLogo";
 import { SavingsDateFilter } from "@/components/shared/SavingsDateFilter";
 import { formatCurrency, formatDate, formatPoints } from "@/lib/formatters";
-import { normalizeBalanceHistory, normalizeMonthlyMovements, numericDomain, type BalanceHistoryPoint } from "@/lib/dashboard-chart-data";
+import { normalizeBalanceHistory, normalizeMonthlyMovements, numericDomain, type BalanceHistoryPoint, type MonthlyMovementPoint } from "@/lib/dashboard-chart-data";
 import { shouldShowClientProgram } from "@/lib/client-program-wallet";
 import { calculateSavingsSummary, isWithinSavingsDateRange } from "@/lib/savings-date-filter";
 import type { PublicClientDashboard, PublicClientProgram } from "@/types/dashboard";
@@ -26,7 +26,7 @@ export function ClientDashboardView({
 }) {
   const displayName = dashboard.client.displayName || "Cliente MRL";
   const balanceHistory = normalizeBalanceHistory(dashboard.balanceHistory);
-  const monthlyMovements = normalizeMonthlyMovements(dashboard.monthlyMovements);
+  const monthlyMovements = normalizeMonthlyMovements(dashboard.monthlyMovements, dashboard.savingsHistory);
   const hasBalanceHistory = balanceHistory.length > 0;
   const hasMonthlyMovements = monthlyMovements.length > 0;
   const walletPrograms = dashboard.programs.filter((program) => shouldShowClientProgram(program));
@@ -115,6 +115,7 @@ export function ClientDashboardView({
 
       <section className="dashboard-section chart-card chart-card-wide" aria-labelledby="balance-chart-title">
         <SectionHeading eyebrow={<><LineChartIcon size={14} aria-hidden /> Histórico</>} title="Saldo Acumulado" id="balance-chart-title" />
+        <p className="chart-explainer">A redução do saldo pode representar pontos utilizados em emissões, não necessariamente perda ou expiração.</p>
         {hasBalanceHistory ? (
           <MeasuredChart className="balance-chart-container" height={360} ariaLabel={`Evolução do saldo em ${balanceHistory.length} período(s).`}>
             {(width, height) => <>
@@ -141,7 +142,7 @@ export function ClientDashboardView({
       <section className="dashboard-section chart-card chart-card-wide" aria-labelledby="movement-chart-title">
         <SectionHeading eyebrow={<><BarChart3 size={14} aria-hidden /> Movimentações</>} title="Movimentação Mensal" id="movement-chart-title" />
         {hasMonthlyMovements ? (
-          <MeasuredChart className="movement-chart-container" height={340} ariaLabel={`Entradas e saídas de pontos em ${monthlyMovements.length} período(s).`}>
+          <MeasuredChart className="movement-chart-container" height={340} ariaLabel={`Entradas, pontos utilizados e expirados em ${monthlyMovements.length} período(s).`}>
             {(width, height) => <>
               <span className="sr-only">Movimentação líquida mais recente: {formatPoints(monthlyMovements.at(-1)?.netPoints ?? 0)} pontos.</span>
               <ComposedChart width={width} height={height} data={monthlyMovements} margin={movementChartMargin}>
@@ -153,12 +154,13 @@ export function ClientDashboardView({
                 </defs>
                 <CartesianGrid strokeDasharray="2 6" stroke="rgba(252,213,138,.13)" vertical={false} />
                 <XAxis dataKey="period" tickFormatter={formatMonth} tick={{ fill: "#c8beb0", fontSize: 11 }} axisLine={{ stroke: "rgba(252,213,138,.18)" }} tickLine={false} minTickGap={22} />
-                <YAxis domain={numericDomain(monthlyMovements.flatMap((point) => [point.pointsIn, point.pointsOut, point.netPoints]))} tickFormatter={(value) => formatCompactNumber(Number(value))} tick={{ fill: "#c8beb0", fontSize: 11 }} axisLine={false} tickLine={false} width={58} allowDecimals={false} />
-                <Tooltip formatter={(value, name) => [formatPoints(Number(value)), name]} labelFormatter={formatMonth} contentStyle={tooltipStyle} />
+                <YAxis domain={numericDomain(monthlyMovements.flatMap((point) => [point.pointsIn, point.pointsRedeemed, point.pointsExpired, point.netPoints]))} tickFormatter={(value) => formatCompactNumber(Number(value))} tick={{ fill: "#c8beb0", fontSize: 11 }} axisLine={false} tickLine={false} width={58} allowDecimals={false} />
+                <Tooltip content={<MonthlyMovementTooltip />} />
                 <Legend verticalAlign="top" align="right" height={32} wrapperStyle={{ color: "#d9d2c8", fontSize: 11 }} />
-                <Bar dataKey="pointsIn" fill="url(#movementGoldGradient)" radius={[8, 8, 2, 2]} name="Entradas" isAnimationActive={false} maxBarSize={46} />
-                <Bar dataKey="pointsOut" fill="#7f4d43" radius={[8, 8, 2, 2]} name="Saídas" isAnimationActive={false} maxBarSize={46} />
-                <Line type="monotone" dataKey="netPoints" stroke="#f4eee5" strokeWidth={2} dot={{ r: 3 }} name="Líquido" isAnimationActive={false} />
+                <Bar dataKey="pointsIn" fill="#F4C76B" radius={[8, 8, 2, 2]} name="Entradas" isAnimationActive={false} maxBarSize={46} />
+                <Bar dataKey="pointsRedeemed" fill="#C89B3C" radius={[8, 8, 2, 2]} name="Pontos utilizados" isAnimationActive={false} maxBarSize={46} />
+                <Bar dataKey="pointsExpired" fill="#B94A48" radius={[8, 8, 2, 2]} name="Expirados" isAnimationActive={false} maxBarSize={46} />
+                <Line type="monotone" dataKey="netPoints" stroke="#F7F2E8" strokeWidth={2} dot={{ r: 3 }} name="Líquido" isAnimationActive={false} />
               </ComposedChart>
             </>}
           </MeasuredChart>
@@ -410,6 +412,31 @@ function MeasuredChart({
 
 function hasAverageCost(points: BalanceHistoryPoint[]) {
   return points.some((point) => point.averageCost !== null);
+}
+
+function MonthlyMovementTooltip({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean;
+  payload?: Array<{ payload?: MonthlyMovementPoint }>;
+  label?: unknown;
+}) {
+  const point = payload?.[0]?.payload;
+  if (!active || !point) return null;
+
+  return (
+    <div className="movement-chart-tooltip" style={tooltipStyle}>
+      <strong>{formatMonth(label ?? point.period)}</strong>
+      <span>Entradas: {formatPoints(point.pointsIn)} pts</span>
+      <span>Utilizados em emissões: {formatPoints(point.pointsRedeemed)} pts</span>
+      <span>Expirados: {formatPoints(point.pointsExpired)} pts</span>
+      {point.pointsAdjustment !== 0 && <span>Ajustes: {formatPoints(point.pointsAdjustment)} pts</span>}
+      <span>Líquido: {formatPoints(point.netPoints)} pts</span>
+      <span className="movement-tooltip-savings">Economia gerada: {formatCurrency(point.savingsGenerated)}</span>
+    </div>
+  );
 }
 
 function formatMonth(value: unknown) {

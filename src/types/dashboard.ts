@@ -23,7 +23,12 @@ export interface PublicClientBalanceHistoryPoint {
 
 export interface PublicClientMonthlyMovement {
   month: string;
-  points: number;
+  points?: number;
+  pointsIn?: number;
+  pointsRedeemed?: number;
+  pointsExpired?: number;
+  pointsAdjustment?: number;
+  netPoints?: number;
 }
 
 export interface PublicClientCardStatement {
