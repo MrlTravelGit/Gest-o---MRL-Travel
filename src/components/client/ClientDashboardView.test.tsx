@@ -21,7 +21,7 @@ vi.mock("recharts", () => ({
   XAxis: () => null,
   YAxis: () => null,
   Tooltip: () => null,
-  Legend: () => null,
+  Legend: ({ content }: { content?: ReactNode }) => <>{content}</>,
   Line: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   Bar: (props: { children?: ReactNode; dataKey?: string; fill?: string; name?: string }) => {
     barSeriesSpy(props);
@@ -177,6 +177,9 @@ describe("ClientDashboardView", () => {
     ]));
     expect(series.some((item) => item.name === "Saídas")).toBe(false);
     expect(screen.getByText(/a redução do saldo pode representar pontos utilizados em emissões/i)).toBeInTheDocument();
+    expect(within(screen.getByLabelText("Legenda da movimentação mensal")).getAllByText(/Entradas|Pontos utilizados|Expirados|Líquido/).map((item) => item.textContent)).toEqual([
+      "Entradas", "Pontos utilizados", "Expirados", "Líquido",
+    ]);
   });
 
   it("mostra empty state compacto quando não há série válida", () => {

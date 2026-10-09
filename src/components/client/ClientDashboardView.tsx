@@ -156,7 +156,7 @@ export function ClientDashboardView({
                 <XAxis dataKey="period" tickFormatter={formatMonth} tick={{ fill: "#c8beb0", fontSize: 11 }} axisLine={{ stroke: "rgba(252,213,138,.18)" }} tickLine={false} minTickGap={22} />
                 <YAxis domain={numericDomain(monthlyMovements.flatMap((point) => [point.pointsIn, point.pointsRedeemed, point.pointsExpired, point.netPoints]))} tickFormatter={(value) => formatCompactNumber(Number(value))} tick={{ fill: "#c8beb0", fontSize: 11 }} axisLine={false} tickLine={false} width={58} allowDecimals={false} />
                 <Tooltip content={<MonthlyMovementTooltip />} />
-                <Legend verticalAlign="top" align="right" height={32} wrapperStyle={{ color: "#d9d2c8", fontSize: 11 }} />
+                <Legend verticalAlign="top" align="right" height={32} content={<MonthlyMovementLegend />} />
                 <Bar dataKey="pointsIn" fill="#F4C76B" radius={[8, 8, 2, 2]} name="Entradas" isAnimationActive={false} maxBarSize={46} />
                 <Bar dataKey="pointsRedeemed" fill="#C89B3C" radius={[8, 8, 2, 2]} name="Pontos utilizados" isAnimationActive={false} maxBarSize={46} />
                 <Bar dataKey="pointsExpired" fill="#B94A48" radius={[8, 8, 2, 2]} name="Expirados" isAnimationActive={false} maxBarSize={46} />
@@ -435,6 +435,17 @@ function MonthlyMovementTooltip({
       {point.pointsAdjustment !== 0 && <span>Ajustes: {formatPoints(point.pointsAdjustment)} pts</span>}
       <span>Líquido: {formatPoints(point.netPoints)} pts</span>
       <span className="movement-tooltip-savings">Economia gerada: {formatCurrency(point.savingsGenerated)}</span>
+    </div>
+  );
+}
+
+function MonthlyMovementLegend() {
+  return (
+    <div className="movement-chart-legend" aria-label="Legenda da movimentação mensal">
+      <span><i style={{ background: "#F4C76B" }} />Entradas</span>
+      <span><i style={{ background: "#C89B3C" }} />Pontos utilizados</span>
+      <span><i style={{ background: "#B94A48" }} />Expirados</span>
+      <span><i className="movement-legend-line" />Líquido</span>
     </div>
   );
 }

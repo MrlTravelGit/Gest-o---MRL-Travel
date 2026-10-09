@@ -287,6 +287,10 @@ input.input-invalid:focus { border-color:#e96f6f; box-shadow:0 0 0 3px rgba(233,
 .movement-chart-tooltip strong { margin-bottom:3px; color:#f4c76b; font-size:11px; text-transform:capitalize; }
 .movement-chart-tooltip span { color:#ded7cd; }
 .movement-chart-tooltip .movement-tooltip-savings { margin-top:4px; padding-top:7px; border-top:1px solid rgba(216,169,115,.2); color:#f4c76b; font-weight:700; }
+.movement-chart-legend { display:flex; justify-content:flex-end; flex-wrap:wrap; gap:4px 12px; color:#d9d2c8; font-size:11px; }
+.movement-chart-legend span { display:inline-flex; align-items:center; gap:5px; white-space:nowrap; }
+.movement-chart-legend i { display:inline-block; width:12px; height:12px; border-radius:2px; }
+.movement-chart-legend .movement-legend-line { width:15px; height:2px; border-radius:999px; background:#F7F2E8; }
 .chart-container { height: 370px; }
 
 .contract-card { margin-top: 24px; padding: 22px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
