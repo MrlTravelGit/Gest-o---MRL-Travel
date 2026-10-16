@@ -1,31 +1,58 @@
-import { fetchAutentiqueDocument, persistAutentiqueDocument, verifyAutentiqueWebhook } from "../_shared/autentique.ts";
+import { fetchAutentiqueDocument, persistAutentiqueDocument } from "../_shared/autentique.ts";
 import { webhookTransition } from "../_shared/autentique-rules.ts";
+import {
+  handleAutentiqueWebhookRequest,
+  isRecognizedAutentiqueEvent,
+  type AcceptedAutentiqueWebhook,
+  type WebhookLog,
+} from "../_shared/autentique-webhook-http.ts";
 import { sendCustomerContractApprovedMessage } from "../_shared/contract-notifications.ts";
 import { adminClient } from "../_shared/supabase.ts";
 
-type WebhookPayload = { id?: string; event?: { id?: string; type?: string; created_at?: string; data?: Record<string, unknown> } };
 type AdminClient = ReturnType<typeof adminClient>;
 
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
-  status, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" },
-});
+function log(entry: WebhookLog): void {
+  console.log(JSON.stringify({ service: "autentique-webhook", ...entry }));
+}
 
 function eventObject(data: Record<string, unknown>): Record<string, unknown> {
   return data.object && typeof data.object === "object" ? data.object as Record<string, unknown> : data;
 }
 
-function documentIdFrom(data: Record<string, unknown>, type: string): string | null {
-  const object = eventObject(data);
-  if (typeof data.document === "string") return data.document;
-  if (typeof object.document === "string") return object.document;
-  if (object.document && typeof object.document === "object" && typeof (object.document as Record<string, unknown>).id === "string") return String((object.document as Record<string, unknown>).id);
-  if (type.startsWith("document.") && typeof object.id === "string") return object.id;
-  return null;
-}
-
 function publicIdFrom(data: Record<string, unknown>): string | null {
   const object = eventObject(data);
   return typeof data.public_id === "string" ? data.public_id : typeof object.public_id === "string" ? object.public_id : null;
+}
+
+function sanitizedError(error: unknown): string {
+  if (error && typeof error === "object" && "code" in error && typeof error.code === "string" && /^[A-Z0-9_]{2,80}$/.test(error.code)) {
+    return error.code;
+  }
+  const message = error instanceof Error ? error.message : "";
+  return /^[A-Z0-9_:-]{2,120}$/.test(message) ? message : "INTERNAL_PROCESSING_ERROR";
+}
+
+async function updateEvent(admin: AdminClient, eventRowId: string, values: Record<string, unknown>): Promise<void> {
+  const updated = await admin.from("autentique_webhook_events").update(values).eq("id", eventRowId);
+  if (updated.error) throw updated.error;
+}
+
+async function claimEvent(admin: AdminClient, accepted: AcceptedAutentiqueWebhook): Promise<{ claimed: boolean; eventRowId: string | null }> {
+  const claimed = await admin.rpc("claim_autentique_webhook_event", {
+    p_event_id: accepted.eventId,
+    p_event_type: accepted.eventType,
+    p_document_id: accepted.documentId,
+    p_payload: {
+      event: {
+        id: accepted.eventId,
+        type: accepted.eventType,
+        documentId: accepted.documentId,
+      },
+    },
+  });
+  if (claimed.error) throw claimed.error;
+  const result = claimed.data as { claimed?: boolean; eventRowId?: string } | null;
+  return { claimed: result?.claimed === true, eventRowId: result?.eventRowId ?? null };
 }
 
 async function applySignatureEvent(admin: AdminClient, requestId: string, type: string, publicId: string | null, occurredAt: string): Promise<void> {
@@ -56,85 +83,111 @@ async function notifyApprovedContract(admin: AdminClient, requestId: string): Pr
     const client = found.data.clients as unknown as { full_name?: string; email?: string | null; phone_e164?: string | null; whatsapp_e164?: string | null } | null;
     const contract = found.data.client_contracts as unknown as { client_name?: string } | null;
     await sendCustomerContractApprovedMessage(admin, {
-      requestId: found.data.id, clientId: found.data.client_id, contractId: found.data.contract_id,
+      requestId: found.data.id,
+      clientId: found.data.client_id,
+      contractId: found.data.contract_id,
       customerName: client?.full_name ?? contract?.client_name ?? "Cliente",
       customerPhone: client?.whatsapp_e164 ?? client?.phone_e164 ?? null,
       customerEmail: client?.email ?? null,
       signedPdfUrl: found.data.pades_pdf_url ?? found.data.signed_pdf_url ?? null,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message.slice(0, 500) : "Falha ao preparar notificação.";
-    await admin.from("contract_signature_requests").update({ customer_notification_status: "failed", customer_notification_error: message })
+    const reason = sanitizedError(error);
+    await admin.from("contract_signature_requests").update({ customer_notification_status: "failed", customer_notification_error: reason })
       .eq("id", requestId).is("customer_notified_at", null);
-    console.error("contract approval notification failed", message);
+    log({ stage: "notification", result: "notification_error", error: reason });
   }
 }
 
-async function processWebhook(payload: WebhookPayload): Promise<void> {
+async function resolveRequest(admin: AdminClient, documentId: string | null, publicId: string | null): Promise<{ requestId: string; documentId: string }> {
+  let requestId: string | null = null;
+  let resolvedDocumentId = documentId;
+  if (publicId) {
+    const signer = await admin.from("contract_signature_signers").select("signature_request_id").eq("provider_public_id", publicId).maybeSingle();
+    if (signer.error) throw signer.error;
+    requestId = signer.data?.signature_request_id ?? null;
+  }
+  if (!requestId && resolvedDocumentId) {
+    const parent = await admin.from("contract_signature_requests").select("id").eq("provider_document_id", resolvedDocumentId).maybeSingle();
+    if (parent.error) throw parent.error;
+    requestId = parent.data?.id ?? null;
+  }
+  if (requestId && !resolvedDocumentId) {
+    const parent = await admin.from("contract_signature_requests").select("provider_document_id").eq("id", requestId).single();
+    if (parent.error) throw parent.error;
+    resolvedDocumentId = parent.data.provider_document_id;
+  }
+  if (!requestId || !resolvedDocumentId) throw new Error("AUTENTIQUE_SIGNATURE_REQUEST_NOT_FOUND");
+  return { requestId, documentId: resolvedDocumentId };
+}
+
+async function processWebhook(accepted: AcceptedAutentiqueWebhook): Promise<void> {
+  const startedAt = Date.now();
   const admin = adminClient();
-  const event = payload.event ?? {};
-  const type = event.type ?? "unknown";
-  const data = event.data ?? {};
-  const documentId = documentIdFrom(data, type);
-  const publicId = publicIdFrom(data);
-  const providerEventId = event.id ?? payload.id ?? `${type}:${documentId ?? publicId ?? crypto.randomUUID()}`;
-  const inserted = await admin.from("autentique_webhook_events").insert({
-    provider_event_id: providerEventId, event_type: type, provider_document_id: documentId, payload,
-  }).select("id").single();
-  if (inserted.error) { if (inserted.error.code === "23505") return; throw inserted.error; }
-  const eventRowId = inserted.data.id;
-  try {
-    let requestId: string | null = null;
-    let resolvedDocumentId = documentId;
-    if (publicId) {
-      const signer = await admin.from("contract_signature_signers").select("signature_request_id").eq("provider_public_id", publicId).maybeSingle();
-      if (signer.error) throw signer.error;
-      requestId = signer.data?.signature_request_id ?? null;
-    }
-    if (!requestId && resolvedDocumentId) {
-      const parent = await admin.from("contract_signature_requests").select("id").eq("provider_document_id", resolvedDocumentId).maybeSingle();
-      if (parent.error) throw parent.error;
-      requestId = parent.data?.id ?? null;
-    }
-    if (requestId && !resolvedDocumentId) {
-      const parent = await admin.from("contract_signature_requests").select("provider_document_id").eq("id", requestId).single();
-      if (parent.error) throw parent.error;
-      resolvedDocumentId = parent.data.provider_document_id;
-    }
-    if (!requestId || !resolvedDocumentId) throw new Error("AUTENTIQUE_SIGNATURE_REQUEST_NOT_FOUND");
+  const { payload, eventId, eventType, documentId } = accepted;
+  const data = payload.event?.data ?? {};
+  const occurredAt = payload.event?.created_at ?? new Date().toISOString();
+  let eventRowId: string | null = null;
 
-    const document = await fetchAutentiqueDocument(resolvedDocumentId);
-    await persistAutentiqueDocument(admin, requestId, document, payload);
-    const occurredAt = event.created_at ?? new Date().toISOString();
-    await applySignatureEvent(admin, requestId, type, publicId, occurredAt);
-    if (type === "document.finished") {
-      const approved = await admin.from("contract_signature_requests").update({ status: "completed", approved_at: occurredAt, last_webhook_payload: payload })
-        .eq("id", requestId).is("approved_at", null);
-      if (approved.error) throw approved.error;
-      const signed = await admin.from("contract_signature_signers").update({ status: "signed" })
-        .eq("signature_request_id", requestId).neq("status", "rejected");
-      if (signed.error) throw signed.error;
-      await notifyApprovedContract(admin, requestId);
+  try {
+    const claim = await claimEvent(admin, accepted);
+    eventRowId = claim.eventRowId;
+    if (!claim.claimed) {
+      log({ eventId, eventType, documentId, stage: "idempotency", result: "duplicate_event", durationMs: Date.now() - startedAt });
+      return;
     }
-    await admin.from("autentique_webhook_events").update({ processed_at: new Date().toISOString(), error_message: null }).eq("id", eventRowId);
+
+    if (!isRecognizedAutentiqueEvent(eventType)) {
+      await updateEvent(admin, eventRowId!, { processing_status: "ignored", processed_at: new Date().toISOString(), last_error: null, error_message: null });
+      log({ eventId, eventType, documentId, stage: "dispatch", result: "ignored", durationMs: Date.now() - startedAt });
+      return;
+    }
+
+    const publicId = publicIdFrom(data);
+    const resolved = await resolveRequest(admin, documentId, publicId);
+
+    if (eventType === "document.deleted") {
+      const deleted = await admin.from("contract_signature_requests").update({ status: "failed", error_message: "AUTENTIQUE_DOCUMENT_DELETED" })
+        .eq("id", resolved.requestId).is("approved_at", null);
+      if (deleted.error) throw deleted.error;
+    } else {
+      const document = await fetchAutentiqueDocument(resolved.documentId);
+      await persistAutentiqueDocument(admin, resolved.requestId, document, {
+        event: { id: eventId, type: eventType, documentId: resolved.documentId },
+      });
+      await applySignatureEvent(admin, resolved.requestId, eventType, publicId, occurredAt);
+    }
+
+    if (eventType === "document.finished") {
+      const approved = await admin.from("contract_signature_requests")
+        .update({ status: "completed", approved_at: occurredAt, last_webhook_payload: { event: { id: eventId, type: eventType, documentId: resolved.documentId } } })
+        .eq("id", resolved.requestId).is("approved_at", null).select("id").maybeSingle();
+      if (approved.error) throw approved.error;
+      if (approved.data) {
+        const signed = await admin.from("contract_signature_signers").update({ status: "signed" })
+          .eq("signature_request_id", resolved.requestId).neq("status", "rejected");
+        if (signed.error) throw signed.error;
+        await notifyApprovedContract(admin, resolved.requestId);
+      }
+    }
+
+    await updateEvent(admin, eventRowId!, { processing_status: "processed", processed_at: new Date().toISOString(), last_error: null, error_message: null });
+    log({ eventId, eventType, documentId: resolved.documentId, stage: "processing", result: "processed", durationMs: Date.now() - startedAt });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "AUTENTIQUE_WEBHOOK_PROCESSING_FAILED";
-    await admin.from("autentique_webhook_events").update({ error_message: message }).eq("id", eventRowId);
-    console.error("autentique-webhook processing failed", message);
+    const reason = sanitizedError(error);
+    if (eventRowId) {
+      await admin.from("autentique_webhook_events").update({ processing_status: "failed", last_error: reason, error_message: reason }).eq("id", eventRowId);
+    }
+    log({ eventId, eventType, documentId, stage: "processing", result: reason.includes("AUTENTIQUE_API") ? "autentique_api_error" : "database_error", error: reason, durationMs: Date.now() - startedAt });
   }
 }
 
-Deno.serve(async (request) => {
-  if (request.method !== "POST") return json({ error: "Método não permitido." }, 405);
-  const secret = Deno.env.get("AUTENTIQUE_WEBHOOK_SECRET")?.trim();
-  if (!secret) return json({ error: "Webhook não configurado." }, 503);
-  const rawBody = await request.text();
-  if (!await verifyAutentiqueWebhook(rawBody, request.headers.get("x-autentique-signature"), secret)) return json({ error: "Assinatura do webhook inválida." }, 401);
-  let payload: WebhookPayload;
-  try { payload = JSON.parse(rawBody) as WebhookPayload; } catch { return json({ error: "Payload inválido." }, 400); }
-  if (!payload.event?.type || !payload.event.data) return json({ error: "Evento inválido." }, 422);
-  const task = processWebhook(payload);
-  const runtime = (globalThis as unknown as { EdgeRuntime?: { waitUntil(promise: Promise<unknown>): void } }).EdgeRuntime;
-  if (runtime) runtime.waitUntil(task); else await task;
-  return json({ received: true });
+Deno.serve((request) => {
+  const runtime = (globalThis as unknown as { EdgeRuntime?: { waitUntil(promise: Promise<void>): void } }).EdgeRuntime;
+  return handleAutentiqueWebhookRequest(request, {
+    secret: Deno.env.get("AUTENTIQUE_WEBHOOK_SECRET")?.trim() ?? null,
+    process: processWebhook,
+    waitUntil: runtime ? (promise) => runtime.waitUntil(promise) : undefined,
+    log,
+  });
 });

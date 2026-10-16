@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2.93.3";
+export { verifyAutentiqueWebhook } from "./autentique-webhook-security.ts";
 
 const API_URL = "https://api.autentique.com.br/v2/graphql";
 
@@ -241,14 +242,4 @@ export async function persistAutentiqueDocument(
       : await admin.from("contract_signature_signers").insert({ signature_request_id: requestId, ...values });
     if (result.error) throw result.error;
   }
-}
-
-export async function verifyAutentiqueWebhook(rawBody: string, signature: string | null, secret: string): Promise<boolean> {
-  if (!signature || !/^[a-f0-9]{64}$/i.test(signature)) return false;
-  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-  const digest = new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(rawBody)));
-  const expected = Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("");
-  let difference = 0;
-  for (let index = 0; index < expected.length; index += 1) difference |= expected.charCodeAt(index) ^ signature.toLowerCase().charCodeAt(index);
-  return difference === 0;
 }
