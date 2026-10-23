@@ -3,6 +3,13 @@ import type { ClientExpirationAlerts, ExpirationAlertsDashboard, ExpirationAlert
 
 type Row = Record<string, unknown>;
 
+export type AlertChannelsTestResult = {
+  ok: boolean;
+  telegram: { status: "sent" | "failed" };
+  whatsapp: { status: "sent" | "failed" };
+  dedupeKey: string;
+};
+
 async function functionError(error: unknown): Promise<string> {
   if (error && typeof error === "object" && "context" in error) {
     const response = (error as { context?: unknown }).context;
@@ -56,7 +63,7 @@ export async function updateExpirationAlertSettings(input: { pointsEnabled: bool
   return invoke<{ ok: boolean }>({ action: "update_settings", ...input });
 }
 
-export async function testTelegramAlert() { return invoke<{ ok: boolean; message: string }>({ action: "test_telegram" }); }
+export async function testAlertChannels() { return invoke<AlertChannelsTestResult>({ action: "test_telegram" }); }
 export async function runExpirationAlerts() { return invoke<{ ok: boolean; sent: number; skipped: number; failed: number }>({ action: "run" }); }
 
 export async function getClientExpirationAlerts(clientId: string): Promise<ClientExpirationAlerts> {

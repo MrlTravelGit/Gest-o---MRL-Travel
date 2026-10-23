@@ -14,6 +14,7 @@ const requestSchema = z.discriminatedUnion("action", [
 
 type TelegramResponse = { ok?: boolean; result?: { message_id?: number }; description?: string };
 type WhatsAppAlertInput = { dedupeKey: string; message: string };
+type ChannelTestResult = { status: "sent" | "failed" };
 
 class OperationalError extends Error {}
 
@@ -94,11 +95,15 @@ function whatsappDedupeKey(candidate: AlertCandidate, today: string): string {
   return `whatsapp:points:${candidate.client_id}:${candidate.program_name}:${candidate.expires_at}:${candidate.threshold_days}:${today}`;
 }
 
-async function mirrorToWhatsApp(input: WhatsAppAlertInput) {
+async function mirrorToWhatsApp(input: WhatsAppAlertInput): Promise<ChannelTestResult> {
   try {
-    await sendWhatsAppForwarderAlert(input);
+    const result = await sendWhatsAppForwarderAlert(input);
+    if (result && typeof result === "object" && "skipped" in result && result.skipped === true) return { status: "failed" };
+    if (result && typeof result === "object" && "ok" in result && result.ok === false) return { status: "failed" };
+    return { status: "sent" };
   } catch (error) {
     console.error("[WHATSAPP ALERT] Falha ao enviar alerta:", error);
+    return { status: "failed" };
   }
 }
 
@@ -250,10 +255,18 @@ Deno.serve(async (request) => {
     }
     if (parsed.data.action === "test_telegram") {
       const message = "Teste de alerta MRL Travel concluído com sucesso.";
-      const messageId = await sendTelegram(message);
-      await mirrorToWhatsApp({ dedupeKey: `whatsapp:test:expiration-alerts:${saoPauloClock().date}`, message });
-      await adminClient().from("audit_logs").insert({ actor_user_id: actor.userId, action: "test_telegram_alert", table_name: "expiration_alert_settings", record_id: "true", new_data: { telegramMessageId: messageId, whatsappMirror: true } });
-      return jsonResponse(request, { ok: true, message: "Teste enviado com sucesso." });
+      const dedupeKey = `whatsapp:test:expiration-alerts:${Date.now()}`;
+      let messageId: number | null = null;
+      let telegram: ChannelTestResult = { status: "failed" };
+      try {
+        messageId = await sendTelegram(message);
+        telegram = { status: "sent" };
+      } catch (error) {
+        console.error("[TELEGRAM ALERT] Falha no teste controlado:", error instanceof Error ? error.message : "Falha desconhecida.");
+      }
+      const whatsapp = await mirrorToWhatsApp({ dedupeKey, message });
+      await adminClient().from("audit_logs").insert({ actor_user_id: actor.userId, action: "test_telegram_alert", table_name: "expiration_alert_settings", record_id: "true", new_data: { telegramMessageId: messageId, telegramStatus: telegram.status, whatsappStatus: whatsapp.status, whatsappDedupeKey: dedupeKey } });
+      return jsonResponse(request, { ok: telegram.status === "sent" && whatsapp.status === "sent", telegram, whatsapp, dedupeKey });
     }
     return jsonResponse(request, await runAlerts());
   } catch (error) {

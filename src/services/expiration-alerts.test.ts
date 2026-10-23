@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { supabase } from "@/lib/supabase";
-import { getExpirationAlertsDashboard, runExpirationAlerts, testTelegramAlert, updateExpirationAlertSettings } from "./expiration-alerts";
+import { getExpirationAlertsDashboard, runExpirationAlerts, testAlertChannels, updateExpirationAlertSettings } from "./expiration-alerts";
 
 vi.mock("@/lib/supabase", () => ({ supabase: { functions: { invoke: vi.fn() } } }));
 const invoke = vi.mocked(supabase.functions.invoke);
@@ -20,9 +20,9 @@ describe("expiration alerts service", () => {
   });
 
   it("usa ações administrativas explícitas para salvar, testar e executar", async () => {
-    invoke.mockResolvedValue({ data: { ok: true, message: "ok", sent: 0, skipped: 0, failed: 0 }, error: null });
+    invoke.mockResolvedValue({ data: { ok: true, telegram: { status: "sent" }, whatsapp: { status: "sent" }, dedupeKey: "whatsapp:test:expiration-alerts:1761240000000", sent: 0, skipped: 0, failed: 0 }, error: null });
     await updateExpirationAlertSettings({ pointsEnabled: true, managementEnabled: true, thresholdDays: [90, 7], dailyTime: "08:00" });
-    await testTelegramAlert();
+    await expect(testAlertChannels()).resolves.toMatchObject({ telegram: { status: "sent" }, whatsapp: { status: "sent" } });
     await runExpirationAlerts();
     expect(invoke).toHaveBeenNthCalledWith(1, "expiration-alerts", { body: { action: "update_settings", pointsEnabled: true, managementEnabled: true, thresholdDays: [90, 7], dailyTime: "08:00" } });
     expect(invoke).toHaveBeenNthCalledWith(2, "expiration-alerts", { body: { action: "test_telegram" } });
